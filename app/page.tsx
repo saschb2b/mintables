@@ -1,8 +1,12 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
+import ButtonGroup from "@mui/material/ButtonGroup";
+import Menu from "@mui/material/Menu";
+import MenuItem from "@mui/material/MenuItem";
+import ListItemText from "@mui/material/ListItemText";
 import Typography from "@mui/material/Typography";
 import Tabs from "@mui/material/Tabs";
 import Tab from "@mui/material/Tab";
@@ -11,16 +15,34 @@ import Drawer from "@mui/material/Drawer";
 import IconButton from "@mui/material/IconButton";
 import Divider from "@mui/material/Divider";
 import Stack from "@mui/material/Stack";
+import TextField from "@mui/material/TextField";
+import Tooltip from "@mui/material/Tooltip";
+import Snackbar from "@mui/material/Snackbar";
+import Dialog from "@mui/material/Dialog";
+import DialogTitle from "@mui/material/DialogTitle";
+import DialogContent from "@mui/material/DialogContent";
+import DialogActions from "@mui/material/DialogActions";
 import { TubePreview } from "@/components/tube-preview";
 import { TubeControls } from "@/components/tube-controls";
 import { AdapterPreview } from "@/components/adapter-preview";
 import { AdapterControls } from "@/components/adapter-controls";
 import { downloadSTL } from "@/lib/stl-generator";
 import { downloadAdapterSTL } from "@/lib/adapter-generator";
+import { downloadTube3MF, downloadAdapter3MF } from "@/lib/3mf-generator";
 import type { TubeConfig } from "@/lib/tube-types";
 import type { AdapterConfig } from "@/lib/adapter-types";
 import { DEFAULT_ROUND_CONFIG } from "@/lib/tube-types";
 import { DEFAULT_ADAPTER_CONFIG } from "@/lib/adapter-types";
+import {
+  buildShareUrl,
+  syncUrl,
+  readUrlParams,
+  listPresets,
+  savePreset,
+  deletePreset,
+  describeConfig,
+  type Preset,
+} from "@/lib/preset-storage";
 import {
   Download,
   RotateCcw,
@@ -35,46 +57,191 @@ import {
   Layers,
   Thermometer,
   Gauge,
+  ChevronDown,
+  Share2,
+  Bookmark,
+  Trash2,
+  Copy,
+  Check,
 } from "lucide-react";
 import GitHubIcon from "@mui/icons-material/GitHub";
 
 type TabType = "tube" | "adapter";
+type ExportFormat = "stl" | "3mf";
 
-function getInitialTab(): TabType {
-  if (typeof window === "undefined") return "tube";
-  const params = new URLSearchParams(window.location.search);
-  return params.get("tab") === "adapter" ? "adapter" : "tube";
-}
+const EXPORT_FORMAT_STORAGE_KEY = "tubecraft.exportFormat";
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<TabType>(getInitialTab);
-
-  const handleTabChange = useCallback((tab: TabType) => {
-    setActiveTab(tab);
-    const url = tab === "tube" ? "/" : "/?tab=adapter";
-    window.history.replaceState(null, "", url);
-  }, []);
+  // Initial render uses defaults so SSR + client hydration agree. URL params
+  // and localStorage are read after mount in the effect below.
+  const [activeTab, setActiveTab] = useState<TabType>("tube");
   const [tubeConfig, setTubeConfig] =
     useState<TubeConfig>(DEFAULT_ROUND_CONFIG);
   const [adapterConfig, setAdapterConfig] = useState<AdapterConfig>(
     DEFAULT_ADAPTER_CONFIG,
   );
+  const [hydrated, setHydrated] = useState(false);
+
+  const handleTabChange = useCallback((tab: TabType) => {
+    setActiveTab(tab);
+  }, []);
+
+  // Hydrate from URL once, after mount. setState-in-effect is required here
+  // because URL params are not available during SSR.
+  useEffect(() => {
+    const parsed = readUrlParams();
+    /* eslint-disable react-hooks/set-state-in-effect */
+    setActiveTab(parsed.tab);
+    if (parsed.tubeConfig) setTubeConfig(parsed.tubeConfig);
+    if (parsed.adapterConfig) setAdapterConfig(parsed.adapterConfig);
+    setHydrated(true);
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, []);
+
+  // Keep the URL in sync with the active tab + its config. Skipped until after
+  // hydration so we don't overwrite the URL with defaults on first paint.
+  useEffect(() => {
+    if (!hydrated) return;
+    const config = activeTab === "tube" ? tubeConfig : adapterConfig;
+    syncUrl(activeTab, config);
+  }, [hydrated, activeTab, tubeConfig, adapterConfig]);
+
   const [showThankYou, setShowThankYou] = useState(false);
+  const [exportFormat, setExportFormat] = useState<ExportFormat>("stl");
+  const [formatMenuOpen, setFormatMenuOpen] = useState(false);
+  const [downloadAnchor, setDownloadAnchor] = useState<HTMLDivElement | null>(
+    null,
+  );
+
+  const [toast, setToast] = useState<string | null>(null);
+  const [presetsAnchor, setPresetsAnchor] = useState<HTMLElement | null>(null);
+  const [presets, setPresets] = useState<Preset[]>([]);
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [saveDialogName, setSaveDialogName] = useState("");
+  const [activePreset, setActivePreset] = useState<{
+    id: string;
+    name: string;
+    snapshot: string;
+  } | null>(null);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
+
+  const activeConfig = activeTab === "tube" ? tubeConfig : adapterConfig;
+  const activeConfigJson = useMemo(
+    () => JSON.stringify(activeConfig),
+    [activeConfig],
+  );
+  const presetModified =
+    activePreset !== null && activeConfigJson !== activePreset.snapshot;
+  const activeConfigSummary = describeConfig(activeTab, activeConfig);
+  const shareUrl = useMemo(
+    () => (hydrated ? buildShareUrl(activeTab, activeConfig) : ""),
+    [hydrated, activeTab, activeConfig],
+  );
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem(EXPORT_FORMAT_STORAGE_KEY);
+    /* eslint-disable react-hooks/set-state-in-effect */
+    if (stored === "3mf") setExportFormat("3mf");
+    setPresets(listPresets());
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, []);
+
+  const setExportFormatPersisted = useCallback((format: ExportFormat) => {
+    setExportFormat(format);
+    window.localStorage.setItem(EXPORT_FORMAT_STORAGE_KEY, format);
+  }, []);
+
+  const handleOpenShare = () => {
+    setShareCopied(false);
+    setShareDialogOpen(true);
+  };
+
+  const handleCopyShareUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setShareCopied(true);
+      window.setTimeout(() => {
+        setShareCopied(false);
+      }, 2000);
+    } catch {
+      window.prompt("Copy this URL:", shareUrl);
+    }
+  };
+
+  const handleOpenSaveDialog = () => {
+    setPresetsAnchor(null);
+    const suggested =
+      activeTab === "tube"
+        ? `${tubeConfig.shape} ${String(tubeConfig.length)}mm`
+        : `${adapterConfig.endA.shape}→${adapterConfig.endB.shape} ${String(adapterConfig.bendAngle)}°`;
+    setSaveDialogName(suggested);
+    setSaveDialogOpen(true);
+  };
+
+  const handleSavePreset = () => {
+    const config = activeTab === "tube" ? tubeConfig : adapterConfig;
+    const preset = savePreset(saveDialogName, activeTab, config);
+    setPresets(listPresets());
+    setSaveDialogOpen(false);
+    setActivePreset({
+      id: preset.id,
+      name: preset.name,
+      snapshot: JSON.stringify(config),
+    });
+    setToast(`Saved preset "${preset.name}"`);
+  };
+
+  const handleLoadPreset = (preset: Preset) => {
+    setActiveTab(preset.tab);
+    if (preset.tab === "tube") {
+      setTubeConfig(preset.config as TubeConfig);
+    } else {
+      setAdapterConfig(preset.config as AdapterConfig);
+    }
+    setActivePreset({
+      id: preset.id,
+      name: preset.name,
+      snapshot: JSON.stringify(preset.config),
+    });
+    setPresetsAnchor(null);
+    setToast(`Loaded preset "${preset.name}"`);
+  };
+
+  const handleDeletePreset = (preset: Preset) => {
+    deletePreset(preset.id);
+    setPresets(listPresets());
+    if (activePreset?.id === preset.id) setActivePreset(null);
+    setToast(`Deleted preset "${preset.name}"`);
+  };
+
+  const handleClearActivePreset = () => {
+    setActivePreset(null);
+  };
 
   const handleDownload = () => {
     if (activeTab === "tube") {
       const shapeName = tubeConfig.shape;
       const clamshellSuffix = tubeConfig.clamshell.enabled ? "-clamshell" : "";
-      const filename = `tube-${shapeName}${clamshellSuffix}-${String(tubeConfig.length)}mm.stl`;
-      downloadSTL(tubeConfig, filename);
+      const base = `tube-${shapeName}${clamshellSuffix}-${String(tubeConfig.length)}mm`;
+      if (exportFormat === "3mf") {
+        downloadTube3MF(tubeConfig, `${base}.3mf`);
+      } else {
+        downloadSTL(tubeConfig, `${base}.stl`);
+      }
     } else {
-      const filename = `adapter-${adapterConfig.endA.shape}-to-${adapterConfig.endB.shape}-${String(adapterConfig.bendAngle)}deg.stl`;
-      downloadAdapterSTL(adapterConfig, filename);
+      const base = `adapter-${adapterConfig.endA.shape}-to-${adapterConfig.endB.shape}-${String(adapterConfig.bendAngle)}deg`;
+      if (exportFormat === "3mf") {
+        downloadAdapter3MF(adapterConfig, `${base}.3mf`);
+      } else {
+        downloadAdapterSTL(adapterConfig, `${base}.stl`);
+      }
     }
     setShowThankYou(true);
   };
 
   const handleReset = () => {
+    setActivePreset(null);
     if (activeTab === "tube") {
       setTubeConfig(DEFAULT_ROUND_CONFIG);
     } else {
@@ -253,16 +420,148 @@ export default function Home() {
         {/* Actions */}
         <Box sx={{ borderTop: 1, borderColor: "divider", p: 2 }}>
           <Stack spacing={1}>
-            <Button
-              onClick={handleDownload}
+            <ButtonGroup
+              ref={setDownloadAnchor}
               variant="contained"
-              size="large"
-              fullWidth
-              startIcon={<Download size={16} />}
               color="primary"
+              fullWidth
+              aria-label="Download model"
             >
-              Download STL
-            </Button>
+              <Button
+                onClick={handleDownload}
+                size="large"
+                startIcon={<Download size={16} />}
+                sx={{
+                  flexGrow: 1,
+                  flexShrink: 1,
+                  whiteSpace: "nowrap",
+                  px: 1.5,
+                }}
+              >
+                Download {exportFormat.toUpperCase()}
+              </Button>
+              <Button
+                size="large"
+                onClick={() => setFormatMenuOpen(true)}
+                aria-label="Choose export format"
+                sx={{
+                  flexGrow: 0,
+                  flexShrink: 0,
+                  flexBasis: 40,
+                  minWidth: 40,
+                  px: 0,
+                }}
+              >
+                <ChevronDown size={16} />
+              </Button>
+            </ButtonGroup>
+            <Menu
+              anchorEl={downloadAnchor}
+              open={formatMenuOpen}
+              onClose={() => setFormatMenuOpen(false)}
+              anchorOrigin={{ vertical: "top", horizontal: "right" }}
+              transformOrigin={{ vertical: "bottom", horizontal: "right" }}
+              slotProps={{
+                paper: { sx: { minWidth: downloadAnchor?.offsetWidth } },
+              }}
+            >
+              <MenuItem
+                selected={exportFormat === "stl"}
+                onClick={() => {
+                  setExportFormatPersisted("stl");
+                  setFormatMenuOpen(false);
+                }}
+              >
+                <ListItemText primary="STL" secondary="Universal, no units" />
+              </MenuItem>
+              <MenuItem
+                selected={exportFormat === "3mf"}
+                onClick={() => {
+                  setExportFormatPersisted("3mf");
+                  setFormatMenuOpen(false);
+                }}
+              >
+                <ListItemText
+                  primary="3MF"
+                  secondary="Modern, preserves mm units"
+                />
+              </MenuItem>
+            </Menu>
+            <Stack direction="row" spacing={1}>
+              <Tooltip title="Get a link to this exact configuration">
+                <Button
+                  onClick={handleOpenShare}
+                  variant="outlined"
+                  size="small"
+                  fullWidth
+                  startIcon={<Share2 size={14} />}
+                >
+                  Share
+                </Button>
+              </Tooltip>
+              <Button
+                onClick={(e) => setPresetsAnchor(e.currentTarget)}
+                variant="outlined"
+                size="small"
+                fullWidth
+                startIcon={<Bookmark size={14} />}
+                endIcon={<ChevronDown size={12} />}
+              >
+                Presets
+              </Button>
+            </Stack>
+            <Menu
+              anchorEl={presetsAnchor}
+              open={Boolean(presetsAnchor)}
+              onClose={() => setPresetsAnchor(null)}
+              anchorOrigin={{ vertical: "top", horizontal: "right" }}
+              transformOrigin={{ vertical: "bottom", horizontal: "right" }}
+              slotProps={{ paper: { sx: { minWidth: 260, maxWidth: 360 } } }}
+            >
+              <MenuItem onClick={handleOpenSaveDialog}>
+                <ListItemText
+                  primary="Save current as preset…"
+                  secondary={`Saves the active ${activeTab}`}
+                />
+              </MenuItem>
+              {presets.length > 0 && <Divider />}
+              {presets.length === 0 ? (
+                <MenuItem disabled>
+                  <ListItemText
+                    secondary="No presets saved yet"
+                    slotProps={{ secondary: { sx: { fontStyle: "italic" } } }}
+                  />
+                </MenuItem>
+              ) : (
+                presets.map((p) => (
+                  <MenuItem
+                    key={p.id}
+                    onClick={() => handleLoadPreset(p)}
+                    sx={{ pr: 1 }}
+                  >
+                    <ListItemText
+                      primary={p.name}
+                      secondary={p.tab}
+                      slotProps={{
+                        secondary: { sx: { textTransform: "capitalize" } },
+                      }}
+                    />
+                    <IconButton
+                      size="small"
+                      edge="end"
+                      aria-label={`Delete preset ${p.name}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeletePreset(p);
+                      }}
+                      sx={{ ml: 1 }}
+                    >
+                      <Trash2 size={14} />
+                    </IconButton>
+                  </MenuItem>
+                ))
+              )}
+            </Menu>
             <Button
               onClick={handleReset}
               variant="text"
@@ -372,6 +671,43 @@ export default function Home() {
                   </Typography>
                 )}
               </>
+            )}
+            {activePreset && (
+              <Tooltip
+                title={
+                  presetModified
+                    ? `You've changed values since loading "${activePreset.name}". Save as a new preset to keep these changes.`
+                    : `Currently editing the preset "${activePreset.name}".`
+                }
+              >
+                <Chip
+                  icon={<Bookmark size={12} />}
+                  label={
+                    presetModified
+                      ? `${activePreset.name} • modified`
+                      : activePreset.name
+                  }
+                  size="small"
+                  onDelete={handleClearActivePreset}
+                  sx={{
+                    bgcolor: presetModified
+                      ? "rgba(245, 158, 11, 0.15)"
+                      : "rgba(34, 197, 94, 0.15)",
+                    color: presetModified ? "#f59e0b" : "#22c55e",
+                    fontSize: "0.75rem",
+                    height: 24,
+                    "& .MuiChip-icon": {
+                      color: "inherit",
+                      marginLeft: "6px",
+                    },
+                    "& .MuiChip-deleteIcon": {
+                      color: "inherit",
+                      opacity: 0.7,
+                      "&:hover": { opacity: 1, color: "inherit" },
+                    },
+                  }}
+                />
+              </Tooltip>
             )}
             {badges.map((badge, i) => (
               <Chip
@@ -497,7 +833,7 @@ export default function Home() {
 
           <Stack spacing={2.5}>
             <Typography variant="body2" color="text.secondary">
-              Your STL file is ready for 3D printing.
+              Your {exportFormat.toUpperCase()} file is ready for 3D printing.
             </Typography>
 
             <Divider />
@@ -598,6 +934,118 @@ export default function Home() {
           </Stack>
         </Box>
       </Drawer>
+
+      <Dialog
+        open={saveDialogOpen}
+        onClose={() => setSaveDialogOpen(false)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>Save preset</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            fullWidth
+            label="Preset name"
+            value={saveDialogName}
+            onChange={(e) => setSaveDialogName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && saveDialogName.trim()) {
+                handleSavePreset();
+              }
+            }}
+            sx={{ mt: 1 }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSaveDialogOpen(false)}>Cancel</Button>
+          <Button
+            onClick={handleSavePreset}
+            variant="contained"
+            disabled={!saveDialogName.trim()}
+          >
+            Save
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={shareDialogOpen}
+        onClose={() => setShareDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Share this configuration</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <Box>
+              <Typography
+                variant="overline"
+                color="text.secondary"
+                sx={{ display: "block", mb: 0.5 }}
+              >
+                What you&apos;re sharing
+              </Typography>
+              <Typography variant="body2">{activeConfigSummary}</Typography>
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ display: "block", mt: 0.5 }}
+              >
+                Anyone opening this link sees the same {activeTab} with every
+                dimension and option preserved.
+              </Typography>
+            </Box>
+            <Box>
+              <Typography
+                variant="overline"
+                color="text.secondary"
+                sx={{ display: "block", mb: 0.5 }}
+              >
+                Link
+              </Typography>
+              <Stack direction="row" spacing={1} alignItems="flex-start">
+                <TextField
+                  fullWidth
+                  size="small"
+                  value={shareUrl}
+                  slotProps={{
+                    input: {
+                      readOnly: true,
+                      onFocus: (e) => {
+                        (e.target as HTMLInputElement).select();
+                      },
+                    },
+                  }}
+                />
+                <Button
+                  onClick={() => {
+                    void handleCopyShareUrl();
+                  }}
+                  variant="contained"
+                  startIcon={
+                    shareCopied ? <Check size={14} /> : <Copy size={14} />
+                  }
+                  sx={{ flexShrink: 0, whiteSpace: "nowrap" }}
+                >
+                  {shareCopied ? "Copied" : "Copy"}
+                </Button>
+              </Stack>
+            </Box>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShareDialogOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Snackbar
+        open={toast !== null}
+        autoHideDuration={2500}
+        onClose={() => setToast(null)}
+        message={toast}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      />
     </Box>
   );
 }

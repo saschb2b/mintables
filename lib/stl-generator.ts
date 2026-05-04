@@ -1122,6 +1122,29 @@ export function generateSTL(config: TubeConfig): ArrayBuffer {
   return generateRectangularTubeSTL(config);
 }
 
+export function generateTubeTriangles(config: TubeConfig): number[][] {
+  const buffer = generateSTL(config);
+  return parseTrianglesFromSTL(buffer);
+}
+
+function parseTrianglesFromSTL(buffer: ArrayBuffer): number[][] {
+  const view = new DataView(buffer);
+  const numTriangles = view.getUint32(80, true);
+  const triangles: number[][] = [];
+  let offset = 84;
+  for (let i = 0; i < numTriangles; i++) {
+    offset += 12; // skip normal
+    const tri: number[] = [];
+    for (let j = 0; j < 9; j++) {
+      tri.push(view.getFloat32(offset, true));
+      offset += 4;
+    }
+    triangles.push(tri);
+    offset += 2; // skip attribute byte count
+  }
+  return triangles;
+}
+
 export function downloadSTL(config: TubeConfig, filename = "tube.stl"): void {
   const buffer = generateSTL(config);
   const blob = new Blob([buffer], { type: "application/octet-stream" });
