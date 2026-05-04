@@ -25,3 +25,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# claude
+.claude/settings.local.json
+# Skill data/scripts are mirrored from .agents/skills/ at runtime — track only SKILL.md
+.claude/skills/*/data/
+.claude/skills/*/scripts/
