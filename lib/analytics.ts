@@ -56,10 +56,7 @@ export function trackPageview(): void {
   });
 }
 
-export function trackEvent(
-  name: string,
-  data?: Record<string, unknown>,
-): void {
+export function trackEvent(name: string, data?: Record<string, unknown>): void {
   const url = normalizedUrl();
   withUmami((u) => {
     u.track((payload) => ({ ...payload, url, name, data }));
