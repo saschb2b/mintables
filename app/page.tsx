@@ -43,6 +43,7 @@ import {
   describeConfig,
   type Preset,
 } from "@/lib/preset-storage";
+import { trackPageview, trackEvent } from "@/lib/analytics";
 import {
   Download,
   RotateCcw,
@@ -96,6 +97,13 @@ export default function Home() {
     if (parsed.adapterConfig) setAdapterConfig(parsed.adapterConfig);
     setHydrated(true);
     /* eslint-enable react-hooks/set-state-in-effect */
+  }, []);
+
+  // Umami auto-tracking is disabled (see app/layout.tsx) because syncUrl()
+  // calls history.replaceState on every form change, which Umami would
+  // otherwise count as a pageview. Fire one pageview manually on mount.
+  useEffect(() => {
+    trackPageview();
   }, []);
 
   // Keep the URL in sync with the active tab + its config. Skipped until after
@@ -164,6 +172,7 @@ export default function Home() {
       window.setTimeout(() => {
         setShareCopied(false);
       }, 2000);
+      trackEvent("share_copy", { tab: activeTab });
     } catch {
       window.prompt("Copy this URL:", shareUrl);
     }
@@ -190,6 +199,7 @@ export default function Home() {
       snapshot: JSON.stringify(config),
     });
     setToast(`Saved preset "${preset.name}"`);
+    trackEvent("preset_save", { tab: activeTab });
   };
 
   const handleLoadPreset = (preset: Preset) => {
@@ -206,6 +216,7 @@ export default function Home() {
     });
     setPresetsAnchor(null);
     setToast(`Loaded preset "${preset.name}"`);
+    trackEvent("preset_load", { tab: preset.tab });
   };
 
   const handleDeletePreset = (preset: Preset) => {
@@ -213,6 +224,7 @@ export default function Home() {
     setPresets(listPresets());
     if (activePreset?.id === preset.id) setActivePreset(null);
     setToast(`Deleted preset "${preset.name}"`);
+    trackEvent("preset_delete", { tab: preset.tab });
   };
 
   const handleClearActivePreset = () => {
@@ -229,6 +241,16 @@ export default function Home() {
       } else {
         downloadSTL(tubeConfig, `${base}.stl`);
       }
+      trackEvent("download", {
+        type: "tube",
+        format: exportFormat,
+        shape: shapeName,
+        length: tubeConfig.length,
+        clamshell: tubeConfig.clamshell.enabled,
+        flare: tubeConfig.flare.enabled,
+        topCut: tubeConfig.topCut.type,
+        bottomCut: tubeConfig.bottomCut.type,
+      });
     } else {
       const base = `adapter-${adapterConfig.endA.shape}-to-${adapterConfig.endB.shape}-${String(adapterConfig.bendAngle)}deg`;
       if (exportFormat === "3mf") {
@@ -236,6 +258,15 @@ export default function Home() {
       } else {
         downloadAdapterSTL(adapterConfig, `${base}.stl`);
       }
+      trackEvent("download", {
+        type: "adapter",
+        format: exportFormat,
+        endA: adapterConfig.endA.shape,
+        endB: adapterConfig.endB.shape,
+        bendAngle: adapterConfig.bendAngle,
+        endAFit: adapterConfig.endAFit,
+        endBFit: adapterConfig.endBFit,
+      });
     }
     setShowThankYou(true);
   };

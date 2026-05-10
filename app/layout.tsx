@@ -55,6 +55,7 @@ export default function RootLayout({
           async
           src="https://umami.saschb2b.com/script.js"
           data-website-id="51c8e9a6-abd3-475a-bca2-db808244f8c0"
+          data-auto-track="false"
         />
       </head>
       <body className={geistSans.className}>
