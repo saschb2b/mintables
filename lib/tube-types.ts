@@ -139,6 +139,15 @@ export type TubeConfig =
 export type TopCutConfig = EndCutConfig;
 export type TopCutType = CutType;
 
+export const FLARE_FIT_CLEARANCE: Record<
+  FlareConfig["fitType"],
+  number
+> = {
+  loose: 0.3,
+  snug: 0.15,
+  interference: -0.05,
+};
+
 export const DEFAULT_FLARE: FlareConfig = {
   enabled: false,
   diameter: 55,

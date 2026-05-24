@@ -15,7 +15,12 @@ export interface Preset {
   tab: Tab;
   config: TubeConfig | AdapterConfig;
   createdAt: number;
+  /** Increment when preset payload shape changes (localStorage only). */
+  schemaVersion?: number;
 }
+
+/** Bump when preset/config shape changes; used for localStorage presets. */
+export const CONFIG_SCHEMA_VERSION = 1;
 
 const PRESET_KEY = "tubecraft.presets";
 
@@ -159,6 +164,7 @@ export function savePreset(
     tab,
     config,
     createdAt: Date.now(),
+    schemaVersion: CONFIG_SCHEMA_VERSION,
   };
   const next = [preset, ...listPresets()];
   writePresets(next);

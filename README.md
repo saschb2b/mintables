@@ -68,16 +68,23 @@ Build custom connectors like LEGO pieces to join any tubes together.
 
 ---
 
+### Export & Sharing
+- **STL and 3MF** export with millimeter units preserved in 3MF
+- **Share links** — URL encodes your full configuration
+- **Local presets** — save and reload designs in the browser
+- **Validation** — invalid dimensions are caught before export
+
 ### Real-Time 3D Preview
 - Professional CAD-style metallic rendering
+- Preview matches export geometry (shared mesh pipeline)
 - Interactive dimension indicators
 - Grid floor with axis visualization
 - Orbit controls (drag to rotate, scroll to zoom)
 
-### STL Export
+### Mesh Quality
 - Watertight mesh generation (no open edges)
+- Degenerate triangle checks before download
 - Compatible with all major slicers
-- Optimized for 3D printing
 
 ---
 
@@ -97,15 +104,10 @@ Build custom connectors like LEGO pieces to join any tubes together.
 ### Installation
 
 ```bash
-# Clone the repository
 git clone https://github.com/saschb2b/tubecraft.git
 cd tubecraft
-
-# Install dependencies
-npm install
-
-# Run development server
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
@@ -118,7 +120,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 3. **Configure Ends** - Add miters, chamfers, or saddle cuts as needed
 4. **Enable Press-Fit** - Toggle flare and adjust fit tolerance
 5. **Preview** - Rotate and inspect your design in 3D
-6. **Download STL** - Export for immediate 3D printing
+6. **Download STL or 3MF** — export when validation passes
 
 #### Adapter Generator
 1. **Switch to Adapters tab**
@@ -132,23 +134,36 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## Tech Stack
 
-- **Next.js 15** - React framework with App Router
-- **React Three Fiber** - 3D rendering with Three.js
-- **TypeScript** - Type-safe development
-- **Tailwind CSS v4** - Utility-first styling
-- **shadcn/ui** - Beautiful UI components
+- **Next.js 16** — React framework with App Router
+- **Material UI v7** — UI components and dark theme
+- **React Three Fiber** — 3D rendering with Three.js
+- **TypeScript** — Type-safe development
+- **Vitest** — Unit tests for mesh generation and validation
+
+---
+
+## Development
+
+```bash
+pnpm install
+pnpm dev          # development server
+pnpm test         # unit tests
+pnpm typecheck    # TypeScript
+pnpm lint         # ESLint
+pnpm build        # production build
+```
 
 ---
 
 ## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
 
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/amazing-feature`)
 3. Commit your changes (`git commit -m 'Add amazing feature'`)
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
+
+Run `pnpm test` before opening a PR — CI requires lint, format, typecheck, and tests to pass.
 
 ---
 

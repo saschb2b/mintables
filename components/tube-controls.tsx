@@ -21,6 +21,7 @@ import {
   DEFAULT_ROUND_CONFIG,
   DEFAULT_SQUARE_CONFIG,
   DEFAULT_RECTANGULAR_CONFIG,
+  FLARE_FIT_CLEARANCE,
 } from "@/lib/tube-types";
 
 interface TubeControlsProps {
@@ -603,11 +604,13 @@ export function TubeControls({ config, onChange }: TubeControlsProps) {
                   size="small"
                   label="Fit Type"
                   value={config.flare.fitType}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    const fitType = e.target.value as FlareConfig["fitType"];
                     updateFlare({
-                      fitType: e.target.value as FlareConfig["fitType"],
-                    })
-                  }
+                      fitType,
+                      clearance: FLARE_FIT_CLEARANCE[fitType],
+                    });
+                  }}
                   fullWidth
                 >
                   <MenuItem value="loose">Loose (0.3mm)</MenuItem>

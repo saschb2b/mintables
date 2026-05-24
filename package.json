@@ -9,17 +9,16 @@
     "lint": "eslint .",
     "start": "next start",
     "format:check": "prettier --check .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@emotion/cache": "^11.14.0",
     "@emotion/react": "^11.14.0",
     "@emotion/server": "latest",
     "@emotion/styled": "^11.14.1",
-    "@jscad/modeling": "^2.13.0",
-    "@jscad/stl-serializer": "^2.1.23",
     "@mui/icons-material": "^7.3.9",
-    "@mui/lab": "7.0.1-beta.23",
     "@mui/material": "^7.3.9",
     "@mui/material-nextjs": "^7.3.9",
     "@mui/system": "^7.3.9",
@@ -43,6 +42,7 @@
     "eslint-config-prettier": "^10.1.8",
     "prettier": "3.8.1",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.57.0"
+    "typescript-eslint": "^8.57.0",
+    "vitest": "^3.2.4"
   }
 }

@@ -11,24 +11,25 @@ import Typography from "@mui/material/Typography";
 import Tabs from "@mui/material/Tabs";
 import Tab from "@mui/material/Tab";
 import Chip from "@mui/material/Chip";
-import Drawer from "@mui/material/Drawer";
 import IconButton from "@mui/material/IconButton";
 import Divider from "@mui/material/Divider";
 import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
 import Snackbar from "@mui/material/Snackbar";
-import Dialog from "@mui/material/Dialog";
-import DialogTitle from "@mui/material/DialogTitle";
-import DialogContent from "@mui/material/DialogContent";
-import DialogActions from "@mui/material/DialogActions";
-import { TubePreview } from "@/components/tube-preview";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { TubeControls } from "@/components/tube-controls";
-import { AdapterPreview } from "@/components/adapter-preview";
 import { AdapterControls } from "@/components/adapter-controls";
-import { downloadSTL } from "@/lib/stl-generator";
-import { downloadAdapterSTL } from "@/lib/adapter-generator";
-import { downloadTube3MF, downloadAdapter3MF } from "@/lib/3mf-generator";
+import { PreviewPanel } from "@/components/preview-panel";
+import { ThankYouDrawer } from "@/components/thank-you-drawer";
+import { ShareDialog } from "@/components/share-dialog";
+import { SavePresetDialog } from "@/components/save-preset-dialog";
+import { ValidationBanner } from "@/components/validation-banner";
+import {
+  exportTubeModel,
+  exportAdapterModel,
+  ExportError,
+} from "@/lib/export-model";
+import { validateConfig } from "@/lib/validation";
 import type { TubeConfig } from "@/lib/tube-types";
 import type { AdapterConfig } from "@/lib/adapter-types";
 import { DEFAULT_ROUND_CONFIG } from "@/lib/tube-types";
@@ -51,19 +52,10 @@ import {
   Coffee,
   Heart,
   Link2,
-  X,
-  Star,
-  ExternalLink,
-  Printer,
-  Layers,
-  Thermometer,
-  Gauge,
-  ChevronDown,
   Share2,
   Bookmark,
   Trash2,
-  Copy,
-  Check,
+  ChevronDown,
 } from "lucide-react";
 import GitHubIcon from "@mui/icons-material/GitHub";
 
@@ -87,16 +79,17 @@ export default function Home() {
     setActiveTab(tab);
   }, []);
 
+  const debouncedTubeConfig = useDebouncedValue(tubeConfig, 500);
+  const debouncedAdapterConfig = useDebouncedValue(adapterConfig, 500);
+
   // Hydrate from URL once, after mount. setState-in-effect is required here
   // because URL params are not available during SSR.
   useEffect(() => {
     const parsed = readUrlParams();
-    /* eslint-disable react-hooks/set-state-in-effect */
     setActiveTab(parsed.tab);
     if (parsed.tubeConfig) setTubeConfig(parsed.tubeConfig);
     if (parsed.adapterConfig) setAdapterConfig(parsed.adapterConfig);
     setHydrated(true);
-    /* eslint-enable react-hooks/set-state-in-effect */
   }, []);
 
   // Umami auto-tracking is disabled (see app/layout.tsx) because syncUrl()
@@ -110,9 +103,15 @@ export default function Home() {
   // hydration so we don't overwrite the URL with defaults on first paint.
   useEffect(() => {
     if (!hydrated) return;
-    const config = activeTab === "tube" ? tubeConfig : adapterConfig;
+    const config =
+      activeTab === "tube" ? debouncedTubeConfig : debouncedAdapterConfig;
     syncUrl(activeTab, config);
-  }, [hydrated, activeTab, tubeConfig, adapterConfig]);
+  }, [
+    hydrated,
+    activeTab,
+    debouncedTubeConfig,
+    debouncedAdapterConfig,
+  ]);
 
   const [showThankYou, setShowThankYou] = useState(false);
   const [exportFormat, setExportFormat] = useState<ExportFormat>("stl");
@@ -133,8 +132,14 @@ export default function Home() {
   } | null>(null);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const activeConfig = activeTab === "tube" ? tubeConfig : adapterConfig;
+  const validation = useMemo(
+    () => validateConfig(activeTab, activeConfig),
+    [activeTab, activeConfig],
+  );
+  const exportBlocked = validation.errors.length > 0;
   const activeConfigJson = useMemo(
     () => JSON.stringify(activeConfig),
     [activeConfig],
@@ -149,10 +154,8 @@ export default function Home() {
 
   useEffect(() => {
     const stored = window.localStorage.getItem(EXPORT_FORMAT_STORAGE_KEY);
-    /* eslint-disable react-hooks/set-state-in-effect */
     if (stored === "3mf") setExportFormat("3mf");
     setPresets(listPresets());
-    /* eslint-enable react-hooks/set-state-in-effect */
   }, []);
 
   const setExportFormatPersisted = useCallback((format: ExportFormat) => {
@@ -232,43 +235,50 @@ export default function Home() {
   };
 
   const handleDownload = () => {
-    if (activeTab === "tube") {
-      const shapeName = tubeConfig.shape;
-      const clamshellSuffix = tubeConfig.clamshell.enabled ? "-clamshell" : "";
-      const base = `tube-${shapeName}${clamshellSuffix}-${String(tubeConfig.length)}mm`;
-      if (exportFormat === "3mf") {
-        downloadTube3MF(tubeConfig, `${base}.3mf`);
+    if (exportBlocked || exporting) return;
+
+    setExporting(true);
+    try {
+      if (activeTab === "tube") {
+        const shapeName = tubeConfig.shape;
+        const clamshellSuffix = tubeConfig.clamshell.enabled ? "-clamshell" : "";
+        const base = `tube-${shapeName}${clamshellSuffix}-${String(tubeConfig.length)}mm`;
+        const filename = `${base}.${exportFormat}`;
+        exportTubeModel(tubeConfig, exportFormat, filename);
+        trackEvent("download", {
+          type: "tube",
+          format: exportFormat,
+          shape: shapeName,
+          length: tubeConfig.length,
+          clamshell: tubeConfig.clamshell.enabled,
+          flare: tubeConfig.flare.enabled,
+          topCut: tubeConfig.topCut.type,
+          bottomCut: tubeConfig.bottomCut.type,
+        });
       } else {
-        downloadSTL(tubeConfig, `${base}.stl`);
+        const base = `adapter-${adapterConfig.endA.shape}-to-${adapterConfig.endB.shape}-${String(adapterConfig.bendAngle)}deg`;
+        const filename = `${base}.${exportFormat}`;
+        exportAdapterModel(adapterConfig, exportFormat, filename);
+        trackEvent("download", {
+          type: "adapter",
+          format: exportFormat,
+          endA: adapterConfig.endA.shape,
+          endB: adapterConfig.endB.shape,
+          bendAngle: adapterConfig.bendAngle,
+          endAFit: adapterConfig.endAFit,
+          endBFit: adapterConfig.endBFit,
+        });
       }
-      trackEvent("download", {
-        type: "tube",
-        format: exportFormat,
-        shape: shapeName,
-        length: tubeConfig.length,
-        clamshell: tubeConfig.clamshell.enabled,
-        flare: tubeConfig.flare.enabled,
-        topCut: tubeConfig.topCut.type,
-        bottomCut: tubeConfig.bottomCut.type,
-      });
-    } else {
-      const base = `adapter-${adapterConfig.endA.shape}-to-${adapterConfig.endB.shape}-${String(adapterConfig.bendAngle)}deg`;
-      if (exportFormat === "3mf") {
-        downloadAdapter3MF(adapterConfig, `${base}.3mf`);
-      } else {
-        downloadAdapterSTL(adapterConfig, `${base}.stl`);
-      }
-      trackEvent("download", {
-        type: "adapter",
-        format: exportFormat,
-        endA: adapterConfig.endA.shape,
-        endB: adapterConfig.endB.shape,
-        bendAngle: adapterConfig.bendAngle,
-        endAFit: adapterConfig.endAFit,
-        endBFit: adapterConfig.endBFit,
-      });
+      setShowThankYou(true);
+    } catch (err) {
+      const message =
+        err instanceof ExportError
+          ? err.message
+          : "Export failed. Try adjusting dimensions and export again.";
+      setToast(message);
+    } finally {
+      setExporting(false);
     }
-    setShowThankYou(true);
   };
 
   const handleReset = () => {
@@ -461,6 +471,7 @@ export default function Home() {
               <Button
                 onClick={handleDownload}
                 size="large"
+                disabled={exportBlocked || exporting}
                 startIcon={<Download size={16} />}
                 sx={{
                   flexGrow: 1,
@@ -469,7 +480,11 @@ export default function Home() {
                   px: 1.5,
                 }}
               >
-                Download {exportFormat.toUpperCase()}
+                {exporting
+                  ? "Exporting…"
+                  : exportBlocked
+                    ? "Fix errors to export"
+                    : `Download ${exportFormat.toUpperCase()}`}
               </Button>
               <Button
                 size="large"
@@ -763,14 +778,13 @@ export default function Home() {
           </Typography>
         </Box>
 
-        {/* 3D Preview */}
-        <Box sx={{ flex: 1, position: "relative" }}>
-          {activeTab === "tube" ? (
-            <TubePreview config={tubeConfig} />
-          ) : (
-            <AdapterPreview config={adapterConfig} />
-          )}
-        </Box>
+        <ValidationBanner result={validation} />
+
+        <PreviewPanel
+          activeTab={activeTab}
+          tubeConfig={tubeConfig}
+          adapterConfig={adapterConfig}
+        />
 
         <Box
           component="footer"
@@ -842,233 +856,31 @@ export default function Home() {
         </Box>
       </Box>
 
-      <Drawer
-        anchor="right"
+      <ThankYouDrawer
         open={showThankYou}
+        exportFormat={exportFormat}
         onClose={() => setShowThankYou(false)}
-      >
-        <Box sx={{ width: 320, p: 3 }}>
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              mb: 2,
-            }}
-          >
-            <Typography variant="h6">Download Started!</Typography>
-            <IconButton size="small" onClick={() => setShowThankYou(false)}>
-              <X size={18} />
-            </IconButton>
-          </Box>
+      />
 
-          <Stack spacing={2.5}>
-            <Typography variant="body2" color="text.secondary">
-              Your {exportFormat.toUpperCase()} file is ready for 3D printing.
-            </Typography>
-
-            <Divider />
-
-            <Box>
-              <Typography variant="overline" color="text.secondary">
-                Print Tips
-              </Typography>
-              <Stack spacing={1.5} sx={{ mt: 1 }}>
-                <Stack direction="row" spacing={1.5} alignItems="flex-start">
-                  <Layers
-                    size={16}
-                    color="#5a9a9d"
-                    style={{ marginTop: 2, flexShrink: 0 }}
-                  />
-                  <Typography variant="caption" color="text.secondary">
-                    <strong>Layer height:</strong> 0.2mm for a good balance of
-                    speed and quality. Use 0.12mm for press-fit parts.
-                  </Typography>
-                </Stack>
-                <Stack direction="row" spacing={1.5} alignItems="flex-start">
-                  <Gauge
-                    size={16}
-                    color="#5a9a9d"
-                    style={{ marginTop: 2, flexShrink: 0 }}
-                  />
-                  <Typography variant="caption" color="text.secondary">
-                    <strong>Infill:</strong> 20-30% is usually enough. Use 50%+
-                    for structural joints.
-                  </Typography>
-                </Stack>
-                <Stack direction="row" spacing={1.5} alignItems="flex-start">
-                  <Thermometer
-                    size={16}
-                    color="#5a9a9d"
-                    style={{ marginTop: 2, flexShrink: 0 }}
-                  />
-                  <Typography variant="caption" color="text.secondary">
-                    <strong>Material:</strong> PETG for durability and heat
-                    resistance. PLA works for prototyping.
-                  </Typography>
-                </Stack>
-                <Stack direction="row" spacing={1.5} alignItems="flex-start">
-                  <Printer
-                    size={16}
-                    color="#5a9a9d"
-                    style={{ marginTop: 2, flexShrink: 0 }}
-                  />
-                  <Typography variant="caption" color="text.secondary">
-                    <strong>Orientation:</strong> Print upright for best layer
-                    adhesion along the tube walls.
-                  </Typography>
-                </Stack>
-              </Stack>
-            </Box>
-
-            <Divider />
-
-            <Box>
-              <Typography variant="overline" color="text.secondary">
-                Support the project
-              </Typography>
-              <Typography
-                variant="caption"
-                color="text.secondary"
-                sx={{ mt: 0.5, mb: 1.5, display: "block" }}
-              >
-                TubeCraft is free and open source. If it saved you time,
-                consider giving back!
-              </Typography>
-              <Stack spacing={1.5}>
-                <Button
-                  component="a"
-                  href="https://github.com/saschb2b/tubecraft"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  variant="outlined"
-                  fullWidth
-                  startIcon={<Star size={18} />}
-                  endIcon={<ExternalLink size={14} />}
-                >
-                  Star on GitHub
-                </Button>
-                <Button
-                  component="a"
-                  href="https://buymeacoffee.com/qohreuukw"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  variant="contained"
-                  fullWidth
-                  startIcon={<Coffee size={18} />}
-                  endIcon={<ExternalLink size={14} />}
-                >
-                  Buy me a coffee
-                </Button>
-              </Stack>
-            </Box>
-          </Stack>
-        </Box>
-      </Drawer>
-
-      <Dialog
+      <SavePresetDialog
         open={saveDialogOpen}
+        name={saveDialogName}
+        onNameChange={setSaveDialogName}
         onClose={() => setSaveDialogOpen(false)}
-        maxWidth="xs"
-        fullWidth
-      >
-        <DialogTitle>Save preset</DialogTitle>
-        <DialogContent>
-          <TextField
-            autoFocus
-            fullWidth
-            label="Preset name"
-            value={saveDialogName}
-            onChange={(e) => setSaveDialogName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && saveDialogName.trim()) {
-                handleSavePreset();
-              }
-            }}
-            sx={{ mt: 1 }}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setSaveDialogOpen(false)}>Cancel</Button>
-          <Button
-            onClick={handleSavePreset}
-            variant="contained"
-            disabled={!saveDialogName.trim()}
-          >
-            Save
-          </Button>
-        </DialogActions>
-      </Dialog>
+        onSave={handleSavePreset}
+      />
 
-      <Dialog
+      <ShareDialog
         open={shareDialogOpen}
+        activeTab={activeTab}
+        summary={activeConfigSummary}
+        shareUrl={shareUrl}
+        copied={shareCopied}
         onClose={() => setShareDialogOpen(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>Share this configuration</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ mt: 1 }}>
-            <Box>
-              <Typography
-                variant="overline"
-                color="text.secondary"
-                sx={{ display: "block", mb: 0.5 }}
-              >
-                What you&apos;re sharing
-              </Typography>
-              <Typography variant="body2">{activeConfigSummary}</Typography>
-              <Typography
-                variant="caption"
-                color="text.secondary"
-                sx={{ display: "block", mt: 0.5 }}
-              >
-                Anyone opening this link sees the same {activeTab} with every
-                dimension and option preserved.
-              </Typography>
-            </Box>
-            <Box>
-              <Typography
-                variant="overline"
-                color="text.secondary"
-                sx={{ display: "block", mb: 0.5 }}
-              >
-                Link
-              </Typography>
-              <Stack direction="row" spacing={1} alignItems="flex-start">
-                <TextField
-                  fullWidth
-                  size="small"
-                  value={shareUrl}
-                  slotProps={{
-                    input: {
-                      readOnly: true,
-                      onFocus: (e) => {
-                        (e.target as HTMLInputElement).select();
-                      },
-                    },
-                  }}
-                />
-                <Button
-                  onClick={() => {
-                    void handleCopyShareUrl();
-                  }}
-                  variant="contained"
-                  startIcon={
-                    shareCopied ? <Check size={14} /> : <Copy size={14} />
-                  }
-                  sx={{ flexShrink: 0, whiteSpace: "nowrap" }}
-                >
-                  {shareCopied ? "Copied" : "Copy"}
-                </Button>
-              </Stack>
-            </Box>
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setShareDialogOpen(false)}>Close</Button>
-        </DialogActions>
-      </Dialog>
+        onCopy={() => {
+          void handleCopyShareUrl();
+        }}
+      />
 
       <Snackbar
         open={toast !== null}

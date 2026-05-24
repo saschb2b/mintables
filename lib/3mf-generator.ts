@@ -1,7 +1,7 @@
 import type { TubeConfig } from "./tube-types";
 import type { AdapterConfig } from "./adapter-types";
-import { generateTubeTriangles } from "./stl-generator";
-import { generateAdapterTriangles } from "./adapter-generator";
+import { generateTubeTriangles } from "./geometry/tube-mesh";
+import { generateAdapterTriangles } from "./geometry/adapter-mesh";
 
 const CRC_TABLE = (() => {
   const table = new Uint32Array(256);
