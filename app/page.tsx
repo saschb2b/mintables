@@ -45,6 +45,7 @@ import {
   type Preset,
 } from "@/lib/preset-storage";
 import { trackPageview, trackEvent } from "@/lib/analytics";
+import { SITE_LINKS } from "@/lib/site-links";
 import {
   Download,
   RotateCcw,
@@ -658,7 +659,7 @@ export default function Home() {
               </Typography>
               <Box
                 component="a"
-                href="https://github.com/saschb2b/tubecraft"
+                href={SITE_LINKS.github}
                 target="_blank"
                 rel="noopener noreferrer"
                 sx={{
@@ -673,7 +674,7 @@ export default function Home() {
             </Stack>
             <Box
               component="a"
-              href="https://buymeacoffee.com/qohreuukw"
+              href={SITE_LINKS.buyMeACoffee}
               target="_blank"
               rel="noopener noreferrer"
               sx={{
@@ -827,6 +828,9 @@ export default function Home() {
       <ThankYouDrawer
         open={showThankYou}
         exportFormat={exportFormat}
+        activeTab={activeTab}
+        tubeConfig={tubeConfig}
+        adapterConfig={adapterConfig}
         onClose={() => setShowThankYou(false)}
       />
 
