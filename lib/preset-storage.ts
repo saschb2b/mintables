@@ -20,7 +20,7 @@ export interface Preset {
 }
 
 /** Bump when preset/config shape changes; used for localStorage presets. */
-export const CONFIG_SCHEMA_VERSION = 1;
+export const CONFIG_SCHEMA_VERSION = 3;
 
 const PRESET_KEY = "tubecraft.presets";
 

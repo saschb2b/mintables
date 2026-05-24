@@ -53,58 +53,11 @@ export interface ClamshellConfig {
   snapLipHeight: number; // Height of snap lip detent for retention (mm)
 }
 
-export interface HoleConfig {
-  enabled: boolean;
-  count: number;
-  diameter: number;
-  positionAlongLength: number; // percentage 0-100
-  rotationOffset: number; // degrees
-}
-
-export interface DrainHoleConfig {
-  enabled: boolean;
-  diameter: number;
-}
-
-export interface ZipTieSlotConfig {
-  enabled: boolean;
-  width: number;
-  height: number;
-  positionAlongLength: number; // percentage 0-100
-}
-
-export interface HolesAndSlotsConfig {
-  sideHoles: HoleConfig;
-  drainHole: DrainHoleConfig;
-  zipTieSlots: ZipTieSlotConfig;
-}
-
-export type ConnectorMode = "none" | "coupler" | "reducer" | "male-female";
-
-export interface CouplerConfig {
-  length: number;
-  wallThickness: number;
-}
-
-export interface ReducerConfig {
-  targetInnerDiameter: number;
-  targetOuterDiameter: number;
-  transitionLength: number;
-}
-
-export interface ConnectorConfig {
-  mode: ConnectorMode;
-  coupler: CouplerConfig;
-  reducer: ReducerConfig;
-}
-
 interface BaseTubeConfig {
   length: number;
   flare: FlareConfig;
   topCut: EndCutConfig;
   bottomCut: EndCutConfig;
-  holes: HolesAndSlotsConfig;
-  connector: ConnectorConfig;
   clamshell: ClamshellConfig;
 }
 
@@ -168,39 +121,6 @@ export const DEFAULT_CUT: EndCutConfig = {
   type: "flat",
 };
 
-export const DEFAULT_HOLES: HolesAndSlotsConfig = {
-  sideHoles: {
-    enabled: false,
-    count: 2,
-    diameter: 5,
-    positionAlongLength: 50,
-    rotationOffset: 0,
-  },
-  drainHole: {
-    enabled: false,
-    diameter: 3,
-  },
-  zipTieSlots: {
-    enabled: false,
-    width: 4,
-    height: 2,
-    positionAlongLength: 25,
-  },
-};
-
-export const DEFAULT_CONNECTOR: ConnectorConfig = {
-  mode: "none",
-  coupler: {
-    length: 30,
-    wallThickness: 2,
-  },
-  reducer: {
-    targetInnerDiameter: 40,
-    targetOuterDiameter: 42,
-    transitionLength: 20,
-  },
-};
-
 export const DEFAULT_CLAMSHELL: ClamshellConfig = {
   enabled: false,
   overlap: 8,
@@ -217,8 +137,6 @@ export const DEFAULT_ROUND_CONFIG: RoundTubeConfig = {
   flare: { ...DEFAULT_FLARE },
   topCut: { ...DEFAULT_CUT },
   bottomCut: { ...DEFAULT_CUT },
-  holes: { ...DEFAULT_HOLES },
-  connector: { ...DEFAULT_CONNECTOR },
   clamshell: { ...DEFAULT_CLAMSHELL },
 };
 
@@ -231,8 +149,6 @@ export const DEFAULT_SQUARE_CONFIG: SquareTubeConfig = {
   flare: { ...DEFAULT_FLARE },
   topCut: { ...DEFAULT_CUT },
   bottomCut: { ...DEFAULT_CUT },
-  holes: { ...DEFAULT_HOLES },
-  connector: { ...DEFAULT_CONNECTOR },
   clamshell: { ...DEFAULT_CLAMSHELL },
 };
 
@@ -247,7 +163,5 @@ export const DEFAULT_RECTANGULAR_CONFIG: RectangularTubeConfig = {
   flare: { ...DEFAULT_FLARE },
   topCut: { ...DEFAULT_CUT },
   bottomCut: { ...DEFAULT_CUT },
-  holes: { ...DEFAULT_HOLES },
-  connector: { ...DEFAULT_CONNECTOR },
   clamshell: { ...DEFAULT_CLAMSHELL },
 };
