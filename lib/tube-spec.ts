@@ -1,9 +1,7 @@
 import type { TubeConfig } from "./tube-types";
 import type { AdapterConfig } from "./adapter-types";
-import {
-  getTubeOuterDimensions,
-  getEffectiveBendRadius,
-} from "./adapter-types";
+import { getEffectiveBendRadius } from "./adapter-types";
+import { formatTubeEndSize } from "./adapter-layout";
 
 export const MIN_PRINTABLE_WALL_MM = 0.4;
 
@@ -138,24 +136,16 @@ export function getTubeSpecSummary(config: TubeConfig): TubeSpecSummary {
 }
 
 export function getAdapterSpecSummary(config: AdapterConfig): AdapterSpecSummary {
-  const dimA = getTubeOuterDimensions(config.endA);
-  const dimB = getTubeOuterDimensions(config.endB);
   const bendRadius = getEffectiveBendRadius(config);
   const straightLength = config.bendAngle === 0 ? bendRadius : 0;
   const totalHeight =
     config.socketDepth * 2 +
     (config.bendAngle > 0 ? bendRadius : straightLength);
 
-  const fmtEnd = (shape: string, w: number, h: number) => {
-    if (shape === "round") return `⌀${String(w)} mm`;
-    if (shape === "square") return `${String(w)} mm`;
-    return `${String(w)} × ${String(h)} mm`;
-  };
-
   return {
     transition: `${config.endA.shape} → ${config.endB.shape}`,
-    endA: fmtEnd(config.endA.shape, dimA.width, dimA.height),
-    endB: fmtEnd(config.endB.shape, dimB.width, dimB.height),
+    endA: formatTubeEndSize(config.endA),
+    endB: formatTubeEndSize(config.endB),
     socketDepth: config.socketDepth,
     adapterWall: config.wallThickness,
     bendAngle: config.bendAngle,
