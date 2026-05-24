@@ -92,7 +92,7 @@ export function validateAdapterConfig(config: AdapterConfig): ValidationResult {
               "error",
               "plug_too_small",
               `${endLabel}: plug fit needs a larger tube inner size for the selected clearance and wall.`,
-              endLabel,
+              endLabel === "End A" ? "endA" : "endB",
             ),
           ],
           warnings: [],

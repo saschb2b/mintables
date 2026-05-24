@@ -19,16 +19,24 @@ import {
   DEFAULT_SQUARE_TUBE,
   DEFAULT_RECTANGULAR_TUBE,
 } from "@/lib/adapter-types";
+import type { ValidationResult } from "@/lib/validation";
+import { fieldHasError, fieldHelperText } from "@/lib/validation";
+import { getAdapterSpecSummary } from "@/lib/tube-spec";
+import { AdapterSpecSummaryCard } from "@/components/spec-summary-card";
+import { CollapsibleSection } from "@/components/collapsible-section";
 
 interface AdapterControlsProps {
   config: AdapterConfig;
   onChange: (config: AdapterConfig) => void;
+  validation: ValidationResult;
 }
 
 function NumberField({
   label,
   value,
   onChange,
+  field,
+  validation,
   min,
   max,
   step,
@@ -37,6 +45,8 @@ function NumberField({
   label: string;
   value: number;
   onChange: (value: number) => void;
+  field: string;
+  validation: ValidationResult;
   min?: number;
   max?: number;
   step?: number;
@@ -48,17 +58,19 @@ function NumberField({
       type="number"
       size="small"
       value={value}
+      error={fieldHasError(validation, field)}
+      helperText={fieldHelperText(validation, field)}
       onChange={(e) => onChange(Number(e.target.value))}
       slotProps={{
         htmlInput: { min, max, step },
         input: {
-          endAdornment: (
+          endAdornment: unit ? (
             <InputAdornment position="end">
               <Typography variant="caption" color="text.secondary">
                 {unit}
               </Typography>
             </InputAdornment>
-          ),
+          ) : undefined,
         },
       }}
       fullWidth
@@ -103,12 +115,16 @@ function TubeEndSection({
   fitType,
   onTubeChange,
   onFitChange,
+  field,
+  validation,
 }: {
   label: string;
   tube: TubeSpec;
   fitType: FitType;
   onTubeChange: (tube: TubeSpec) => void;
   onFitChange: (fit: FitType) => void;
+  field: string;
+  validation: ValidationResult;
 }) {
   const handleShapeChange = (shape: AdapterEndShape) => {
     if (shape === tube.shape) return;
@@ -130,6 +146,11 @@ function TubeEndSection({
 
   return (
     <SectionCard title={label}>
+      {fieldHelperText(validation, field) && (
+        <Typography variant="caption" color="error.main">
+          {fieldHelperText(validation, field)}
+        </Typography>
+      )}
       <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1.5 }}>
         <TextField
           select
@@ -162,6 +183,8 @@ function TubeEndSection({
             label="Tube Outer Diameter"
             value={tube.outerDiameter}
             onChange={(v) => onTubeChange({ ...tube, outerDiameter: v })}
+            field={field}
+            validation={validation}
             min={1}
           />
           {fitType === "plug" && (
@@ -169,6 +192,8 @@ function TubeEndSection({
               label="Tube Wall Thickness"
               value={tube.tubeWallThickness}
               onChange={(v) => onTubeChange({ ...tube, tubeWallThickness: v })}
+              field={field}
+              validation={validation}
               min={0.5}
               step={0.5}
             />
@@ -182,12 +207,16 @@ function TubeEndSection({
             label="Tube Outer Size"
             value={tube.outerSize}
             onChange={(v) => onTubeChange({ ...tube, outerSize: v })}
+            field={field}
+            validation={validation}
             min={1}
           />
           <NumberField
             label="Corner Radius"
             value={tube.cornerRadius}
             onChange={(v) => onTubeChange({ ...tube, cornerRadius: v })}
+            field={`${field}.cornerRadius`}
+            validation={validation}
             min={0}
           />
           {fitType === "plug" && (
@@ -195,6 +224,8 @@ function TubeEndSection({
               label="Tube Wall Thickness"
               value={tube.tubeWallThickness}
               onChange={(v) => onTubeChange({ ...tube, tubeWallThickness: v })}
+              field={field}
+              validation={validation}
               min={0.5}
               step={0.5}
             />
@@ -214,18 +245,24 @@ function TubeEndSection({
             label="Tube Outer Width"
             value={tube.outerWidth}
             onChange={(v) => onTubeChange({ ...tube, outerWidth: v })}
+            field={field}
+            validation={validation}
             min={1}
           />
           <NumberField
             label="Tube Outer Height"
             value={tube.outerHeight}
             onChange={(v) => onTubeChange({ ...tube, outerHeight: v })}
+            field={field}
+            validation={validation}
             min={1}
           />
           <NumberField
             label="Corner Radius"
             value={tube.cornerRadius}
             onChange={(v) => onTubeChange({ ...tube, cornerRadius: v })}
+            field={`${field}.cornerRadius`}
+            validation={validation}
             min={0}
           />
           {fitType === "plug" && (
@@ -233,6 +270,8 @@ function TubeEndSection({
               label="Tube Wall Thickness"
               value={tube.tubeWallThickness}
               onChange={(v) => onTubeChange({ ...tube, tubeWallThickness: v })}
+              field={field}
+              validation={validation}
               min={0.5}
               step={0.5}
             />
@@ -249,34 +288,45 @@ function TubeEndSection({
   );
 }
 
-export function AdapterControls({ config, onChange }: AdapterControlsProps) {
+export function AdapterControls({
+  config,
+  onChange,
+  validation,
+}: AdapterControlsProps) {
+  const spec = getAdapterSpecSummary(config);
+
   return (
-    <Stack spacing={2.5}>
-      {/* End A */}
+    <Stack spacing={2}>
       <TubeEndSection
         label="End A (Bottom)"
         tube={config.endA}
         fitType={config.endAFit}
         onTubeChange={(endA) => onChange({ ...config, endA })}
         onFitChange={(endAFit) => onChange({ ...config, endAFit })}
+        field="endA"
+        validation={validation}
       />
 
-      {/* End B */}
       <TubeEndSection
         label="End B (Top)"
         tube={config.endB}
         fitType={config.endBFit}
         onTubeChange={(endB) => onChange({ ...config, endB })}
         onFitChange={(endBFit) => onChange({ ...config, endBFit })}
+        field="endB"
+        validation={validation}
       />
 
-      {/* Adapter Body */}
+      <AdapterSpecSummaryCard spec={spec} />
+
       <SectionCard title="Adapter Body">
         <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1.5 }}>
           <NumberField
             label="Wall Thickness"
             value={config.wallThickness}
             onChange={(v) => onChange({ ...config, wallThickness: v })}
+            field="wallThickness"
+            validation={validation}
             min={1}
             step={0.5}
           />
@@ -284,6 +334,8 @@ export function AdapterControls({ config, onChange }: AdapterControlsProps) {
             label="Socket Depth"
             value={config.socketDepth}
             onChange={(v) => onChange({ ...config, socketDepth: v })}
+            field="socketDepth"
+            validation={validation}
             min={5}
           />
         </Box>
@@ -291,6 +343,8 @@ export function AdapterControls({ config, onChange }: AdapterControlsProps) {
           label="Socket Clearance"
           value={config.socketClearance}
           onChange={(v) => onChange({ ...config, socketClearance: v })}
+          field="socketClearance"
+          validation={validation}
           min={0}
           step={0.05}
         />
@@ -299,13 +353,17 @@ export function AdapterControls({ config, onChange }: AdapterControlsProps) {
         </Typography>
       </SectionCard>
 
-      {/* Elbow / Bend */}
-      <SectionCard title="Elbow / Bend">
+      <CollapsibleSection
+        title="Elbow / Bend"
+        defaultExpanded={config.bendAngle > 0}
+      >
         <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1.5 }}>
           <NumberField
             label="Bend Angle"
             value={config.bendAngle}
             onChange={(v) => onChange({ ...config, bendAngle: v })}
+            field="bendAngle"
+            validation={validation}
             min={0}
             max={180}
             unit="°"
@@ -314,27 +372,30 @@ export function AdapterControls({ config, onChange }: AdapterControlsProps) {
             label="Bend Radius"
             value={config.bendRadius}
             onChange={(v) => onChange({ ...config, bendRadius: v })}
+            field="bendRadius"
+            validation={validation}
             min={0}
           />
         </Box>
         <Typography variant="caption" color="text.secondary">
           0° = straight, 90° = elbow. Radius 0 = auto
         </Typography>
-      </SectionCard>
+      </CollapsibleSection>
 
-      {/* Segments */}
-      <SectionCard title="Resolution">
+      <CollapsibleSection title="Export Resolution">
         <NumberField
           label="Segments"
           value={config.segmentAmount}
           onChange={(v) => onChange({ ...config, segmentAmount: v })}
+          field="segmentAmount"
+          validation={validation}
           min={4}
           unit=""
         />
         <Typography variant="caption" color="text.secondary">
           Circular segments in exported STL. More = smoother but larger file.
         </Typography>
-      </SectionCard>
+      </CollapsibleSection>
     </Stack>
   );
 }

@@ -135,10 +135,15 @@ export default function Home() {
   const [exporting, setExporting] = useState(false);
 
   const activeConfig = activeTab === "tube" ? tubeConfig : adapterConfig;
-  const validation = useMemo(
-    () => validateConfig(activeTab, activeConfig),
-    [activeTab, activeConfig],
+  const tubeValidation = useMemo(
+    () => validateConfig("tube", tubeConfig),
+    [tubeConfig],
   );
+  const adapterValidation = useMemo(
+    () => validateConfig("adapter", adapterConfig),
+    [adapterConfig],
+  );
+  const validation = activeTab === "tube" ? tubeValidation : adapterValidation;
   const exportBlocked = validation.errors.length > 0;
   const activeConfigJson = useMemo(
     () => JSON.stringify(activeConfig),
@@ -449,11 +454,16 @@ export default function Home() {
         {/* Controls */}
         <Box sx={{ flex: 1, overflow: "auto", p: 2 }}>
           {activeTab === "tube" ? (
-            <TubeControls config={tubeConfig} onChange={setTubeConfig} />
+            <TubeControls
+              config={tubeConfig}
+              onChange={setTubeConfig}
+              validation={tubeValidation}
+            />
           ) : (
             <AdapterControls
               config={adapterConfig}
               onChange={setAdapterConfig}
+              validation={adapterValidation}
             />
           )}
         </Box>
@@ -620,6 +630,66 @@ export default function Home() {
             </Button>
           </Stack>
         </Box>
+
+        <Box
+          sx={{
+            borderTop: 1,
+            borderColor: "divider",
+            px: 2,
+            py: 1,
+          }}
+        >
+          <Stack
+            direction="row"
+            justifyContent="space-between"
+            alignItems="center"
+            spacing={1}
+          >
+            <Stack direction="row" spacing={1} alignItems="center">
+              <Typography variant="caption" color="text.secondary">
+                Made with{" "}
+                <Heart
+                  size={12}
+                  color="#ef4444"
+                  fill="#ef4444"
+                  style={{ verticalAlign: "middle" }}
+                />{" "}
+                by Sascha
+              </Typography>
+              <Box
+                component="a"
+                href="https://github.com/saschb2b/tubecraft"
+                target="_blank"
+                rel="noopener noreferrer"
+                sx={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  color: "text.secondary",
+                  "&:hover": { color: "text.primary" },
+                }}
+              >
+                <GitHubIcon sx={{ fontSize: 16 }} />
+              </Box>
+            </Stack>
+            <Box
+              component="a"
+              href="https://buymeacoffee.com/qohreuukw"
+              target="_blank"
+              rel="noopener noreferrer"
+              sx={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 0.5,
+                color: "text.secondary",
+                textDecoration: "none",
+                "&:hover": { color: "text.primary" },
+              }}
+            >
+              <Coffee size={14} />
+              <Typography variant="caption">Support</Typography>
+            </Box>
+          </Stack>
+        </Box>
       </Box>
 
       {/* Preview Area */}
@@ -652,71 +722,38 @@ export default function Home() {
             flexWrap="wrap"
             useFlexGap
           >
-            {activeTab === "tube" ? (
-              <>
-                <Typography variant="body2" color="text.secondary">
-                  Shape:{" "}
-                  <Typography
-                    component="span"
-                    variant="body2"
-                    fontWeight={500}
-                    color="text.primary"
-                    sx={{ textTransform: "capitalize" }}
-                  >
-                    {tubeConfig.shape}
-                  </Typography>
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Length:{" "}
-                  <Typography
-                    component="span"
-                    variant="body2"
-                    fontWeight={500}
-                    color="text.primary"
-                  >
-                    {tubeConfig.length}mm
-                  </Typography>
-                </Typography>
-              </>
+            <Chip
+              label={exportFormat.toUpperCase()}
+              size="small"
+              sx={{
+                bgcolor: "rgba(90, 154, 157, 0.15)",
+                color: "primary.main",
+                fontWeight: 600,
+                height: 24,
+              }}
+            />
+            {exportBlocked ? (
+              <Chip
+                label="Fix errors to export"
+                size="small"
+                sx={{
+                  bgcolor: "rgba(239, 68, 68, 0.15)",
+                  color: "#ef4444",
+                  fontWeight: 600,
+                  height: 24,
+                }}
+              />
             ) : (
-              <>
-                <Typography variant="body2" color="text.secondary">
-                  Type:{" "}
-                  <Typography
-                    component="span"
-                    variant="body2"
-                    fontWeight={500}
-                    color="text.primary"
-                    sx={{ textTransform: "capitalize" }}
-                  >
-                    {adapterConfig.endA.shape} to {adapterConfig.endB.shape}
-                  </Typography>
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Socket:{" "}
-                  <Typography
-                    component="span"
-                    variant="body2"
-                    fontWeight={500}
-                    color="text.primary"
-                  >
-                    {adapterConfig.socketDepth}mm
-                  </Typography>
-                </Typography>
-                {adapterConfig.bendAngle > 0 && (
-                  <Typography variant="body2" color="text.secondary">
-                    Bend:{" "}
-                    <Typography
-                      component="span"
-                      variant="body2"
-                      fontWeight={500}
-                      color="text.primary"
-                    >
-                      {adapterConfig.bendAngle}&deg;
-                    </Typography>
-                  </Typography>
-                )}
-              </>
+              <Chip
+                label="Ready to export"
+                size="small"
+                sx={{
+                  bgcolor: "rgba(34, 197, 94, 0.15)",
+                  color: "#22c55e",
+                  fontWeight: 600,
+                  height: 24,
+                }}
+              />
             )}
             {activePreset && (
               <Tooltip
@@ -774,7 +811,7 @@ export default function Home() {
             color="text.secondary"
             sx={{ display: { xs: "none", sm: "block" } }}
           >
-            Drag to rotate, scroll to zoom
+            Drag to rotate · scroll to zoom · use view presets
           </Typography>
         </Box>
 
@@ -785,75 +822,6 @@ export default function Home() {
           tubeConfig={tubeConfig}
           adapterConfig={adapterConfig}
         />
-
-        <Box
-          component="footer"
-          sx={{
-            borderTop: 1,
-            borderColor: "divider",
-            bgcolor: "rgba(53, 53, 53, 0.3)",
-            backdropFilter: "blur(12px)",
-            px: 2,
-            py: 0.75,
-          }}
-        >
-          <Stack
-            direction="row"
-            justifyContent="space-between"
-            alignItems="center"
-          >
-            <Stack direction="row" spacing={1.5} alignItems="center">
-              <Typography variant="caption" color="text.secondary">
-                Made with{" "}
-                <Heart
-                  size={12}
-                  color="#ef4444"
-                  fill="#ef4444"
-                  style={{ verticalAlign: "middle" }}
-                />{" "}
-                by Sascha
-              </Typography>
-              <Box
-                component="a"
-                href="https://github.com/saschb2b/tubecraft"
-                target="_blank"
-                rel="noopener noreferrer"
-                sx={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  color: "text.secondary",
-                  "&:hover": { color: "text.primary" },
-                  transition: "color 0.2s",
-                }}
-              >
-                <GitHubIcon sx={{ fontSize: 16 }} />
-              </Box>
-            </Stack>
-            <Box
-              component="a"
-              href="https://buymeacoffee.com/qohreuukw"
-              target="_blank"
-              rel="noopener noreferrer"
-              sx={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 0.5,
-                color: "text.secondary",
-                textDecoration: "none",
-                "&:hover": { color: "text.primary" },
-                transition: "color 0.2s",
-              }}
-            >
-              <Coffee size={14} />
-              <Typography
-                variant="caption"
-                sx={{ display: { xs: "none", sm: "inline" } }}
-              >
-                Support
-              </Typography>
-            </Box>
-          </Stack>
-        </Box>
       </Box>
 
       <ThankYouDrawer

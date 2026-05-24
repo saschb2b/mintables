@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useEffect, useMemo } from "react";
+import { Edges } from "@react-three/drei";
 import * as THREE from "three";
 import {
   trianglesToBufferGeometry,
@@ -9,9 +10,9 @@ import {
 import { configKey } from "@/lib/config-key";
 
 const MATERIAL = {
-  color: "#b8c4ce",
-  metalness: 0.85,
-  roughness: 0.15,
+  color: "#d4dce4",
+  metalness: 0.35,
+  roughness: 0.42,
   side: THREE.DoubleSide,
 } as const;
 
@@ -26,38 +27,20 @@ export function ModelMesh<T>({
   generate,
   axis = "z-up",
 }: ModelMeshProps<T>) {
-  const meshRef = useRef<THREE.Mesh>(null);
   const serialized = configKey(config);
 
-  useLayoutEffect(() => {
-    const mesh = meshRef.current;
-    if (!mesh) return;
-
+  const geometry = useMemo(() => {
     const parsed = JSON.parse(serialized) as T;
     const triangles = generate(parsed);
-    const next = trianglesToBufferGeometry(triangles, axis);
-    const previous =
-      mesh.geometry instanceof THREE.BufferGeometry ? mesh.geometry : null;
-
-    mesh.geometry = next;
-
-    if (previous && previous !== next) {
-      previous.dispose();
-    }
+    return trianglesToBufferGeometry(triangles, axis);
   }, [serialized, generate, axis]);
 
-  useEffect(() => {
-    const mesh = meshRef.current;
-    return () => {
-      if (mesh?.geometry instanceof THREE.BufferGeometry) {
-        mesh.geometry.dispose();
-      }
-    };
-  }, []);
+  useEffect(() => () => geometry.dispose(), [geometry]);
 
   return (
-    <mesh ref={meshRef}>
+    <mesh geometry={geometry} castShadow receiveShadow>
       <meshStandardMaterial {...MATERIAL} />
+      <Edges threshold={15} color="#5c6570" />
     </mesh>
   );
 }

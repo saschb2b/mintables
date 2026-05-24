@@ -3,6 +3,7 @@
 import { useEffect, useRef, type ComponentRef } from "react";
 import { PerspectiveCamera, OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
+import { useViewport } from "./viewport-context";
 
 export interface SceneBounds {
   maxDimension: number;
@@ -10,26 +11,57 @@ export interface SceneBounds {
   orbitTarget: [number, number, number];
   minDistance?: number;
   maxDistance?: number;
+  /** Tube preview uses Y-up length axis; adapter uses Y-up body axis. */
+  axis?: "y-up" | "z-up";
+}
+
+function applyViewPreset(
+  preset: "iso" | "front" | "top" | "right",
+  camera: THREE.PerspectiveCamera,
+  controls: ComponentRef<typeof OrbitControls>,
+  bounds: SceneBounds,
+) {
+  const d = bounds.cameraDistance;
+  const [tx, ty, tz] = bounds.orbitTarget;
+  controls.target.set(tx, ty, tz);
+
+  switch (preset) {
+    case "iso":
+      camera.position.set(tx + d * 0.6, ty + d * 0.4, tz + d * 0.6);
+      break;
+    case "front":
+      camera.position.set(tx, ty, tz + d);
+      break;
+    case "top":
+      camera.position.set(tx, ty + d, tz + 0.001);
+      break;
+    case "right":
+      camera.position.set(tx + d, ty, tz);
+      break;
+  }
+
+  camera.lookAt(tx, ty, tz);
+  controls.update();
 }
 
 export function PreviewSceneRig({ bounds }: { bounds: SceneBounds }) {
   const cameraRef = useRef<THREE.PerspectiveCamera>(null);
   const controlsRef = useRef<ComponentRef<typeof OrbitControls>>(null);
   const placedCamera = useRef(false);
+  const { viewRequest } = useViewport();
 
   useEffect(() => {
     const camera = cameraRef.current;
+    const controls = controlsRef.current;
     if (camera) {
       camera.far = bounds.maxDimension * 20;
       camera.updateProjectionMatrix();
-      if (!placedCamera.current) {
-        const d = bounds.cameraDistance;
-        camera.position.set(d * 0.6, d * 0.4, d * 0.6);
+      if (!placedCamera.current && controls) {
+        applyViewPreset("iso", camera, controls, bounds);
         placedCamera.current = true;
       }
     }
 
-    const controls = controlsRef.current;
     if (controls) {
       controls.target.set(...bounds.orbitTarget);
       controls.minDistance = bounds.minDistance ?? bounds.maxDimension * 0.5;
@@ -37,6 +69,14 @@ export function PreviewSceneRig({ bounds }: { bounds: SceneBounds }) {
       controls.update();
     }
   }, [bounds]);
+
+  useEffect(() => {
+    if (!viewRequest) return;
+    const camera = cameraRef.current;
+    const controls = controlsRef.current;
+    if (!camera || !controls) return;
+    applyViewPreset(viewRequest.preset, camera, controls, bounds);
+  }, [viewRequest, bounds]);
 
   const d = bounds.cameraDistance;
 

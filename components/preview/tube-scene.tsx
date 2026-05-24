@@ -5,6 +5,7 @@ import { ContactShadows, Line, Text } from "@react-three/drei";
 import type { TubeConfig } from "@/lib/tube-types";
 import { generateTubeTriangles } from "@/lib/geometry/tube-mesh";
 import { configKey } from "@/lib/config-key";
+import { getTubeWallInfo } from "@/lib/tube-spec";
 import { ModelMesh } from "./model-mesh";
 import { GridFloor } from "./grid-floor";
 import { PreviewSceneRig, type SceneBounds } from "./preview-scene-rig";
@@ -205,6 +206,13 @@ function TubeDimensionIndicators({ config }: { config: TubeConfig }) {
   const xOffset = maxOuter / 2 + 15;
   const useFlare = config.flare.enabled && config.topCut.type === "flat";
   const flareStartY = useFlare ? config.length - config.flare.length : 0;
+  const wall = getTubeWallInfo(config);
+  const wallColor =
+    wall.status === "ok" ? "#94a3b8" : wall.status === "thin" ? "#f59e0b" : "#ef4444";
+  const wallLabel =
+    wall.secondary !== undefined
+      ? `${wall.primary.toFixed(2)}/${wall.secondary.toFixed(2)}mm wall`
+      : `${wall.primary.toFixed(2)}mm wall`;
 
   return (
     <group>
@@ -215,6 +223,16 @@ function TubeDimensionIndicators({ config }: { config: TubeConfig }) {
         label={config.length.toString()}
         color="#f59e0b"
       />
+
+      <Text
+        position={[-xOffset, config.length * 0.5, maxOuter / 2 + 8]}
+        fontSize={Math.max(4, config.length * 0.045)}
+        color={wallColor}
+        anchorX="right"
+        anchorY="middle"
+      >
+        {wallLabel}
+      </Text>
 
       <HorizontalDimension
         width={outerWidth}

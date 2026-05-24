@@ -9,6 +9,11 @@ export type { ValidationIssue, ValidationResult } from "./types";
 export { isValid } from "./types";
 export { validateTubeConfig } from "./tube-validation";
 export { validateAdapterConfig } from "./adapter-validation";
+export {
+  issuesForField,
+  fieldHasError,
+  fieldHelperText,
+} from "./field-errors";
 
 export function validateConfig(
   tab: Tab,

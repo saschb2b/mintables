@@ -33,7 +33,7 @@ function validateEndCut(
           "error",
           "miter_angle_range",
           `${label} miter angle must be between ${String(MIN_MITER_DEG)}° and ${String(MAX_MITER_DEG)}°.`,
-          label,
+          `${label.toLowerCase()}Cut`,
         ),
       );
     }
@@ -45,7 +45,7 @@ function validateEndCut(
           "error",
           "chamfer_depth",
           `${label} chamfer depth must be greater than 0 mm.`,
-          label,
+          `${label.toLowerCase()}Cut`,
         ),
       );
     }
@@ -55,7 +55,7 @@ function validateEndCut(
           "error",
           "chamfer_angle",
           `${label} chamfer angle must be between 1° and 89°.`,
-          label,
+          `${label.toLowerCase()}Cut`,
         ),
       );
     }
@@ -67,7 +67,7 @@ function validateEndCut(
           "error",
           "saddle_diameter",
           `${label} saddle target diameter must be greater than 0 mm.`,
-          label,
+          `${label.toLowerCase()}Cut`,
         ),
       );
     }
@@ -165,6 +165,7 @@ export function validateTubeConfig(config: TubeConfig): ValidationResult {
             "error",
             "inner_outer",
             "Inner width/height must be smaller than outer width/height.",
+            "innerWidth",
           ),
         ],
         warnings: [],
@@ -177,6 +178,7 @@ export function validateTubeConfig(config: TubeConfig): ValidationResult {
             "error",
             "wall_thin",
             `Wall thickness is too thin to print reliably (minimum ${String(MIN_WALL_MM)} mm).`,
+            "outerWidth",
           ),
         ],
         warnings: [],

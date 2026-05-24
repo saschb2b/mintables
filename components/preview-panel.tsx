@@ -7,6 +7,8 @@ import type { TubeConfig } from "@/lib/tube-types";
 import type { AdapterConfig } from "@/lib/adapter-types";
 import { TubeScene } from "@/components/preview/tube-scene";
 import { AdapterScene } from "@/components/preview/adapter-scene";
+import { ViewportProvider } from "@/components/preview/viewport-context";
+import { ViewToolbar } from "@/components/preview/view-toolbar";
 
 const PreviewCanvas = dynamic(
   () =>
@@ -46,23 +48,26 @@ export function PreviewPanel({
   adapterConfig,
 }: PreviewPanelProps) {
   return (
-    <Box
-      sx={{
-        flex: 1,
-        position: "relative",
-        minHeight: 0,
-        minWidth: 0,
-        width: "100%",
-        height: "100%",
-      }}
-    >
-      <PreviewCanvas>
-        {activeTab === "tube" ? (
-          <TubeScene config={tubeConfig} />
-        ) : (
-          <AdapterScene config={adapterConfig} />
-        )}
-      </PreviewCanvas>
-    </Box>
+    <ViewportProvider>
+      <Box
+        sx={{
+          flex: 1,
+          position: "relative",
+          minHeight: 0,
+          minWidth: 0,
+          width: "100%",
+          height: "100%",
+        }}
+      >
+        <ViewToolbar />
+        <PreviewCanvas>
+          {activeTab === "tube" ? (
+            <TubeScene config={tubeConfig} />
+          ) : (
+            <AdapterScene config={adapterConfig} />
+          )}
+        </PreviewCanvas>
+      </Box>
+    </ViewportProvider>
   );
 }
