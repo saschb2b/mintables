@@ -2,6 +2,8 @@ export { ThemeProvider } from "./theme-provider";
 export { AppHeader } from "./app-header";
 export { AppSwitcher } from "./app-switcher";
 export { GeneratorGrid } from "./generator-grid";
+export { GeneratorHero } from "./generator-hero";
+export { MiniPreview } from "./mini-preview";
 export { ValidationBanner } from "./validation-banner";
 export { CollapsibleSection } from "./collapsible-section";
 export { SavePresetDialog } from "./save-preset-dialog";
