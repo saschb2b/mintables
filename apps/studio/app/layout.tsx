@@ -44,6 +44,19 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
+        {/*
+          Overscroll handling: html + body painted in the app's deep base so
+          rubber-band bounce exposes the same color (not MUI's CssBaseline
+          grey). overscroll-behavior:none suppresses scroll-chaining bounces.
+          The !important is needed to win against CssBaseline's body bg.
+        */}
+        <style>{`
+          html, body {
+            background-color: #0f1322 !important;
+            overscroll-behavior: none;
+          }
+          html { color-scheme: dark; }
+        `}</style>
         <Script
           async
           src="https://umami.saschb2b.com/script.js"

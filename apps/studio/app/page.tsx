@@ -174,6 +174,10 @@ export default function HubPage() {
         flex: 1,
         overflow: "auto",
         position: "relative",
+        // Suppress scroll-chain bounce on the wrapper. Combined with the
+        // dark base on html/body in layout.tsx, overscroll never reveals
+        // the muted-grey CssBaseline background.
+        overscrollBehavior: "none",
       }}
     >
       {/* Single atmospheric layer — pinned to viewport so the colors flow
