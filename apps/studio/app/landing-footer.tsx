@@ -178,27 +178,26 @@ export function LandingFooter() {
       component="footer"
       sx={{
         position: "relative",
+        // Footer flows out of the atmosphere — no hard top border. A soft
+        // radial glow at the transition gives the section presence without
+        // a defined edge.
         mt: { xs: 6, md: 10 },
         pt: { xs: 6, md: 10 },
-        borderTop: "1px solid rgba(255, 255, 255, 0.06)",
         overflow: "hidden",
+        "&::before": {
+          content: '""',
+          position: "absolute",
+          top: -120,
+          left: 0,
+          right: 0,
+          height: 260,
+          background:
+            "radial-gradient(ellipse 55% 70% at 50% 85%, rgba(168, 85, 247, 0.16) 0%, rgba(90, 154, 157, 0.08) 35%, transparent 70%)",
+          filter: "blur(40px)",
+          pointerEvents: "none",
+        },
       }}
     >
-      {/* Subtle gradient accent line at the very top of the footer */}
-      <Box
-        aria-hidden
-        sx={{
-          position: "absolute",
-          top: -1,
-          left: "20%",
-          right: "20%",
-          height: 1,
-          background:
-            "linear-gradient(90deg, transparent 0%, rgba(168, 85, 247, 0.5) 50%, transparent 100%)",
-          pointerEvents: "none",
-        }}
-      />
-
       <Container maxWidth="lg" sx={{ position: "relative" }}>
         <Stack spacing={{ xs: 6, md: 8 }}>
           {/* Brand column + link columns */}

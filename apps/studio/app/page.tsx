@@ -172,12 +172,13 @@ export default function HubPage() {
     <Box
       sx={{
         flex: 1,
+        minHeight: 0,
         overflow: "auto",
         position: "relative",
-        // Suppress scroll-chain bounce on the wrapper. Combined with the
-        // dark base on html/body in layout.tsx, overscroll never reveals
-        // the muted-grey CssBaseline background.
-        overscrollBehavior: "none",
+        // `overscroll-behavior` removed — Chrome had a quirk where setting
+        // it on a nested overflow:auto container interfered with wheel-event
+        // delivery. The dark html/body bg in layout.tsx alone handles the
+        // overscroll color problem (bounce reveals #0f1322, not grey).
       }}
     >
       {/* Single atmospheric layer — pinned to viewport so the colors flow

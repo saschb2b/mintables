@@ -47,13 +47,17 @@ export default function RootLayout({
         {/*
           Overscroll handling: html + body painted in the app's deep base so
           rubber-band bounce exposes the same color (not MUI's CssBaseline
-          grey). overscroll-behavior:none suppresses scroll-chaining bounces.
-          The !important is needed to win against CssBaseline's body bg.
+          grey). `!important` is needed to win against CssBaseline's body bg.
+
+          We intentionally do NOT set `overscroll-behavior: none` on
+          html/body — Chrome has known quirks where doing so on a non-
+          scrolling root interferes with wheel-event delivery to a nested
+          overflow:auto scroll container (the landing wrapper). The wrapper
+          sets it on itself.
         */}
         <style>{`
           html, body {
             background-color: #0f1322 !important;
-            overscroll-behavior: none;
           }
           html { color-scheme: dark; }
         `}</style>
