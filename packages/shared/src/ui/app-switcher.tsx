@@ -58,7 +58,7 @@ export function AppSwitcher({ generators, currentId }: AppSwitcherProps) {
               <Box
                 key={gen.id}
                 component={NextLink}
-                href={`/${gen.id}`}
+                href={`/generators/${gen.id}`}
                 onClick={() => setAnchorEl(null)}
                 sx={{
                   display: "flex",

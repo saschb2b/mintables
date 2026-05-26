@@ -7,10 +7,12 @@ import { AppHeader, ThemeProvider } from "@mintables/shared/ui";
 import { generators } from "@/lib/registry";
 
 function currentGeneratorId(pathname: string): string | undefined {
-  const segment = pathname.split("/").find(Boolean);
-  return segment && generators.some((g) => g.id === segment)
-    ? segment
-    : undefined;
+  // Match `/generators/<id>` — the namespace prevents collisions with future
+  // top-level routes (e.g. /about, /blog).
+  const parts = pathname.split("/").filter(Boolean);
+  if (parts[0] !== "generators") return undefined;
+  const id = parts[1];
+  return id && generators.some((g) => g.id === id) ? id : undefined;
 }
 
 export function Providers({ children }: { children: ReactNode }) {

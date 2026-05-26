@@ -52,12 +52,12 @@ export function decodeConfig(b64: string): unknown {
 }
 
 /**
- * Returns a share URL for /<generatorId>?config=… — relative URL is built at
- * call-time so it stays correct on any deploy origin.
+ * Returns a share URL for /generators/<generatorId>?config=… — relative URL
+ * is built at call-time so it stays correct on any deploy origin.
  */
 export function buildShareUrl(generatorId: string, config: unknown): string {
   const encoded = encodeConfig(config);
-  return `${window.location.origin}/${generatorId}?config=${encoded}`;
+  return `${window.location.origin}/generators/${generatorId}?config=${encoded}`;
 }
 
 export interface UrlConfig {

@@ -30,7 +30,7 @@ function GeneratorCard({
   return (
     <Box
       component={NextLink}
-      href={`/${generator.id}`}
+      href={`/generators/${generator.id}`}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       onFocus={() => setHover(true)}

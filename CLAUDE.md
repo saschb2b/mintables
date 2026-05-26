@@ -25,12 +25,12 @@ Monorepo of browser-based, parametric 3D generators for printable parts. Each ge
 
 ```
 apps/
-  studio/                              # Next.js app — single deploy, /<generator> routes
+  studio/                              # Next.js app — single deploy, /generators/<id> routes
     app/
       layout.tsx                       # Server layout: metadata, MUI cache provider, <Providers>
       providers.tsx                    # Client: ThemeProvider + AppHeader + main slot
       page.tsx                         # Hub landing — GeneratorGrid
-      [generator]/page.tsx             # Dynamic route, uses registry → <GeneratorShell>
+      generators/[generator]/page.tsx  # Dynamic route, uses registry → <GeneratorShell>
     lib/registry.ts                    # Imports every generator and exposes bySlug
 packages/
   shared/                              # @mintables/shared — generator contract + app shell

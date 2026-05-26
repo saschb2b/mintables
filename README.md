@@ -64,7 +64,7 @@ pnpm install
 pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) — pick a generator from the hub, or jump straight to a route like `/tubes` or `/adapters`.
+Open [http://localhost:3000](http://localhost:3000) — pick a generator from the hub, or jump straight to a route like `/generators/tubes` or `/generators/adapters`.
 
 ---
 
