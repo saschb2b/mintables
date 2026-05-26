@@ -21,6 +21,7 @@ import { GeneratorGrid, GeneratorHero } from "@mintables/shared/ui";
 import { SITE_LINKS } from "@mintables/shared/lib";
 import { generators } from "@/lib/registry";
 import { CascadingText } from "./cascading-text";
+import { LandingFooter } from "./landing-footer";
 
 const HEADLINE_LINE_1 = "Custom parts.";
 const HEADLINE_LINE_2 = "Without CAD.";
@@ -757,6 +758,8 @@ export default function HubPage() {
           </Stack>
         </Box>
       </Container>
+
+      <LandingFooter />
       </Box>
 
       {/* Page-level keyframes */}
