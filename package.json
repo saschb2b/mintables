@@ -1,48 +1,19 @@
 {
-  "name": "tubecraft",
-  "version": "0.1.0",
+  "name": "mintables",
   "private": true,
   "packageManager": "pnpm@10.28.2",
   "scripts": {
-    "build": "next build",
-    "dev": "next dev --turbopack",
-    "lint": "eslint .",
-    "start": "next start",
-    "format:check": "prettier --check .",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest"
-  },
-  "dependencies": {
-    "@emotion/cache": "^11.14.0",
-    "@emotion/react": "^11.14.0",
-    "@emotion/server": "latest",
-    "@emotion/styled": "^11.14.1",
-    "@mui/icons-material": "^7.3.9",
-    "@mui/material": "^7.3.9",
-    "@mui/material-nextjs": "^7.3.9",
-    "@mui/system": "^7.3.9",
-    "@react-three/drei": "^10.7.7",
-    "@react-three/fiber": "^9.5.0",
-    "lucide-react": "0.577.0",
-    "next": "16.1.6",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4",
-    "three": "^0.183.2"
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck",
+    "test": "turbo test",
+    "format:check": "turbo format:check",
+    "format": "prettier --write ."
   },
   "devDependencies": {
-    "@eslint/eslintrc": "^3.3.5",
-    "@eslint/js": "^10.0.1",
-    "@types/node": "^25.4.0",
-    "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.2.3",
-    "@types/three": "^0.183.1",
-    "eslint": "^9.39.4",
-    "eslint-config-next": "16.1.6",
-    "eslint-config-prettier": "^10.1.8",
     "prettier": "3.8.1",
-    "typescript": "^5.9.3",
-    "typescript-eslint": "^8.57.0",
-    "vitest": "^3.2.4"
+    "turbo": "^2.5.4",
+    "typescript": "^5.9.3"
   }
 }

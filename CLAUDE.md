@@ -1,69 +1,97 @@
-# TubeCraft
+# Mintables
 
-3D printable tube and adapter generator with real-time 3D preview and STL/3MF export.
+Monorepo of browser-based, parametric 3D generators for printable parts. Each generator (`tubes`, `adapters`, …) is its own package; they share a single Next.js shell that wires them into a sidebar + 3D preview UI.
 
 ## Tech Stack
 
 - **Framework**: Next.js 16 (App Router) + React 19 + TypeScript
-- **UI**: Material UI (MUI) v7 with dark theme — see `lib/theme.ts`
+- **UI**: Material UI v7 (dark theme — see `packages/shared/src/lib/theme.ts`)
 - **3D**: React Three Fiber + Three.js + @react-three/drei
-- **Geometry**: Shared triangle mesh in `lib/geometry/` (single source for preview + export)
-- **Validation**: `lib/validation/` — dimension checks before export
-- **Tests**: Vitest — mesh generation, validation, config round-trips
-- **Icons**: lucide-react + @mui/icons-material
-- **Package manager**: pnpm
+- **Geometry**: Shared triangle mesh — preview + STL/3MF export both run `generator.geometry(config)`
+- **Tests**: Vitest (per-package)
+- **Build orchestration**: Turborepo
+- **Package manager**: pnpm workspaces
 
-## Commands
+## Commands (from repo root)
 
-- `pnpm dev` — start dev server (Turbopack)
-- `pnpm build` — production build
-- `pnpm lint` — ESLint
-- `pnpm typecheck` — TypeScript
-- `pnpm test` — Vitest unit tests
+- `pnpm dev` — start the studio dev server (Turbopack)
+- `pnpm build` — build everything
+- `pnpm typecheck` — TypeScript across all packages
+- `pnpm test` — Vitest across all packages
+- `pnpm lint` — ESLint across all packages
 - `pnpm format:check` — Prettier
 
-## Project Structure
+## Repo layout
 
 ```
-app/
-  layout.tsx              — Root layout (server component), MUI ThemeProvider
-  page.tsx                — Main page with sidebar controls + 3D preview
-  globals.css             — Minimal CSS reset
-components/
-  tube-controls.tsx       — Tube configuration panel
-  tube-preview.tsx        — 3D tube preview (uses shared geometry)
-  adapter-controls.tsx    — Adapter configuration panel
-  adapter-preview.tsx     — 3D adapter preview
-  preview-panel.tsx       — Lazy-loaded preview wrapper
-  validation-banner.tsx   — Config validation alerts
-lib/
-  geometry/
-    tube-mesh.ts          — Tube triangle generation
-    adapter-mesh.ts       — Adapter triangle generation
-    mesh-utils.ts         — Shared mesh helpers
-    mesh-analysis.ts      — Mesh quality checks
-  validation/             — Config validation rules
-  export-model.ts         — Validated export entry point
-  stl-generator.ts        — STL serialization (tubes)
-  adapter-generator.ts    — STL serialization (adapters)
-  3mf-generator.ts        — 3MF export
-  preset-storage.ts       — Share URLs + localStorage presets
-  tube-types.ts           — Tube TypeScript types + defaults
-  adapter-types.ts        — Adapter types + defaults
+apps/
+  studio/                              # Next.js app — single deploy, /<generator> routes
+    app/
+      layout.tsx                       # Server layout: metadata, MUI cache provider, <Providers>
+      providers.tsx                    # Client: ThemeProvider + AppHeader + main slot
+      page.tsx                         # Hub landing — GeneratorGrid
+      [generator]/page.tsx             # Dynamic route, uses registry → <GeneratorShell>
+    lib/registry.ts                    # Imports every generator and exposes bySlug
+packages/
+  shared/                              # @mintables/shared — generator contract + app shell
+    src/
+      lib/
+        generator.ts                   # Generator<C> contract — the central interface
+        theme.ts, analytics.ts, …      # Cross-cutting helpers
+        preset-storage.ts              # Generic share-URL + localStorage presets
+        validation/                    # ValidationResult types + field helpers
+        geometry/                      # Mesh helpers (utils, analysis, STL binary)
+        export/                        # Generic exportModel<C>(generator, config, format)
+      ui/                              # Stateless components — AppHeader, GeneratorGrid, dialogs, primitives
+      shell/                           # GeneratorShell, PreviewPanel, R3F infra
+      hooks/
+  generators/
+    tubes/                             # @mintables/gen-tubes
+      src/
+        index.ts                       # exports tubeGenerator: Generator<TubeConfig>
+        types.ts, geometry.ts, validation.ts, controls.tsx, scene.tsx, summary.tsx, print-tips.ts, spec.ts
+      tests/
+    adapters/                          # @mintables/gen-adapters (same shape)
 ```
+
+## The Generator contract
+
+Every generator package exports a single `Generator<Config>` value implementing `packages/shared/src/lib/generator.ts`. The shell consumes:
+
+- `id` / `meta` — route slug, name, icon (`LucideIcon`), tagline, accent
+- `defaults`, `decode(raw)` — for hydration from defaults / URL / preset
+- `validate(c)` → `ValidationResult` — drives error banner + disables export
+- `geometry(c)` → `TriangleMesh` — single source for preview AND export
+- `axis: "z-up" | "y-up"` — passed to `trianglesToBufferGeometry` and the scene
+- `filename(c)`, `describe(c)`, `printTips(c)`, `badges?(c)` — UI hooks
+- `Controls`, `Scene`, `Summary?` — React components (per-generator UI)
+
+The studio app only knows about the registry list. Nothing in `apps/studio` or `@mintables/shared` references a specific generator.
 
 ## Conventions
 
-- Use native MUI components — theme overrides live in `lib/theme.ts`
-- Use `sx` prop for layout/spacing
-- Path alias: `@/*` maps to project root
-- Preview and export must use the same geometry functions (`generateTubeTriangles`, `generateAdapterTriangles`)
-- All exports go through `lib/export-model.ts` (validation + mesh quality gate)
-- Keep `layout.tsx` as a server component; client providers go in `ThemeProvider.tsx`
+- Use native MUI components — theme overrides live in `packages/shared/src/lib/theme.ts`
+- Use `sx` for layout/spacing
+- Studio path alias: `@/*` → `apps/studio/*`
+- Preview and export run the same `generator.geometry(config)` — never duplicate mesh generation
+- All exports go through `exportModel(generator, config, format)` in `@mintables/shared/lib/export` (validation + mesh quality gate)
+- Keep `apps/studio/app/layout.tsx` as a server component; client providers go in `providers.tsx`
+- Per-generator: ship a `Controls` component (don't try to schema-drive it — generators have discriminated unions and conditional sections that a schema can't express cleanly)
 
-## Adding a geometry feature
+## Adding a generator
 
-1. Implement triangles in `lib/geometry/tube-mesh.ts` or `adapter-mesh.ts`
-2. Add validation rules in `lib/validation/` if user-facing constraints apply
-3. Add a Vitest case in `lib/geometry/*.test.ts`
-4. Preview updates automatically via shared geometry
+1. Create `packages/generators/<name>/` with `package.json`, `tsconfig.json`, `vitest.config.ts` (copy from `tubes`)
+2. Implement `types.ts`, `validation.ts`, `geometry.ts`, `controls.tsx`, `scene.tsx`, `print-tips.ts`
+3. Export a `Generator<Config>` from `src/index.ts`
+4. Add to `apps/studio/lib/registry.ts`
+5. Add the workspace to `apps/studio/next.config.ts`'s `transpilePackages`
+6. `pnpm install` — turbo picks it up automatically
+
+## Adding a feature to an existing generator
+
+1. Update the generator's `types.ts` (and `defaults`)
+2. Implement geometry in `geometry.ts`
+3. Add validation rules in `validation.ts`
+4. Add a Vitest case in `tests/`
+5. Update `controls.tsx` for the UI
+6. Preview updates automatically via shared geometry
