@@ -29,14 +29,19 @@ export function AppHeader({ generators, currentId }: AppHeaderProps) {
     <Box
       component="header"
       sx={{
+        position: "sticky",
+        top: 0,
+        zIndex: 10,
         display: "flex",
         alignItems: "center",
         gap: 1.5,
         px: 2,
         py: 1.5,
         borderBottom: 1,
-        borderColor: "divider",
-        bgcolor: "background.paper",
+        borderColor: "rgba(255, 255, 255, 0.06)",
+        bgcolor: "rgba(28, 28, 32, 0.55)",
+        backdropFilter: "blur(20px) saturate(140%)",
+        WebkitBackdropFilter: "blur(20px) saturate(140%)",
       }}
     >
       <Stack direction="row" alignItems="center" spacing={1}>

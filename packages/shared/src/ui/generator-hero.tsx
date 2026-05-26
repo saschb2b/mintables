@@ -136,10 +136,12 @@ export function GeneratorHero({
         camera={{ position: [2.1, 1.5, 2.4], fov: 38 }}
         gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
       >
-        <ambientLight intensity={0.5} />
-        <hemisphereLight args={["#ffffff", "#444444", 0.35]} />
-        <directionalLight position={[4, 6, 4]} intensity={1.2} />
-        <directionalLight position={[-4, 2, -4]} intensity={0.5} />
+        {/* Chromatic studio lights — picks up colored highlights on metallic mesh */}
+        <ambientLight intensity={0.4} color="#3a4060" />
+        <hemisphereLight args={["#9ec5ff", "#3d2950", 0.45]} />
+        <directionalLight position={[4, 6, 4]} intensity={1.4} color="#a8e0e3" />
+        <directionalLight position={[-4, 2, -4]} intensity={0.7} color="#cea8ff" />
+        <directionalLight position={[0, -2, 5]} intensity={0.55} color="#ff9bbf" />
         <MorphScene
           generators={generators}
           intervalMs={intervalMs}

@@ -130,6 +130,10 @@ interface Step {
   title: string;
   description: string;
   icon: typeof Bookmark;
+  /** Solid accent for icon gradient, hover border, hover glow. */
+  color: string;
+  /** Darker partner color for the icon's gradient end. */
+  colorDeep: string;
 }
 
 const STEPS: Step[] = [
@@ -139,6 +143,8 @@ const STEPS: Step[] = [
     description:
       "Tubes, adapters, dividers — open the one that matches the part you need.",
     icon: Sparkles,
+    color: "#5a9a9d",
+    colorDeep: "#3c6e71",
   },
   {
     num: "02",
@@ -146,6 +152,8 @@ const STEPS: Step[] = [
     description:
       "Sliders, numeric inputs, and presets. Inline validation catches anything that won't print.",
     icon: Sliders,
+    color: "#a855f7",
+    colorDeep: "#7c3aed",
   },
   {
     num: "03",
@@ -153,12 +161,42 @@ const STEPS: Step[] = [
     description:
       "Watertight STL or 3MF with millimeter units preserved. Drop it straight into your slicer.",
     icon: Download,
+    color: "#ec4899",
+    colorDeep: "#be185d",
   },
 ];
 
 export default function HubPage() {
   return (
-    <Box sx={{ flex: 1, overflow: "auto" }}>
+    <Box
+      sx={{
+        flex: 1,
+        overflow: "auto",
+        position: "relative",
+      }}
+    >
+      {/* Single atmospheric layer — pinned to viewport so the colors flow
+          across every section without hard cutoffs at boundaries. */}
+      <Box
+        aria-hidden
+        sx={{
+          position: "fixed",
+          inset: 0,
+          pointerEvents: "none",
+          zIndex: 0,
+          backgroundImage: `
+            radial-gradient(ellipse 70% 50% at 18% 22%, rgba(90, 154, 157, 0.34) 0%, transparent 60%),
+            radial-gradient(ellipse 65% 50% at 82% 18%, rgba(168, 85, 247, 0.32) 0%, transparent 60%),
+            radial-gradient(ellipse 80% 50% at 50% 78%, rgba(236, 72, 153, 0.22) 0%, transparent 62%),
+            radial-gradient(ellipse 60% 40% at 22% 88%, rgba(90, 154, 157, 0.18) 0%, transparent 60%)
+          `,
+        }}
+      />
+
+      {/* All sections sit on a relative z=1 shell so the fixed atmospheric
+          layer paints behind them (positioned z=0 would otherwise paint over
+          static in-flow siblings per CSS painting order rules). */}
+      <Box sx={{ position: "relative", zIndex: 1 }}>
       {/* ─── HERO ─────────────────────────────────────────────────────── */}
       <Box
         sx={{
@@ -171,26 +209,12 @@ export default function HubPage() {
             position: "absolute",
             inset: 0,
             backgroundImage:
-              "radial-gradient(rgba(255,255,255,0.045) 1px, transparent 1px)",
+              "radial-gradient(rgba(255,255,255,0.06) 1px, transparent 1px)",
             backgroundSize: "26px 26px",
             maskImage:
               "radial-gradient(ellipse at center, black 30%, transparent 80%)",
             WebkitMaskImage:
               "radial-gradient(ellipse at center, black 30%, transparent 80%)",
-            pointerEvents: "none",
-            zIndex: 0,
-          },
-          "&::after": {
-            content: '""',
-            position: "absolute",
-            top: "5%",
-            left: "50%",
-            width: "70%",
-            height: "70%",
-            transform: "translateX(-50%)",
-            background:
-              "radial-gradient(circle, rgba(90, 154, 157, 0.22) 0%, rgba(168, 85, 247, 0.1) 40%, transparent 70%)",
-            filter: "blur(70px)",
             pointerEvents: "none",
             zIndex: 0,
           },
@@ -510,11 +534,13 @@ export default function HubPage() {
           <Stack spacing={1.5} alignItems="center" textAlign="center">
             <Box
               sx={{
-                px: 1.5,
+                px: 1.75,
                 py: 0.5,
-                border: "1px solid rgba(255,255,255,0.1)",
+                border: "1px solid rgba(255,255,255,0.12)",
                 borderRadius: 999,
-                bgcolor: "rgba(255,255,255,0.03)",
+                bgcolor: "rgba(255, 255, 255, 0.04)",
+                backdropFilter: "blur(12px)",
+                WebkitBackdropFilter: "blur(12px)",
               }}
             >
               <Typography
@@ -554,11 +580,13 @@ export default function HubPage() {
           <Stack spacing={1.5} alignItems="center" textAlign="center">
             <Box
               sx={{
-                px: 1.5,
+                px: 1.75,
                 py: 0.5,
-                border: "1px solid rgba(255,255,255,0.1)",
+                border: "1px solid rgba(255,255,255,0.12)",
                 borderRadius: 999,
-                bgcolor: "rgba(255,255,255,0.03)",
+                bgcolor: "rgba(255, 255, 255, 0.04)",
+                backdropFilter: "blur(12px)",
+                WebkitBackdropFilter: "blur(12px)",
               }}
             >
               <Typography
@@ -598,14 +626,15 @@ export default function HubPage() {
                     p: 3,
                     border: "1px solid rgba(255,255,255,0.08)",
                     borderRadius: 3,
-                    bgcolor: "rgba(255,255,255,0.02)",
+                    bgcolor: "rgba(255,255,255,0.025)",
                     overflow: "hidden",
                     transition:
-                      "border-color 0.25s, transform 0.25s, background-color 0.25s",
+                      "border-color 0.25s, transform 0.25s, background-color 0.25s, box-shadow 0.25s",
                     "&:hover": {
-                      borderColor: "rgba(90, 154, 157, 0.4)",
-                      transform: "translateY(-3px)",
-                      bgcolor: "rgba(90, 154, 157, 0.04)",
+                      borderColor: `${step.color}80`,
+                      transform: "translateY(-4px)",
+                      bgcolor: `${step.color}10`,
+                      boxShadow: `0 20px 50px -20px ${step.color}80`,
                     },
                     "&::before": {
                       content: `"${step.num}"`,
@@ -614,7 +643,7 @@ export default function HubPage() {
                       right: 20,
                       fontSize: "5.5rem",
                       fontWeight: 800,
-                      color: "rgba(255, 255, 255, 0.035)",
+                      color: `${step.color}1f`,
                       letterSpacing: "-0.05em",
                       lineHeight: 1,
                       pointerEvents: "none",
@@ -630,11 +659,9 @@ export default function HubPage() {
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        background:
-                          "linear-gradient(135deg, #5a9a9d, #3c6e71)",
+                        background: `linear-gradient(135deg, ${step.color}, ${step.colorDeep})`,
                         color: "#fff",
-                        boxShadow:
-                          "0 8px 20px -8px rgba(90, 154, 157, 0.6)",
+                        boxShadow: `0 10px 24px -8px ${step.color}99`,
                       }}
                     >
                       <Icon size={22} />
@@ -730,6 +757,7 @@ export default function HubPage() {
           </Stack>
         </Box>
       </Container>
+      </Box>
 
       {/* Page-level keyframes */}
       <style>{`

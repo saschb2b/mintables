@@ -16,6 +16,7 @@ function currentGeneratorId(pathname: string): string | undefined {
 export function Providers({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const currentId = currentGeneratorId(pathname);
+  const isHub = currentId === undefined;
 
   return (
     <ThemeProvider>
@@ -24,6 +25,9 @@ export function Providers({ children }: { children: ReactNode }) {
           minHeight: "100vh",
           display: "flex",
           flexDirection: "column",
+          // Hub routes get the dark-blue base so the frosted header sits on the
+          // landing's color, not on the editor's muted grey.
+          bgcolor: isHub ? "#0f1322" : "background.default",
         }}
       >
         <AppHeader generators={generators} currentId={currentId} />
