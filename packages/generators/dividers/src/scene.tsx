@@ -9,7 +9,7 @@ import {
   PreviewSceneRig,
   type SceneBounds,
 } from "@mintables/shared/shell/preview-scene-rig";
-import type { DividerConfig } from "./types";
+import { effectiveBottomWidth, type DividerConfig } from "./types";
 import { generateDividerTriangles } from "./geometry";
 
 /**
@@ -85,38 +85,50 @@ function BedDimension({
 }
 
 function DividerDimensionIndicators({ config }: { config: DividerConfig }) {
-  const { width, height, thickness } = config;
-  const hw = width / 2;
+  const { width: topW, height, thickness } = config;
+  const bottomW = effectiveBottomWidth(config);
+  const tapered = config.taperEnabled && bottomW !== topW;
+  // The widest dimension drives the inset so the legends never cross over
+  // the slab — and stay outside the trapezoid even when bottom > top.
+  const widest = Math.max(topW, bottomW);
+  const hwTop = topW / 2;
+  const hwBottom = bottomW / 2;
   const hh = height / 2;
-  // Lay dimension lines just outside the slab footprint, on the bed plane
-  // (world y = 0) so they read like blueprint annotations.
-  const inset = Math.max(width, height) * 0.18;
-  // The thickness label scales with the bed footprint, not the (tiny)
-  // thickness value — so a 1 mm slab still gets a legible label.
-  const thicknessFont = Math.max(3, Math.max(width, height) * 0.045);
+  const inset = Math.max(widest, height) * 0.18;
+  const thicknessFont = Math.max(3, Math.max(widest, height) * 0.045);
 
   return (
     <group>
-      {/* Width — along world X, drawn in front of the slab on the bed */}
+      {/* Top width — drawn off the "top" edge of the slab. The geometry
+          places that edge at -world Z so it projects to the visual TOP of
+          the screen in the default ISO view, which matches the label. */}
       <BedDimension
-        from={[-hw, 0, hh + inset]}
-        to={[hw, 0, hh + inset]}
+        from={[-hwTop, 0, -hh - inset]}
+        to={[hwTop, 0, -hh - inset]}
         axis="x"
-        label={`${String(width)} mm`}
+        label={tapered ? `${String(topW)} mm (top)` : `${String(topW)} mm`}
         color="#3b82f6"
       />
+      {tapered && (
+        <BedDimension
+          from={[-hwBottom, 0, hh + inset]}
+          to={[hwBottom, 0, hh + inset]}
+          axis="x"
+          label={`${String(bottomW)} mm (bottom)`}
+          color="#60a5fa"
+        />
+      )}
       {/* Height — along world Z (depth), drawn to the right of the slab */}
       <BedDimension
-        from={[hw + inset, 0, -hh]}
-        to={[hw + inset, 0, hh]}
+        from={[widest / 2 + inset, 0, -hh]}
+        to={[widest / 2 + inset, 0, hh]}
         axis="z"
         label={`${String(height)} mm`}
         color="#22c55e"
       />
-      {/* Thickness — text label only, like the tube wall callout. The slab
-          is too thin (often 1 mm) to draw a useful dimension line for. */}
+      {/* Thickness — text label only, like the tube wall callout. */}
       <Text
-        position={[-hw, thickness + thicknessFont * 0.4, -hh - thicknessFont * 0.3]}
+        position={[-widest / 2, thickness + thicknessFont * 0.4, -hh - thicknessFont * 0.3]}
         fontSize={thicknessFont}
         color="#a855f7"
         anchorX="left"
@@ -132,7 +144,8 @@ function useDividerBounds(config: DividerConfig): SceneBounds {
   const serialized = configKey(config);
   return useMemo(() => {
     const parsed = JSON.parse(serialized) as DividerConfig;
-    const maxDimension = Math.max(parsed.width, parsed.height, parsed.thickness);
+    const widest = Math.max(parsed.width, effectiveBottomWidth(parsed));
+    const maxDimension = Math.max(widest, parsed.height, parsed.thickness);
     // Z-up source → world y-up after axis flip. Center the orbit at the
     // mid-thickness so the slab sits centered in the camera frame.
     return {

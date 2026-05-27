@@ -26,7 +26,14 @@ export function DividerSummary({ config }: { config: DividerConfig }) {
   return (
     <SpecCard status={{ status, label: statusLabel }}>
       <SpecRow label="Thickness" value={`${spec.thickness.toFixed(2)} mm`} />
-      <SpecRow label="Width" value={`${String(spec.width)} mm`} />
+      {config.taperEnabled && config.bottomWidth !== config.width ? (
+        <SpecRow
+          label="Width"
+          value={`${String(spec.width)} → ${String(config.bottomWidth)} mm`}
+        />
+      ) : (
+        <SpecRow label="Width" value={`${String(spec.width)} mm`} />
+      )}
       <SpecRow label="Height" value={`${String(spec.height)} mm`} />
       {config.cornerRadius > 0 && (
         <SpecRow

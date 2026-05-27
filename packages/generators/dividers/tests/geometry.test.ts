@@ -32,6 +32,8 @@ describe("generateDividerTriangles", () => {
       width: w,
       height: h,
       cornerRadius: 0,
+      taperEnabled: false,
+      bottomWidth: w,
     });
     const xs = triangles.flatMap((tri) => [tri[0], tri[3], tri[6]]);
     const ys = triangles.flatMap((tri) => [tri[1], tri[4], tri[7]]);
@@ -70,6 +72,8 @@ describe("generateDividerTriangles", () => {
       width: w,
       height: h,
       cornerRadius: r,
+      taperEnabled: false,
+      bottomWidth: w,
     });
     const xs = triangles.flatMap((tri) => [tri[0], tri[3], tri[6]]);
     const ys = triangles.flatMap((tri) => [tri[1], tri[4], tri[7]]);
@@ -87,14 +91,54 @@ describe("generateDividerTriangles", () => {
       width: 40,
       height: 30,
       cornerRadius: 999,
+      taperEnabled: false,
+      bottomWidth: 40,
     });
     const stadium = generateDividerTriangles({
       thickness: 1,
       width: 40,
       height: 30,
       cornerRadius: 15,
+      taperEnabled: false,
+      bottomWidth: 40,
     });
     expect(isPrintableMesh(oversized)).toBe(true);
     expect(oversized.length).toBe(stadium.length);
+  });
+
+  it("builds a watertight trapezoid when taper is enabled", () => {
+    const triangles = generateDividerTriangles({
+      ...DEFAULT_DIVIDER_CONFIG,
+      taperEnabled: true,
+      bottomWidth: 50,
+    });
+    expect(isPrintableMesh(triangles)).toBe(true);
+    // Geometry convention: the divider's "top" edge (the wider top width)
+    // sits at source y = -halfH so it projects toward the visual top of the
+    // ISO camera; the "bottom" edge (narrower bottomWidth) sits at +halfH.
+    const yLow = triangles.flatMap((tri) => [
+      tri[1] <= -17.4 ? tri[0] : Number.POSITIVE_INFINITY,
+      tri[4] <= -17.4 ? tri[3] : Number.POSITIVE_INFINITY,
+      tri[7] <= -17.4 ? tri[6] : Number.POSITIVE_INFINITY,
+    ]);
+    const yHigh = triangles.flatMap((tri) => [
+      tri[1] >= 17.4 ? tri[0] : Number.NEGATIVE_INFINITY,
+      tri[4] >= 17.4 ? tri[3] : Number.NEGATIVE_INFINITY,
+      tri[7] >= 17.4 ? tri[6] : Number.NEGATIVE_INFINITY,
+    ]);
+    // y = -halfH carries the top (wider) edge → 65 / 2
+    expect(Math.max(...yLow.filter(Number.isFinite))).toBeCloseTo(32.5, 5);
+    // y = +halfH carries the bottom (narrower) edge → 50 / 2
+    expect(Math.max(...yHigh)).toBeCloseTo(25, 5);
+  });
+
+  it("ignores bottomWidth when taperEnabled is false", () => {
+    const sharp = generateDividerTriangles({
+      ...DEFAULT_DIVIDER_CONFIG,
+      taperEnabled: false,
+      bottomWidth: 30, // would taper hard if applied
+    });
+    const reference = generateDividerTriangles(DEFAULT_DIVIDER_CONFIG);
+    expect(sharp).toEqual(reference);
   });
 });

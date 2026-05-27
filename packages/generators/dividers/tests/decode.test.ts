@@ -21,10 +21,9 @@ describe("dividerGenerator.decode", () => {
       extraneous: true,
     });
     expect(decoded).toEqual({
+      ...DEFAULT_DIVIDER_CONFIG,
       thickness: 1.5,
-      width: DEFAULT_DIVIDER_CONFIG.width,
       height: 40,
-      cornerRadius: DEFAULT_DIVIDER_CONFIG.cornerRadius,
     });
   });
 
@@ -35,15 +34,27 @@ describe("dividerGenerator.decode", () => {
       height: 35,
     });
     expect(decoded).toEqual({
-      thickness: DEFAULT_DIVIDER_CONFIG.thickness,
-      width: DEFAULT_DIVIDER_CONFIG.width,
+      ...DEFAULT_DIVIDER_CONFIG,
       height: 35,
-      cornerRadius: DEFAULT_DIVIDER_CONFIG.cornerRadius,
     });
   });
 
   it("picks up cornerRadius from the incoming payload", () => {
     const decoded = dividerGenerator.decode({ cornerRadius: 4.5 });
     expect(decoded?.cornerRadius).toBe(4.5);
+  });
+
+  it("picks up taperEnabled + bottomWidth from the incoming payload", () => {
+    const decoded = dividerGenerator.decode({
+      taperEnabled: true,
+      bottomWidth: 60,
+    });
+    expect(decoded?.taperEnabled).toBe(true);
+    expect(decoded?.bottomWidth).toBe(60);
+  });
+
+  it("ignores a non-boolean taperEnabled", () => {
+    const decoded = dividerGenerator.decode({ taperEnabled: "yes" });
+    expect(decoded?.taperEnabled).toBe(DEFAULT_DIVIDER_CONFIG.taperEnabled);
   });
 });

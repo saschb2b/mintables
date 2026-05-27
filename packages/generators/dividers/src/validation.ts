@@ -77,7 +77,39 @@ export function validateDividerConfig(config: DividerConfig): ValidationResult {
     });
   }
 
-  const maxRadius = Math.min(config.width, config.height) / 2;
+  if (config.taperEnabled) {
+    if (config.bottomWidth < MIN_DIM_MM || config.bottomWidth > MAX_DIM_MM) {
+      parts.push({
+        errors: [
+          issue(
+            "error",
+            "bottom_width_range",
+            `Bottom width must be between ${String(MIN_DIM_MM)} mm and ${String(MAX_DIM_MM)} mm.`,
+            "bottomWidth",
+          ),
+        ],
+        warnings: [],
+      });
+    } else if (config.bottomWidth === config.width) {
+      parts.push({
+        errors: [],
+        warnings: [
+          issue(
+            "warning",
+            "taper_noop",
+            "Taper is on but the bottom width matches the top — adjust the bottom width or turn taper off.",
+            "bottomWidth",
+          ),
+        ],
+      });
+    }
+  }
+
+  // Corner radius is bounded by the SHORTER side of the slab — once taper
+  // narrows the bottom edge, the safe radius shrinks with it.
+  const effectiveBottom = config.taperEnabled ? config.bottomWidth : config.width;
+  const shortestSide = Math.min(config.width, effectiveBottom, config.height);
+  const maxRadius = shortestSide / 2;
   if (config.cornerRadius < 0) {
     parts.push({
       errors: [
@@ -91,12 +123,13 @@ export function validateDividerConfig(config: DividerConfig): ValidationResult {
       warnings: [],
     });
   } else if (config.cornerRadius > maxRadius) {
+    const tapered = config.taperEnabled && config.bottomWidth < config.width;
     parts.push({
       errors: [
         issue(
           "error",
           "corner_radius_too_large",
-          `Corner radius must be at most ${maxRadius.toFixed(1)} mm (half of the shorter side).`,
+          `Corner radius must be at most ${maxRadius.toFixed(1)} mm (half of the shortest side${tapered ? ", which is the tapered bottom" : ""}).`,
           "cornerRadius",
         ),
       ],

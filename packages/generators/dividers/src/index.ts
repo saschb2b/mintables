@@ -16,21 +16,36 @@ function isObj(x: unknown): x is Record<string, unknown> {
 function decodeDivider(data: unknown): DividerConfig | null {
   if (!isObj(data)) return null;
   const out: DividerConfig = { ...DEFAULT_DIVIDER_CONFIG };
-  for (const k of ["thickness", "width", "height", "cornerRadius"] as const) {
+  for (const k of [
+    "thickness",
+    "width",
+    "height",
+    "cornerRadius",
+    "bottomWidth",
+  ] as const) {
     const v = data[k];
     if (typeof v === "number" && Number.isFinite(v)) out[k] = v;
+  }
+  if (typeof data.taperEnabled === "boolean") {
+    out.taperEnabled = data.taperEnabled;
   }
   return out;
 }
 
 function describeDivider(c: DividerConfig): string {
+  const taper =
+    c.taperEnabled && c.bottomWidth !== c.width
+      ? `, tapers to ${String(c.bottomWidth)} mm`
+      : "";
   const radius = c.cornerRadius > 0 ? `, r${c.cornerRadius.toFixed(1)} mm` : "";
-  return `Divider ${String(c.width)}×${String(c.height)} mm, ${String(c.thickness)} mm thick${radius}`;
+  return `Divider ${String(c.width)}×${String(c.height)} mm, ${String(c.thickness)} mm thick${taper}${radius}`;
 }
 
 function dividerFilename(c: DividerConfig): string {
+  const taper =
+    c.taperEnabled && c.bottomWidth !== c.width ? `-t${String(c.bottomWidth)}` : "";
   const radius = c.cornerRadius > 0 ? `-r${c.cornerRadius.toFixed(1)}` : "";
-  return `divider-${String(c.width)}x${String(c.height)}-${String(c.thickness)}mm${radius}`;
+  return `divider-${String(c.width)}x${String(c.height)}-${String(c.thickness)}mm${taper}${radius}`;
 }
 
 export const dividerGenerator: Generator<DividerConfig> = {

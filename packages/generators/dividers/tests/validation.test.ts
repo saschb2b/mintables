@@ -68,4 +68,56 @@ describe("validateDividerConfig", () => {
       result.errors.some((e) => e.code === "corner_radius_too_large"),
     ).toBe(true);
   });
+
+  it("accepts a sensible taper", () => {
+    const result = validateDividerConfig({
+      ...DEFAULT_DIVIDER_CONFIG,
+      taperEnabled: true,
+      bottomWidth: 64,
+    });
+    expect(result.errors).toHaveLength(0);
+  });
+
+  it("warns when taper is on but bottom matches top", () => {
+    const result = validateDividerConfig({
+      ...DEFAULT_DIVIDER_CONFIG,
+      taperEnabled: true,
+      bottomWidth: DEFAULT_DIVIDER_CONFIG.width,
+    });
+    expect(result.warnings.some((w) => w.code === "taper_noop")).toBe(true);
+  });
+
+  it("errors on out-of-range bottom width when taper is on", () => {
+    const result = validateDividerConfig({
+      ...DEFAULT_DIVIDER_CONFIG,
+      taperEnabled: true,
+      bottomWidth: 0,
+    });
+    expect(result.errors.some((e) => e.code === "bottom_width_range")).toBe(true);
+  });
+
+  it("tightens corner radius constraint to the narrowed bottom edge", () => {
+    // height=35 alone would allow r up to 17.5, but with bottom=10 the bound
+    // collapses to 5. Asking for r=8 should now error.
+    const result = validateDividerConfig({
+      ...DEFAULT_DIVIDER_CONFIG,
+      taperEnabled: true,
+      bottomWidth: 10,
+      cornerRadius: 8,
+    });
+    expect(
+      result.errors.some((e) => e.code === "corner_radius_too_large"),
+    ).toBe(true);
+  });
+
+  it("ignores bottomWidth in validation when taper is off", () => {
+    const result = validateDividerConfig({
+      ...DEFAULT_DIVIDER_CONFIG,
+      taperEnabled: false,
+      bottomWidth: 0, // invalid value, but taper is off so it shouldn't matter
+    });
+    expect(
+      result.errors.some((e) => e.code === "bottom_width_range"),
+    ).toBe(false);
+  });
 });

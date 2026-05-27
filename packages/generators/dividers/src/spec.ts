@@ -1,4 +1,4 @@
-import type { DividerConfig } from "./types";
+import { effectiveBottomWidth, type DividerConfig } from "./types";
 
 export interface DividerSpecSummary {
   thickness: number;
@@ -10,8 +10,11 @@ export interface DividerSpecSummary {
 export function getDividerSpecSummary(
   config: DividerConfig,
 ): DividerSpecSummary {
-  // mm³ → cm³
-  const volumeMm3 = config.thickness * config.width * config.height;
+  // Trapezoidal prism volume = (avg of top + bottom widths) * height * thickness.
+  // Corner rounding only nibbles tiny amounts off the corners, so we ignore it
+  // for the rough volume estimate — keeps the readout simple and stable.
+  const avgWidth = (config.width + effectiveBottomWidth(config)) / 2;
+  const volumeMm3 = config.thickness * avgWidth * config.height;
   return {
     thickness: config.thickness,
     width: config.width,
