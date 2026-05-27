@@ -5,6 +5,7 @@ import Box from "@mui/material/Box";
 import { AppDock, AppHeader, Spotlight, ThemeProvider } from "@mintables/shared/ui";
 import { WindowManagerProvider } from "@mintables/shared/lib";
 import { generators } from "@/lib/registry";
+import { Desktop } from "./desktop";
 import { DesktopWallpaper } from "./desktop-wallpaper";
 import { SHOW_WELCOME_EVENT, WelcomeDialog } from "./welcome-dialog";
 import { WindowLayer } from "./window-layer";
@@ -74,6 +75,7 @@ export function Providers({ children }: { children: ReactNode }) {
               zIndex: 1,
             }}
           >
+            <Desktop />
             {children}
           </Box>
           {/* Window layer paints over the desktop content but under the dock. */}
