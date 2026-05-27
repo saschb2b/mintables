@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import Box from "@mui/material/Box";
 import { AppDock, AppHeader, Spotlight, ThemeProvider } from "@mintables/shared/ui";
+import { PreviewStage } from "@mintables/shared/shell";
 import { WindowManagerProvider } from "@mintables/shared/lib";
 import { generators } from "@/lib/registry";
 import { Desktop } from "./desktop";
@@ -15,6 +16,10 @@ const WELCOMED_KEY = "mintables.welcomed";
 
 export function Providers({ children }: { children: ReactNode }) {
   const [welcomeOpen, setWelcomeOpen] = useState(false);
+  // Eventsource for the global PreviewStage canvas. Drei's <View> routes
+  // pointer events from each view's tracked div into this parent, so
+  // OrbitControls in any generator window picks up drags correctly.
+  const stageContainerRef = useRef<HTMLDivElement>(null);
 
   // First-visit welcome: open ~600ms after mount so the wallpaper + dock paint
   // first and the dialog appears *on* the desktop, not *instead* of it. The
@@ -51,6 +56,7 @@ export function Providers({ children }: { children: ReactNode }) {
     <ThemeProvider>
       <WindowManagerProvider>
         <Box
+          ref={stageContainerRef}
           sx={{
             height: "100dvh",
             width: "100vw",
@@ -80,6 +86,11 @@ export function Providers({ children }: { children: ReactNode }) {
           </Box>
           {/* Window layer paints over the desktop content but under the dock. */}
           <WindowLayer />
+          {/* One global R3F canvas. Each generator window contributes a drei
+            <View> in PreviewPanel; the canvas scissor-paints all views from
+            a single WebGL context, so opening N windows can't hit the
+            browser's per-page context cap. */}
+          <PreviewStage containerRef={stageContainerRef} />
           <AppDock generators={generators} />
           <Spotlight generators={generators} />
           <WindowShortcuts generators={generators} />

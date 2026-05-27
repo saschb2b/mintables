@@ -15,7 +15,6 @@ import Snackbar from "@mui/material/Snackbar";
 import Stack from "@mui/material/Stack";
 import { useTheme } from "@mui/material/styles";
 import Tooltip from "@mui/material/Tooltip";
-import Typography from "@mui/material/Typography";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import {
   Bookmark,
@@ -49,6 +48,7 @@ import { ShareDialog } from "../ui/share-dialog";
 import { ThankYouDrawer } from "../ui/thank-you-drawer";
 import { ValidationBanner } from "../ui/validation-banner";
 import { PreviewPanel } from "./preview-panel";
+import { ViewportProvider, useViewport, type ViewPreset } from "./viewport-context";
 
 const EXPORT_FORMAT_STORAGE_KEY = "mintables.exportFormat";
 
@@ -552,7 +552,10 @@ export function GeneratorShell<C>({ generator }: GeneratorShellProps<C>) {
         </Box>
       </Box>
 
-      {/* Preview Area */}
+      {/* Preview Area. Wrapped in ViewportProvider so the view-preset buttons
+        in the info bar share the same `requestView` channel as the
+        PreviewSceneRig inside the drei <View>. */}
+      <ViewportProvider>
       <Box
         component="main"
         sx={{
@@ -561,7 +564,7 @@ export function GeneratorShell<C>({ generator }: GeneratorShellProps<C>) {
           flexDirection: "column",
           minHeight: { md: 0 },
           // Allow this flex item to shrink below the WebGL canvas's
-          // intrinsic min-width — otherwise once R3F grows the canvas
+          // intrinsic min-width, otherwise once R3F grows the canvas
           // (e.g. window maximize), it anchors `main` and can't shrink back.
           minWidth: 0,
         }}
@@ -670,19 +673,14 @@ export function GeneratorShell<C>({ generator }: GeneratorShellProps<C>) {
               />
             ))}
           </Stack>
-          <Typography
-            variant="caption"
-            color="text.secondary"
-            sx={{ display: { xs: "none", sm: "block" } }}
-          >
-            Drag to rotate · scroll to zoom · use view presets
-          </Typography>
+          <ViewPresetButtons />
         </Box>
 
         <ValidationBanner result={validation} />
 
         <PreviewPanel generator={generator} config={debouncedConfig} />
       </Box>
+      </ViewportProvider>
       </Box>
 
       <ThankYouDrawer
@@ -912,4 +910,77 @@ function useUndoableConfig<C>(initial: C): {
     canUndo: state.past.length > 0,
     canRedo: state.future.length > 0,
   };
+}
+
+/**
+ * Camera view presets, rendered inline in the info bar above the preview.
+ * Used to live as a floating overlay inside the preview area, but with the
+ * shared <PreviewStage> canvas painting above WM windows, an in-preview
+ * overlay would get covered by the 3D render. Putting the buttons in the
+ * chrome row sidesteps the layering entirely and reads cleaner anyway -
+ * preset chips + view presets are both "this is the preview, framed".
+ */
+const VIEW_PRESETS: { id: ViewPreset; label: string }[] = [
+  { id: "iso", label: "Iso" },
+  { id: "front", label: "Front" },
+  { id: "top", label: "Top" },
+  { id: "right", label: "Right" },
+];
+
+function ViewPresetButtons() {
+  const { requestView } = useViewport();
+  return (
+    <Stack
+      direction="row"
+      role="group"
+      aria-label="Camera view presets"
+      sx={{
+        bgcolor: "rgba(0, 0, 0, 0.28)",
+        borderRadius: 1.25,
+        p: 0.25,
+        boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.05)",
+        flexShrink: 0,
+      }}
+    >
+      {VIEW_PRESETS.map((p) => (
+        <Tooltip key={p.id} title={`${p.label} view`}>
+          <Box
+            component="button"
+            type="button"
+            onClick={() => {
+              requestView(p.id);
+            }}
+            aria-label={`${p.label} view`}
+            sx={{
+              all: "unset",
+              cursor: "pointer",
+              minWidth: 42,
+              height: 24,
+              px: 1,
+              borderRadius: 0.85,
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "0.7rem",
+              fontWeight: 600,
+              letterSpacing: 0.4,
+              color: "text.secondary",
+              textTransform: "uppercase",
+              transition: "background-color 120ms ease, color 120ms ease",
+              "&:hover": {
+                bgcolor: "rgba(255,255,255,0.08)",
+                color: "text.primary",
+              },
+              "&:focus-visible": {
+                outline: "2px solid rgba(120, 160, 220, 0.55)",
+                outlineOffset: 1,
+              },
+            }}
+          >
+            {p.label}
+          </Box>
+        </Tooltip>
+      ))}
+    </Stack>
+  );
 }
