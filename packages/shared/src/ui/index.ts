@@ -3,6 +3,7 @@ export { AppHeader } from "./app-header";
 export { AppSwitcher } from "./app-switcher";
 export { AppDock } from "./app-dock";
 export { AppWindow } from "./app-window";
+export { DialogWindow } from "./dialog-window";
 export { DesktopIcon } from "./desktop-icon";
 export { DesktopFolder } from "./desktop-folder";
 export { FileExplorer, formatTimestamp } from "./file-explorer";
