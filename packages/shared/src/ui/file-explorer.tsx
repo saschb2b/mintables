@@ -1057,6 +1057,178 @@ function ContextMenu<T extends ExplorerItem>({
       (!a.singleOnly || selectedItems.length === 1),
   );
 
+  // MUI's <Menu> walks its children via React.Children to wire up keyboard
+  // navigation, which means fragments + conditional groups don't work — we
+  // have to hand it a flat array of MenuItem / Divider / label elements.
+  const children: ReactNode[] = [];
+  if (onEmpty) {
+    children.push(
+      <SubmenuLabel key="view-label">View as</SubmenuLabel>,
+      <MenuItem
+        key="view-icons"
+        onClick={() => {
+          onChangeView("icons");
+          onClose();
+        }}
+      >
+        <ListItemIcon>
+          {view === "icons" ? <Check size={13} /> : null}
+        </ListItemIcon>
+        <ListItemText>Icons</ListItemText>
+      </MenuItem>,
+      <MenuItem
+        key="view-list"
+        onClick={() => {
+          onChangeView("list");
+          onClose();
+        }}
+      >
+        <ListItemIcon>
+          {view === "list" ? <Check size={13} /> : null}
+        </ListItemIcon>
+        <ListItemText>List</ListItemText>
+      </MenuItem>,
+      <Divider
+        key="div-sort"
+        sx={{ my: 0.5, borderColor: "rgba(255,255,255,0.06)" }}
+      />,
+      <SubmenuLabel key="sort-label">Sort by</SubmenuLabel>,
+    );
+    for (const s of ["date", "name", "kind"] as const) {
+      children.push(
+        <MenuItem
+          key={`sort-${s}`}
+          onClick={() => {
+            onChangeSort(s);
+            onClose();
+          }}
+        >
+          <ListItemIcon>
+            {sort === s ? <Check size={13} /> : null}
+          </ListItemIcon>
+          <ListItemText>
+            {s === "date" ? "Date" : s === "name" ? "Name" : "Kind"}
+          </ListItemText>
+        </MenuItem>,
+      );
+    }
+    children.push(
+      <Divider
+        key="div-dir"
+        sx={{ my: 0.5, borderColor: "rgba(255,255,255,0.06)" }}
+      />,
+      <MenuItem
+        key="sort-dir"
+        onClick={() => {
+          onChangeDir(dir === "asc" ? "desc" : "asc");
+          onClose();
+        }}
+      >
+        <ListItemText>
+          {dir === "asc" ? "Sort descending" : "Sort ascending"}
+        </ListItemText>
+      </MenuItem>,
+    );
+  } else {
+    if (canOpen) {
+      children.push(
+        <MenuItem
+          key="open"
+          onClick={() => {
+            if (selectedItems[0]) onOpen(selectedItems[0]);
+            onClose();
+          }}
+        >
+          <ListItemText>Open</ListItemText>
+          <Typography
+            variant="caption"
+            sx={{ color: "text.secondary", ml: 2 }}
+          >
+            ↵
+          </Typography>
+        </MenuItem>,
+      );
+    }
+    if (canRename && selectedItems.length === 1) {
+      children.push(
+        <MenuItem
+          key="rename"
+          onClick={() => {
+            onRename();
+            onClose();
+          }}
+        >
+          <ListItemText>Rename</ListItemText>
+          <Typography
+            variant="caption"
+            sx={{ color: "text.secondary", ml: 2 }}
+          >
+            F2
+          </Typography>
+        </MenuItem>,
+      );
+    }
+    for (const a of normalActions.filter(
+      (x) => x.id !== "open" && x.id !== "rename",
+    )) {
+      const Icon = a.icon;
+      children.push(
+        <MenuItem
+          key={a.id}
+          onClick={() => {
+            a.onClick(selectedItems);
+            onClose();
+          }}
+        >
+          <ListItemIcon>
+            <Icon size={13} />
+          </ListItemIcon>
+          <ListItemText>{a.label}</ListItemText>
+          {a.shortcut && (
+            <Typography
+              variant="caption"
+              sx={{ color: "text.secondary", ml: 2 }}
+            >
+              {a.shortcut}
+            </Typography>
+          )}
+        </MenuItem>,
+      );
+    }
+    if (dangerActions.length > 0) {
+      children.push(
+        <Divider
+          key="div-danger"
+          sx={{ my: 0.5, borderColor: "rgba(255,255,255,0.06)" }}
+        />,
+      );
+    }
+    for (const a of dangerActions) {
+      const Icon = a.icon;
+      children.push(
+        <MenuItem
+          key={a.id}
+          onClick={() => {
+            a.onClick(selectedItems);
+            onClose();
+          }}
+          sx={{ color: "rgba(248,113,113,0.95) !important" }}
+        >
+          <ListItemIcon sx={{ color: "inherit !important" }}>
+            <Icon size={13} />
+          </ListItemIcon>
+          <ListItemText>{a.label}</ListItemText>
+          <Typography
+            variant="caption"
+            sx={{ color: "inherit", opacity: 0.65, ml: 2 }}
+          >
+            ⌫
+          </Typography>
+        </MenuItem>,
+      );
+    }
+  }
+
   return (
     <Menu
       open={open}
@@ -1085,151 +1257,7 @@ function ContextMenu<T extends ExplorerItem>({
         },
       }}
     >
-      {onEmpty ? (
-        <>
-          <SubmenuLabel>View as</SubmenuLabel>
-          <MenuItem
-            onClick={() => {
-              onChangeView("icons");
-              onClose();
-            }}
-          >
-            <ListItemIcon>
-              {view === "icons" ? <Check size={13} /> : null}
-            </ListItemIcon>
-            <ListItemText>Icons</ListItemText>
-          </MenuItem>
-          <MenuItem
-            onClick={() => {
-              onChangeView("list");
-              onClose();
-            }}
-          >
-            <ListItemIcon>
-              {view === "list" ? <Check size={13} /> : null}
-            </ListItemIcon>
-            <ListItemText>List</ListItemText>
-          </MenuItem>
-          <Divider sx={{ my: 0.5, borderColor: "rgba(255,255,255,0.06)" }} />
-          <SubmenuLabel>Sort by</SubmenuLabel>
-          {(["date", "name", "kind"] as const).map((s) => (
-            <MenuItem
-              key={s}
-              onClick={() => {
-                onChangeSort(s);
-                onClose();
-              }}
-            >
-              <ListItemIcon>
-                {sort === s ? <Check size={13} /> : null}
-              </ListItemIcon>
-              <ListItemText>
-                {s === "date" ? "Date" : s === "name" ? "Name" : "Kind"}
-              </ListItemText>
-            </MenuItem>
-          ))}
-          <Divider sx={{ my: 0.5, borderColor: "rgba(255,255,255,0.06)" }} />
-          <MenuItem
-            onClick={() => {
-              onChangeDir(dir === "asc" ? "desc" : "asc");
-              onClose();
-            }}
-          >
-            <ListItemText>
-              {dir === "asc" ? "Sort descending" : "Sort ascending"}
-            </ListItemText>
-          </MenuItem>
-        </>
-      ) : (
-        <>
-          {canOpen && (
-            <MenuItem
-              onClick={() => {
-                if (selectedItems[0]) onOpen(selectedItems[0]);
-                onClose();
-              }}
-            >
-              <ListItemText>Open</ListItemText>
-              <Typography
-                variant="caption"
-                sx={{ color: "text.secondary", ml: 2 }}
-              >
-                ↵
-              </Typography>
-            </MenuItem>
-          )}
-          {canRename && selectedItems.length === 1 && (
-            <MenuItem
-              onClick={() => {
-                onRename();
-                onClose();
-              }}
-            >
-              <ListItemText>Rename</ListItemText>
-              <Typography
-                variant="caption"
-                sx={{ color: "text.secondary", ml: 2 }}
-              >
-                F2
-              </Typography>
-            </MenuItem>
-          )}
-          {normalActions
-            .filter((a) => a.id !== "open" && a.id !== "rename")
-            .map((a) => {
-              const Icon = a.icon;
-              return (
-                <MenuItem
-                  key={a.id}
-                  onClick={() => {
-                    a.onClick(selectedItems);
-                    onClose();
-                  }}
-                >
-                  <ListItemIcon>
-                    <Icon size={13} />
-                  </ListItemIcon>
-                  <ListItemText>{a.label}</ListItemText>
-                  {a.shortcut && (
-                    <Typography
-                      variant="caption"
-                      sx={{ color: "text.secondary", ml: 2 }}
-                    >
-                      {a.shortcut}
-                    </Typography>
-                  )}
-                </MenuItem>
-              );
-            })}
-          {dangerActions.length > 0 && (
-            <Divider sx={{ my: 0.5, borderColor: "rgba(255,255,255,0.06)" }} />
-          )}
-          {dangerActions.map((a) => {
-            const Icon = a.icon;
-            return (
-              <MenuItem
-                key={a.id}
-                onClick={() => {
-                  a.onClick(selectedItems);
-                  onClose();
-                }}
-                sx={{ color: "rgba(248,113,113,0.95) !important" }}
-              >
-                <ListItemIcon sx={{ color: "inherit !important" }}>
-                  <Icon size={13} />
-                </ListItemIcon>
-                <ListItemText>{a.label}</ListItemText>
-                <Typography
-                  variant="caption"
-                  sx={{ color: "inherit", opacity: 0.65, ml: 2 }}
-                >
-                  ⌫
-                </Typography>
-              </MenuItem>
-            );
-          })}
-        </>
-      )}
+      {children}
     </Menu>
   );
 }
