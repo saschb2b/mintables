@@ -4,9 +4,9 @@ import type { ReactNode } from "react";
 import Box from "@mui/material/Box";
 import Dialog from "@mui/material/Dialog";
 import Stack from "@mui/material/Stack";
-import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { X, type LucideIcon } from "lucide-react";
+import { OSTooltip } from "./os-tooltip";
 
 interface DialogWindowProps {
   open: boolean;
@@ -197,7 +197,15 @@ function DialogTrafficLights({ onClose }: { onClose: () => void }) {
 
         "&:hover .tl-glyph": { opacity: 1 }
       }}>
-      <Tooltip title="Close" placement="bottom" arrow enterDelay={250}>
+      <OSTooltip
+        title="Close"
+        placement="bottom"
+        slotProps={{
+          tooltip: {
+            sx: { mt: "4px !important" },
+          },
+        }}
+      >
         <Box
           component="button"
           type="button"
@@ -229,7 +237,7 @@ function DialogTrafficLights({ onClose }: { onClose: () => void }) {
             <X size={8} strokeWidth={2.6} />
           </Box>
         </Box>
-      </Tooltip>
+      </OSTooltip>
       <Box
         component="span"
         aria-hidden

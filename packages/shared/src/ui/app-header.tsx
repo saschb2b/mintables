@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import NextLink from "next/link";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
-import Tooltip, { tooltipClasses } from "@mui/material/Tooltip";
+import { OSTooltip } from "./os-tooltip";
 import Typography from "@mui/material/Typography";
 import { Search, Sparkles } from "lucide-react";
 import type { AnyGenerator } from "../lib/generator";
@@ -149,27 +149,12 @@ function SpotlightTrigger() {
   const shortcut = isMac ? "⌘K" : "Ctrl+K";
 
   return (
-    <Tooltip
+    <OSTooltip
       title={`Search · ${shortcut}`}
       placement="bottom"
-      arrow
-      enterDelay={200}
       slotProps={{
         tooltip: {
-          sx: {
-            bgcolor: "rgba(24, 26, 38, 0.94)",
-            backdropFilter: "blur(12px)",
-            border: "1px solid rgba(255, 255, 255, 0.08)",
-            fontSize: "0.72rem",
-            fontWeight: 600,
-            letterSpacing: 0.2,
-            px: 1.25,
-            py: 0.5,
-            mt: "6px !important",
-            [`& .${tooltipClasses.arrow}`]: {
-              color: "rgba(24, 26, 38, 0.94)",
-            },
-          },
+          sx: { mt: "6px !important" },
         },
       }}
     >
@@ -205,7 +190,7 @@ function SpotlightTrigger() {
       >
         <Search size={13} />
       </Box>
-    </Tooltip>
+    </OSTooltip>
   );
 }
 

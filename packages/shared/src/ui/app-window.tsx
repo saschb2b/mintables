@@ -10,11 +10,10 @@ import {
 import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
-import Tooltip from "@mui/material/Tooltip";
-import { tooltipClasses } from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { Maximize2, Minimize2, Minus, X, type LucideIcon } from "lucide-react";
 import { invalidatePreview } from "../lib/preview-events";
+import { OSTooltip } from "./os-tooltip";
 
 export interface AppWindowBounds {
   x: number;
@@ -544,6 +543,7 @@ export function AppWindow({
         }}>
         <TrafficLights
           maximized={maximized}
+          suppressTooltips={dragging || resizing}
           onClose={handleClose}
           onMinimize={handleMinimize}
           onMaximize={handleMaximize}
@@ -775,6 +775,9 @@ function Handle({
 
 interface TrafficLightsProps {
   maximized: boolean;
+  /** True during drag / resize — suppresses tooltips so they don't pop up
+   *  over the title bar while it's moving. */
+  suppressTooltips: boolean;
   onClose: () => void;
   onMinimize: () => void;
   onMaximize: () => void;
@@ -782,6 +785,7 @@ interface TrafficLightsProps {
 
 function TrafficLights({
   maximized,
+  suppressTooltips,
   onClose,
   onMinimize,
   onMaximize,
@@ -806,15 +810,26 @@ function TrafficLights({
         "&:hover .tl-glyph": { opacity: 1 },
         "&:focus-within .tl-glyph": { opacity: 1 }
       }}>
-      <TrafficLight color="#ff5f57" label="Close" onClick={onClose}>
+      <TrafficLight
+        color="#ff5f57"
+        label="Close"
+        disabled={suppressTooltips}
+        onClick={onClose}
+      >
         <X size={8} strokeWidth={2.6} />
       </TrafficLight>
-      <TrafficLight color="#febc2e" label="Minimize" onClick={onMinimize}>
+      <TrafficLight
+        color="#febc2e"
+        label="Minimize"
+        disabled={suppressTooltips}
+        onClick={onMinimize}
+      >
         <Minus size={9} strokeWidth={2.6} />
       </TrafficLight>
       <TrafficLight
         color="#28c840"
         label={maximized ? "Restore" : "Maximize"}
+        disabled={suppressTooltips}
         onClick={onMaximize}
       >
         {maximized ? (
@@ -830,33 +845,26 @@ function TrafficLights({
 interface TrafficLightProps {
   color: string;
   label: string;
+  disabled: boolean;
   onClick: () => void;
   children: ReactNode;
 }
 
-function TrafficLight({ color, label, onClick, children }: TrafficLightProps) {
+function TrafficLight({
+  color,
+  label,
+  disabled,
+  onClick,
+  children,
+}: TrafficLightProps) {
   return (
-    <Tooltip
+    <OSTooltip
       title={label}
       placement="bottom"
-      arrow
-      enterDelay={250}
+      disabled={disabled}
       slotProps={{
         tooltip: {
-          sx: {
-            bgcolor: "rgba(24, 26, 38, 0.94)",
-            backdropFilter: "blur(12px)",
-            border: "1px solid rgba(255, 255, 255, 0.08)",
-            fontSize: "0.68rem",
-            fontWeight: 600,
-            letterSpacing: 0.1,
-            px: 1,
-            py: 0.5,
-            mt: "4px !important",
-            [`& .${tooltipClasses.arrow}`]: {
-              color: "rgba(24, 26, 38, 0.94)",
-            },
-          },
+          sx: { mt: "4px !important" },
         },
       }}
     >
@@ -900,6 +908,6 @@ function TrafficLight({ color, label, onClick, children }: TrafficLightProps) {
       >
         <Box className="tl-glyph">{children}</Box>
       </Box>
-    </Tooltip>
+    </OSTooltip>
   );
 }

@@ -4,9 +4,8 @@ import type { ComponentType, ReactNode } from "react";
 import NextLink from "next/link";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
-import Tooltip from "@mui/material/Tooltip";
-import { tooltipClasses } from "@mui/material/Tooltip";
 import { House, Sparkles, type LucideIcon } from "lucide-react";
+import { OSTooltip } from "./os-tooltip";
 import type { AnyGenerator } from "../lib/generator";
 import {
   useWindowManager,
@@ -279,27 +278,12 @@ function DockTileShell({
   children,
 }: DockTileShellProps) {
   return (
-    <Tooltip
+    <OSTooltip
       title={label}
       placement="top"
-      arrow
-      enterDelay={150}
       slotProps={{
         tooltip: {
-          sx: {
-            bgcolor: "rgba(24, 26, 38, 0.94)",
-            backdropFilter: "blur(12px)",
-            border: "1px solid rgba(255, 255, 255, 0.08)",
-            fontSize: "0.72rem",
-            fontWeight: 600,
-            letterSpacing: 0.2,
-            px: 1.25,
-            py: 0.5,
-            mb: "6px !important",
-            [`& .${tooltipClasses.arrow}`]: {
-              color: "rgba(24, 26, 38, 0.94)",
-            },
-          },
+          sx: { mb: "6px !important" },
         },
       }}
     >
@@ -361,7 +345,7 @@ function DockTileShell({
         </Box>
         <DockIndicatorDot kind={indicator} />
       </Stack>
-    </Tooltip>
+    </OSTooltip>
   );
 }
 

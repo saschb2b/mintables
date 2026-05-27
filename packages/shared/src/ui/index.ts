@@ -27,4 +27,5 @@ export { ThankYouDrawer } from "./thank-you-drawer";
 export { SpecCard, SpecRow, SpecStatusChip } from "./spec-card";
 export type { SpecStatus } from "./spec-card";
 export { NumberField } from "./number-field";
+export { OSTooltip } from "./os-tooltip";
 export { SectionCard } from "./section-card";

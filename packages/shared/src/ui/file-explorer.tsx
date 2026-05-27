@@ -16,7 +16,7 @@ import ListItemText from "@mui/material/ListItemText";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
-import Tooltip from "@mui/material/Tooltip";
+import { OSTooltip } from "./os-tooltip";
 import Typography from "@mui/material/Typography";
 import {
   ArrowDown,
@@ -335,7 +335,7 @@ export function FileExplorer<T extends ExplorerItem>({
               {visibleActions.map((a) => {
                 const Icon = a.icon;
                 return (
-                  <Tooltip key={a.id} title={a.label}>
+                  <OSTooltip key={a.id} title={a.label}>
                     <Box
                       component="button"
                       type="button"
@@ -367,7 +367,7 @@ export function FileExplorer<T extends ExplorerItem>({
                       <Icon size={14} />
                       <Box component="span">{a.label}</Box>
                     </Box>
-                  </Tooltip>
+                  </OSTooltip>
                 );
               })}
             </Stack>
@@ -640,7 +640,7 @@ function ToggleBtn({
   children: ReactNode;
 }) {
   return (
-    <Tooltip title={label}>
+    <OSTooltip title={label}>
       <Box
         component="button"
         type="button"
@@ -670,7 +670,7 @@ function ToggleBtn({
       >
         {children}
       </Box>
-    </Tooltip>
+    </OSTooltip>
   );
 }
 
@@ -694,7 +694,7 @@ function SortControl({
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   return (
     <>
-      <Tooltip title="Sort">
+      <OSTooltip title="Sort">
         <Box
           component="button"
           type="button"
@@ -734,7 +734,7 @@ function SortControl({
           <Box component="span">{SORT_LABEL[sort]}</Box>
           {dir === "asc" ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
         </Box>
-      </Tooltip>
+      </OSTooltip>
       <Menu
         open={anchor !== null}
         anchorEl={anchor}
