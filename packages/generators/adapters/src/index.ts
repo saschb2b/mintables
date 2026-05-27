@@ -7,6 +7,7 @@ import { getAdapterPrintTips } from "./print-tips";
 import { AdapterControls } from "./controls";
 import { AdapterScene } from "./scene";
 import { AdapterSummary } from "./summary";
+import { AdapterIconArt } from "./icon-art";
 
 function isObj(x: unknown): x is Record<string, unknown> {
   return typeof x === "object" && x !== null && !Array.isArray(x);
@@ -82,6 +83,7 @@ export const adapterGenerator: Generator<AdapterConfig> = {
       "Press-fit connectors that bridge round, square, and rectangular tubes — straight or elbowed.",
     icon: Link2,
     accent: "#a855f7",
+    iconArt: AdapterIconArt,
   },
   defaults: DEFAULT_ADAPTER_CONFIG,
   decode: decodeAdapter,

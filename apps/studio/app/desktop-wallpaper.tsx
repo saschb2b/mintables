@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useRef } from "react";
 import Box from "@mui/material/Box";
 
 const WALLPAPER_SRC = "/wallpaper-mountains.jpg";

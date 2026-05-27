@@ -12,6 +12,7 @@ import { getTubePrintTips } from "./print-tips";
 import { TubeControls } from "./controls";
 import { TubeScene } from "./scene";
 import { TubeSummary } from "./summary";
+import { TubeIconArt } from "./icon-art";
 
 function isObj(x: unknown): x is Record<string, unknown> {
   return typeof x === "object" && x !== null && !Array.isArray(x);
@@ -105,6 +106,7 @@ export const tubeGenerator: Generator<TubeConfig> = {
       "Round, square, and rectangular tubes with press-fit flares, clamshell splits, and angled end cuts.",
     icon: Cylinder,
     accent: "#5a9a9d",
+    iconArt: TubeIconArt,
   },
   defaults: DEFAULT_ROUND_CONFIG,
   decode: decodeTube,

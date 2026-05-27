@@ -16,10 +16,16 @@ export interface GeneratorMeta {
   tagline: string;
   /** Longer description for the hub landing card. */
   description: string;
-  /** Lucide icon component used in the app switcher, hub card, and header. */
+  /** Lucide icon component used in headers, switchers, and as a dock fallback. */
   icon: LucideIcon;
-  /** Accent color used for badge + hub card highlight. */
+  /** Accent color used for badge + hub card highlight + dock tile gradient. */
   accent: string;
+  /**
+   * Optional dock icon art — a subject illustration drawn inside the dock
+   * tile (size is the pixel box the art should fill, typically 30–34px). If
+   * omitted the dock falls back to a centered `icon` on the accent gradient.
+   */
+  iconArt?: ComponentType<{ size?: number }>;
 }
 
 export interface GeneratorBadge {
