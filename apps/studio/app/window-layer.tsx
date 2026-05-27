@@ -36,7 +36,6 @@ export function WindowLayer() {
     focusWindow,
     minimizeWindow,
     toggleMaximize,
-    moveWindow,
     setBounds,
   } = useWindowManager();
 
@@ -74,9 +73,6 @@ export function WindowLayer() {
             }}
             onFocus={() => {
               if (focusedWindow?.id !== win.id) focusWindow(win.id);
-            }}
-            onMove={(x, y) => {
-              moveWindow(win.id, x, y);
             }}
             onMoveCommit={(x, y) => {
               setBounds(win.id, x, y, win.w, win.h);

@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
@@ -40,7 +46,10 @@ interface AppWindowProps {
   onMinimize: () => void;
   onToggleMaximize: () => void;
   onFocus: () => void;
-  onMove: (x: number, y: number) => void;
+  /** Fired once on pointer-up at the end of a drag, with the final
+   *  pixel-clamped position. Moves are NOT pushed to the parent during
+   *  the drag itself; the window writes its own transform to the DOM
+   *  to keep React out of the per-event hot path. */
   onMoveCommit: (x: number, y: number) => void;
   children: ReactNode;
 }
@@ -79,7 +88,6 @@ export function AppWindow({
   onMinimize,
   onToggleMaximize,
   onFocus,
-  onMove,
   onMoveCommit,
   children,
 }: AppWindowProps) {
@@ -87,8 +95,10 @@ export function AppWindow({
   const [phase, setPhase] = useState<LifecyclePhase>("opening");
   const dragRef = useRef<{
     pointerId: number;
-    offsetX: number;
-    offsetY: number;
+    startClientX: number;
+    startClientY: number;
+    startX: number;
+    startY: number;
     lastX: number;
     lastY: number;
   } | null>(null);
@@ -194,13 +204,12 @@ export function AppWindow({
     // clicks without starting a drag.
     const target = e.target as HTMLElement;
     if (target.closest("button")) return;
-    const win = winRef.current;
-    if (!win) return;
-    const rect = win.getBoundingClientRect();
     dragRef.current = {
       pointerId: e.pointerId,
-      offsetX: e.clientX - rect.left,
-      offsetY: e.clientY - rect.top,
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      startX: bounds.x,
+      startY: bounds.y,
       lastX: bounds.x,
       lastY: bounds.y,
     };
@@ -212,12 +221,21 @@ export function AppWindow({
   const handleTitleBarPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
     const drag = dragRef.current;
     if (drag?.pointerId !== e.pointerId) return;
-    const nextX = e.clientX - drag.offsetX;
-    const nextY = e.clientY - drag.offsetY;
-    const clamped = clamp(nextX, nextY, bounds.w, bounds.h);
+
+    const targetX = drag.startX + (e.clientX - drag.startClientX);
+    const targetY = drag.startY + (e.clientY - drag.startClientY);
+    const clamped = clamp(targetX, targetY, bounds.w, bounds.h);
     drag.lastX = clamped.x;
     drag.lastY = clamped.y;
-    onMove(clamped.x, clamped.y);
+
+    // Write the new position straight to the DOM. No React state churn, no
+    // reducer dispatch, no re-render of any other window or the dock - the
+    // browser just retargets the GPU transform and paints the next frame.
+    // The committed state catches up on pointer up via onMoveCommit.
+    const el = winRef.current;
+    if (el) {
+      el.style.transform = `translate3d(${String(clamped.x)}px, ${String(clamped.y)}px, 0) ${phaseTransform[phase]}`;
+    }
   };
 
   const endDrag = (e: ReactPointerEvent<HTMLDivElement>) => {
@@ -232,6 +250,17 @@ export function AppWindow({
     dragRef.current = null;
     setDragging(false);
   };
+
+  // After the drag commits and React renders the new bounds into the sx
+  // transform, strip the inline transform we wrote during the drag so the
+  // sx class can drive the window again. Runs before paint, so there's no
+  // flicker between "old bounds + drag offset" and "new bounds clean".
+  useLayoutEffect(() => {
+    if (dragging) return;
+    const el = winRef.current;
+    if (!el) return;
+    if (el.style.transform) el.style.transform = "";
+  }, [dragging, bounds.x, bounds.y]);
 
   // ─── Layout / visuals ───────────────────────────────────────────────────
 
@@ -251,13 +280,20 @@ export function AppWindow({
   const renderedW = Math.max(MIN_W, bounds.w);
   const renderedH = Math.max(MIN_H, bounds.h);
   const rect = maximized
-    ? { left: workArea.left, top: workArea.top, width: workW, height: workH }
-    : { left: bounds.x, top: bounds.y, width: renderedW, height: renderedH };
+    ? { x: workArea.left, y: workArea.top, width: workW, height: workH }
+    : { x: bounds.x, y: bounds.y, width: renderedW, height: renderedH };
 
-  // Lifecycle transforms layered on top of position.
+  // Position the window via translate3d, not via top/left. That gives us:
+  //  · a GPU-composited transform (no layout reflow on move)
+  //  · only one CSS property to retarget during drag, and we write it
+  //    directly to the DOM in the move handler (no React state churn)
+  // Lifecycle effects (opening pop, minimize genie) are layered on top of
+  // the position transform, so they translate / scale from wherever the
+  // window currently sits.
+  const positionTransform = `translate3d(${String(rect.x)}px, ${String(rect.y)}px, 0)`;
   const phaseTransform: Record<LifecyclePhase, string> = {
     opening: "translateY(8px) scale(0.985)",
-    open: "translate3d(0, 0, 0) scale(1)",
+    open: "scale(1)",
     closing: "translateY(-4px) scale(0.97)",
     minimizing:
       "translate3d(var(--min-dx, 0), var(--min-dy, 24vh), 0) scale(0.06)",
@@ -271,28 +307,32 @@ export function AppWindow({
   const phaseTransition: Record<LifecyclePhase, string> = {
     opening:
       "transform 420ms cubic-bezier(0.2, 0.85, 0.25, 1), opacity 380ms ease",
-    open: "transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 200ms ease, left 220ms cubic-bezier(0.2, 0.8, 0.2, 1), top 220ms cubic-bezier(0.2, 0.8, 0.2, 1), width 220ms cubic-bezier(0.2, 0.8, 0.2, 1), height 220ms cubic-bezier(0.2, 0.8, 0.2, 1), border-radius 220ms ease",
+    open: "transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 200ms ease, width 220ms cubic-bezier(0.2, 0.8, 0.2, 1), height 220ms cubic-bezier(0.2, 0.8, 0.2, 1), border-radius 220ms ease",
     closing: "transform 220ms ease-in, opacity 200ms ease",
     minimizing:
       "transform 400ms cubic-bezier(0.55, 0, 0.85, 0.1), opacity 360ms ease",
   };
 
-  // While the user is dragging we kill the left/top transition so the window
-  // tracks the pointer exactly. The maximize toggle still animates because the
-  // user isn't dragging in that path.
+  // During a drag we suppress the transform transition entirely so the
+  // window tracks the pointer 1:1 instead of catching up via a 220ms
+  // animation. Width/height transitions stay disabled too: maximize is
+  // never triggered mid-drag.
   const transition = dragging
-    ? "transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 200ms ease, width 220ms ease, height 220ms ease, border-radius 220ms ease"
+    ? "opacity 200ms ease, border-radius 220ms ease"
     : phaseTransition[phase];
 
   // Genie animation when minimized: render with opacity 0 + pointer events
   // disabled so the window stays mounted (preserves shell state) but is
-  // visually gone. The dock tile indicator covers "still open".
+  // visually gone. The dock tile indicator covers "still open". We keep
+  // the position part of the transform so restore animates a scale-up
+  // at the window's anchor, not from (0,0).
   const minimizedStyle = minimized
     ? {
         opacity: 0,
         pointerEvents: "none" as const,
-        transform: "scale(0.06)",
-        transition: "transform 280ms cubic-bezier(0.55, 0, 0.85, 0.1), opacity 240ms ease",
+        transform: `${positionTransform} scale(0.06)`,
+        transition:
+          "transform 280ms cubic-bezier(0.55, 0, 0.85, 0.1), opacity 240ms ease",
       }
     : null;
 
@@ -306,8 +346,8 @@ export function AppWindow({
       onPointerDown={handlePointerDown}
       sx={{
         position: "fixed",
-        left: rect.left,
-        top: rect.top,
+        top: 0,
+        left: 0,
         width: rect.width,
         height: rect.height,
         zIndex: z,
@@ -320,11 +360,15 @@ export function AppWindow({
           : focused
             ? "1px solid rgba(255, 255, 255, 0.14)"
             : "1px solid rgba(255, 255, 255, 0.08)",
+        // `willChange: transform` hints the compositor to promote this
+        // element to its own layer so the drag-time transform updates
+        // don't trigger paints on neighboring pixels.
+        willChange: "transform",
         bgcolor: "background.default",
         boxShadow: focused
           ? "0 40px 90px -22px rgba(0, 0, 0, 0.72), 0 10px 28px -8px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.04) inset"
           : "0 24px 60px -22px rgba(0, 0, 0, 0.55), 0 6px 18px -6px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.03) inset",
-        transform: phaseTransform[phase],
+        transform: `${positionTransform} ${phaseTransform[phase]}`,
         opacity: phaseOpacity[phase],
         transition,
         ...(minimizedStyle ?? {}),
