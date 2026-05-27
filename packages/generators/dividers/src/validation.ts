@@ -137,6 +137,60 @@ export function validateDividerConfig(config: DividerConfig): ValidationResult {
     });
   }
 
+  if (config.labelEnabled) {
+    // The label sits centered horizontally, so width is bounded by the
+    // narrower edge of the slab (the bottom when tapered). Vertical bound
+    // depends on the chosen position: "center" needs 1 mm of wall on each
+    // side (so labelHeight ≤ height − 2); "top"/"bottom" only need to fit
+    // the pocket between its 1 mm margin and the opposite edge.
+    const narrowestWidth = config.taperEnabled
+      ? Math.min(config.width, config.bottomWidth)
+      : config.width;
+    const maxLabelWidth = Math.max(0, narrowestWidth - 2);
+    const maxLabelHeight = Math.max(0, config.height - 2);
+    const maxLabelDepth = config.thickness / 2;
+
+    if (config.labelWidth <= 0 || config.labelWidth > maxLabelWidth) {
+      parts.push({
+        errors: [
+          issue(
+            "error",
+            "label_width_range",
+            `Label width must be between 1 mm and ${maxLabelWidth.toFixed(1)} mm so it fits the slab with a 1 mm wall.`,
+            "labelWidth",
+          ),
+        ],
+        warnings: [],
+      });
+    }
+    if (config.labelHeight <= 0 || config.labelHeight > maxLabelHeight) {
+      parts.push({
+        errors: [
+          issue(
+            "error",
+            "label_height_range",
+            `Label height must be between 1 mm and ${maxLabelHeight.toFixed(1)} mm so it fits the slab with a 1 mm wall.`,
+            "labelHeight",
+          ),
+        ],
+        warnings: [],
+      });
+    }
+    if (config.labelDepth <= 0 || config.labelDepth > maxLabelDepth) {
+      parts.push({
+        errors: [
+          issue(
+            "error",
+            "label_depth_range",
+            `Label depth must be between 0.1 mm and ${maxLabelDepth.toFixed(2)} mm (half the slab thickness).`,
+            "labelDepth",
+          ),
+        ],
+        warnings: [],
+      });
+    }
+  }
+
   if (parts.length === 0) return emptyValidation();
   return mergeValidation(...parts);
 }

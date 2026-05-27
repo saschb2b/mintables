@@ -22,12 +22,25 @@ function decodeDivider(data: unknown): DividerConfig | null {
     "height",
     "cornerRadius",
     "bottomWidth",
+    "labelWidth",
+    "labelHeight",
+    "labelDepth",
   ] as const) {
     const v = data[k];
     if (typeof v === "number" && Number.isFinite(v)) out[k] = v;
   }
   if (typeof data.taperEnabled === "boolean") {
     out.taperEnabled = data.taperEnabled;
+  }
+  if (typeof data.labelEnabled === "boolean") {
+    out.labelEnabled = data.labelEnabled;
+  }
+  if (
+    data.labelPosition === "top" ||
+    data.labelPosition === "center" ||
+    data.labelPosition === "bottom"
+  ) {
+    out.labelPosition = data.labelPosition;
   }
   return out;
 }
@@ -38,14 +51,20 @@ function describeDivider(c: DividerConfig): string {
       ? `, tapers to ${String(c.bottomWidth)} mm`
       : "";
   const radius = c.cornerRadius > 0 ? `, r${c.cornerRadius.toFixed(1)} mm` : "";
-  return `Divider ${String(c.width)}×${String(c.height)} mm, ${String(c.thickness)} mm thick${taper}${radius}`;
+  const label = c.labelEnabled
+    ? `, ${String(c.labelWidth)}×${String(c.labelHeight)} mm label pocket (${c.labelPosition})`
+    : "";
+  return `Divider ${String(c.width)}×${String(c.height)} mm, ${String(c.thickness)} mm thick${taper}${radius}${label}`;
 }
 
 function dividerFilename(c: DividerConfig): string {
   const taper =
     c.taperEnabled && c.bottomWidth !== c.width ? `-t${String(c.bottomWidth)}` : "";
   const radius = c.cornerRadius > 0 ? `-r${c.cornerRadius.toFixed(1)}` : "";
-  return `divider-${String(c.width)}x${String(c.height)}-${String(c.thickness)}mm${taper}${radius}`;
+  const label = c.labelEnabled
+    ? `-label${String(c.labelWidth)}x${String(c.labelHeight)}`
+    : "";
+  return `divider-${String(c.width)}x${String(c.height)}-${String(c.thickness)}mm${taper}${radius}${label}`;
 }
 
 export const dividerGenerator: Generator<DividerConfig> = {

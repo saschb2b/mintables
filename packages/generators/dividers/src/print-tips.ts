@@ -32,5 +32,14 @@ export function getDividerPrintTips(config: DividerConfig): PrintTip[] {
     });
   }
 
+  if (config.labelEnabled) {
+    tips.push({
+      icon: "layers",
+      title: "Label pocket",
+      body: `Use a 0.1 mm first layer so the pocket floor (${config.labelDepth.toFixed(2)} mm down) prints cleanly. Stick the label in after printing — pre-cut to about ${String(Math.max(0, config.labelWidth - 0.5))}×${String(Math.max(0, config.labelHeight - 0.5))} mm for a snug fit.`,
+      priority: 8,
+    });
+  }
+
   return sortPrintTips(tips);
 }

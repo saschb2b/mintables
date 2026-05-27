@@ -57,4 +57,37 @@ describe("dividerGenerator.decode", () => {
     const decoded = dividerGenerator.decode({ taperEnabled: "yes" });
     expect(decoded?.taperEnabled).toBe(DEFAULT_DIVIDER_CONFIG.taperEnabled);
   });
+
+  it("picks up labelEnabled + label sizing from the incoming payload", () => {
+    const decoded = dividerGenerator.decode({
+      labelEnabled: true,
+      labelWidth: 25,
+      labelHeight: 8,
+      labelDepth: 0.3,
+    });
+    expect(decoded?.labelEnabled).toBe(true);
+    expect(decoded?.labelWidth).toBe(25);
+    expect(decoded?.labelHeight).toBe(8);
+    expect(decoded?.labelDepth).toBe(0.3);
+  });
+
+  it("ignores a non-boolean labelEnabled", () => {
+    const decoded = dividerGenerator.decode({ labelEnabled: 1 });
+    expect(decoded?.labelEnabled).toBe(DEFAULT_DIVIDER_CONFIG.labelEnabled);
+  });
+
+  it("picks up labelPosition when it's a recognized value", () => {
+    expect(dividerGenerator.decode({ labelPosition: "bottom" })?.labelPosition).toBe(
+      "bottom",
+    );
+    expect(dividerGenerator.decode({ labelPosition: "center" })?.labelPosition).toBe(
+      "center",
+    );
+  });
+
+  it("falls back to the default labelPosition for unknown strings", () => {
+    expect(
+      dividerGenerator.decode({ labelPosition: "diagonal" })?.labelPosition,
+    ).toBe(DEFAULT_DIVIDER_CONFIG.labelPosition);
+  });
 });

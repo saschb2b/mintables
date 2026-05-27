@@ -1,8 +1,10 @@
 "use client";
 
 import Box from "@mui/material/Box";
+import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import Switch from "@mui/material/Switch";
+import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { NumberField as NumberInput, SectionCard } from "@mintables/shared/ui";
 import type { ValidationResult } from "@mintables/shared/lib/validation";
@@ -32,6 +34,18 @@ export function DividerControls({
     : config.width;
   const shortestSide = Math.min(config.width, effectiveBottom, config.height);
   const maxRadius = Math.floor((shortestSide / 2) * 10) / 10;
+
+  // Label pocket has to leave at least 1 mm of slab wall around it and can't
+  // cut deeper than half the slab thickness.
+  const maxLabelWidth = Math.max(
+    1,
+    Math.floor((Math.min(config.width, effectiveBottom) - 2) * 10) / 10,
+  );
+  const maxLabelHeight = Math.max(1, Math.floor((config.height - 2) * 10) / 10);
+  const maxLabelDepth = Math.max(
+    0.1,
+    Math.floor((config.thickness / 2) * 100) / 100,
+  );
 
   const taperWarning = fieldHelperText(validation, "bottomWidth");
 
@@ -148,6 +162,98 @@ export function DividerControls({
                 </Typography>
               )}
             </>
+          )}
+        </Stack>
+      </SectionCard>
+
+      <SectionCard title="Label pocket">
+        <Stack spacing={1.5}>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <Typography variant="body2" color="text.secondary">
+              Recess a sticker into the top face
+            </Typography>
+            <Switch
+              size="small"
+              checked={config.labelEnabled}
+              onChange={(e) => {
+                update({ labelEnabled: e.target.checked });
+              }}
+            />
+          </Box>
+
+          {config.labelEnabled && (
+            <Stack spacing={1.5}>
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: 1.5,
+                }}
+              >
+                <NumberInput
+                  label="Label width"
+                  value={config.labelWidth}
+                  onChange={(v) => {
+                    update({ labelWidth: v });
+                  }}
+                  field="labelWidth"
+                  validation={validation}
+                  min={1}
+                  max={maxLabelWidth}
+                  step={0.5}
+                  unit="mm"
+                />
+                <NumberInput
+                  label="Label height"
+                  value={config.labelHeight}
+                  onChange={(v) => {
+                    update({ labelHeight: v });
+                  }}
+                  field="labelHeight"
+                  validation={validation}
+                  min={1}
+                  max={maxLabelHeight}
+                  step={0.5}
+                  unit="mm"
+                />
+                <NumberInput
+                  label="Depth"
+                  value={config.labelDepth}
+                  onChange={(v) => {
+                    update({ labelDepth: v });
+                  }}
+                  field="labelDepth"
+                  validation={validation}
+                  min={0.1}
+                  max={maxLabelDepth}
+                  step={0.05}
+                  unit="mm"
+                />
+                <TextField
+                  select
+                  size="small"
+                  label="Position"
+                  value={config.labelPosition}
+                  onChange={(e) => {
+                    update({
+                      labelPosition: e.target
+                        .value as DividerConfig["labelPosition"],
+                    });
+                  }}
+                  fullWidth
+                >
+                  <MenuItem value="top">Top</MenuItem>
+                  <MenuItem value="center">Center</MenuItem>
+                  <MenuItem value="bottom">Bottom</MenuItem>
+                </TextField>
+              </Box>
+            </Stack>
           )}
         </Stack>
       </SectionCard>

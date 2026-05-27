@@ -41,6 +41,12 @@ export function DividerSummary({ config }: { config: DividerConfig }) {
           value={`${config.cornerRadius.toFixed(1)} mm`}
         />
       )}
+      {config.labelEnabled && (
+        <SpecRow
+          label="Label pocket"
+          value={`${String(config.labelWidth)} × ${String(config.labelHeight)} mm · ${config.labelDepth.toFixed(2)} mm deep · ${config.labelPosition}`}
+        />
+      )}
       <SpecRow label="Est. volume" value={`~${spec.volumeCm3.toFixed(2)} cm³`} />
     </SpecCard>
   );

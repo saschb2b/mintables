@@ -120,4 +120,65 @@ describe("validateDividerConfig", () => {
       result.errors.some((e) => e.code === "bottom_width_range"),
     ).toBe(false);
   });
+
+  it("accepts a sensible label pocket", () => {
+    const result = validateDividerConfig({
+      ...DEFAULT_DIVIDER_CONFIG,
+      labelEnabled: true,
+      labelWidth: 40,
+      labelHeight: 15,
+      labelDepth: 0.4,
+    });
+    expect(result.errors).toHaveLength(0);
+  });
+
+  it("errors when the label pocket is wider than the slab leaves room for", () => {
+    const result = validateDividerConfig({
+      ...DEFAULT_DIVIDER_CONFIG,
+      labelEnabled: true,
+      labelWidth: 70, // > width (65), no wall
+    });
+    expect(result.errors.some((e) => e.code === "label_width_range")).toBe(
+      true,
+    );
+  });
+
+  it("errors when the label pocket is too deep for the slab", () => {
+    const result = validateDividerConfig({
+      ...DEFAULT_DIVIDER_CONFIG,
+      labelEnabled: true,
+      labelWidth: 30,
+      labelHeight: 10,
+      labelDepth: 0.8, // > thickness/2 = 0.5
+    });
+    expect(result.errors.some((e) => e.code === "label_depth_range")).toBe(
+      true,
+    );
+  });
+
+  it("uses the narrower tapered bottom as the label-width bound", () => {
+    // bottom=30 → narrowestWidth=30, maxLabelWidth=28. 35 mm label fails.
+    const result = validateDividerConfig({
+      ...DEFAULT_DIVIDER_CONFIG,
+      taperEnabled: true,
+      bottomWidth: 30,
+      labelEnabled: true,
+      labelWidth: 35,
+      labelHeight: 10,
+    });
+    expect(result.errors.some((e) => e.code === "label_width_range")).toBe(
+      true,
+    );
+  });
+
+  it("ignores label fields when the toggle is off", () => {
+    const result = validateDividerConfig({
+      ...DEFAULT_DIVIDER_CONFIG,
+      labelEnabled: false,
+      labelDepth: 99, // would be invalid but toggle is off
+    });
+    expect(result.errors.some((e) => e.code === "label_depth_range")).toBe(
+      false,
+    );
+  });
 });

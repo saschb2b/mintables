@@ -34,6 +34,11 @@ describe("generateDividerTriangles", () => {
       cornerRadius: 0,
       taperEnabled: false,
       bottomWidth: w,
+      labelEnabled: false,
+      labelWidth: 40,
+      labelHeight: 15,
+      labelDepth: 0.4,
+      labelPosition: "top",
     });
     const xs = triangles.flatMap((tri) => [tri[0], tri[3], tri[6]]);
     const ys = triangles.flatMap((tri) => [tri[1], tri[4], tri[7]]);
@@ -74,6 +79,11 @@ describe("generateDividerTriangles", () => {
       cornerRadius: r,
       taperEnabled: false,
       bottomWidth: w,
+      labelEnabled: false,
+      labelWidth: 40,
+      labelHeight: 15,
+      labelDepth: 0.4,
+      labelPosition: "top",
     });
     const xs = triangles.flatMap((tri) => [tri[0], tri[3], tri[6]]);
     const ys = triangles.flatMap((tri) => [tri[1], tri[4], tri[7]]);
@@ -93,6 +103,11 @@ describe("generateDividerTriangles", () => {
       cornerRadius: 999,
       taperEnabled: false,
       bottomWidth: 40,
+      labelEnabled: false,
+      labelWidth: 40,
+      labelHeight: 15,
+      labelDepth: 0.4,
+      labelPosition: "top",
     });
     const stadium = generateDividerTriangles({
       thickness: 1,
@@ -101,6 +116,11 @@ describe("generateDividerTriangles", () => {
       cornerRadius: 15,
       taperEnabled: false,
       bottomWidth: 40,
+      labelEnabled: false,
+      labelWidth: 40,
+      labelHeight: 15,
+      labelDepth: 0.4,
+      labelPosition: "top",
     });
     expect(isPrintableMesh(oversized)).toBe(true);
     expect(oversized.length).toBe(stadium.length);
@@ -140,5 +160,89 @@ describe("generateDividerTriangles", () => {
     });
     const reference = generateDividerTriangles(DEFAULT_DIVIDER_CONFIG);
     expect(sharp).toEqual(reference);
+  });
+
+  it("cuts a label pocket into the top face when enabled", () => {
+    const triangles = generateDividerTriangles({
+      ...DEFAULT_DIVIDER_CONFIG,
+      thickness: 2,
+      labelEnabled: true,
+      labelWidth: 30,
+      labelHeight: 10,
+      labelDepth: 0.5,
+    });
+    expect(isPrintableMesh(triangles)).toBe(true);
+
+    // Top face (z = thickness) should now show the rectangular hole — meaning
+    // there are vertices at z = thickness whose XY fall exactly on the pocket
+    // perimeter (15, ±5) and (-15, ±5).
+    const zs = triangles.flatMap((tri) => [tri[2], tri[5], tri[8]]);
+    const maxZ = Math.max(...zs);
+    expect(maxZ).toBeCloseTo(2, 6);
+
+    // Pocket floor should sit at z = thickness - depth = 1.5.
+    const pocketFloorTri = triangles.find(
+      (tri) => tri[2] === 1.5 && tri[5] === 1.5 && tri[8] === 1.5,
+    );
+    expect(pocketFloorTri).toBeDefined();
+  });
+
+  it("ignores labelEnabled details when the toggle is off", () => {
+    const off = generateDividerTriangles({
+      ...DEFAULT_DIVIDER_CONFIG,
+      labelEnabled: false,
+      labelWidth: 30,
+      labelHeight: 10,
+      labelDepth: 0.5,
+    });
+    const reference = generateDividerTriangles(DEFAULT_DIVIDER_CONFIG);
+    expect(off).toEqual(reference);
+  });
+
+  it("shifts the pocket along y when labelPosition is top vs bottom", () => {
+    const base = {
+      ...DEFAULT_DIVIDER_CONFIG,
+      thickness: 2,
+      labelEnabled: true,
+      labelWidth: 30,
+      labelHeight: 10,
+      labelDepth: 0.5,
+    } as const;
+    const top = generateDividerTriangles({ ...base, labelPosition: "top" });
+    const bottom = generateDividerTriangles({
+      ...base,
+      labelPosition: "bottom",
+    });
+    // Pocket floor (z = thickness - depth = 1.5) carries the pocket's own
+    // bounding box. Grab the floor triangles and check their y centroid sign.
+    const pocketYs = (tris: number[][]) =>
+      tris
+        .filter((tri) => tri[2] === 1.5 && tri[5] === 1.5 && tri[8] === 1.5)
+        .flatMap((tri) => [tri[1], tri[4], tri[7]]);
+    const topYs = pocketYs(top);
+    const bottomYs = pocketYs(bottom);
+    // Top position pulls the pocket toward source y = -halfH (which is the
+    // divider's visible top in the default view), so every pocket-floor y
+    // should be negative; bottom position mirrors it.
+    expect(Math.max(...topYs)).toBeLessThan(0);
+    expect(Math.min(...bottomYs)).toBeGreaterThan(0);
+  });
+
+  it("centers the pocket on origin when labelPosition is 'center'", () => {
+    const triangles = generateDividerTriangles({
+      ...DEFAULT_DIVIDER_CONFIG,
+      thickness: 2,
+      labelEnabled: true,
+      labelWidth: 30,
+      labelHeight: 10,
+      labelDepth: 0.5,
+      labelPosition: "center",
+    });
+    const floorYs = triangles
+      .filter((tri) => tri[2] === 1.5 && tri[5] === 1.5 && tri[8] === 1.5)
+      .flatMap((tri) => [tri[1], tri[4], tri[7]]);
+    // Pocket of labelHeight=10 centered on origin spans [-5, 5].
+    expect(Math.max(...floorYs)).toBeCloseTo(5, 6);
+    expect(Math.min(...floorYs)).toBeCloseTo(-5, 6);
   });
 });

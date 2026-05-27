@@ -1,5 +1,9 @@
 import { addTriangle } from "@mintables/shared/lib/geometry/mesh-utils";
-import { effectiveBottomWidth, type DividerConfig } from "./types";
+import {
+  effectiveBottomWidth,
+  labelCenterY,
+  type DividerConfig,
+} from "./types";
 
 /** Resolution of each quarter-corner arc when cornerRadius > 0. */
 const SEGMENTS_PER_CORNER = 12;
@@ -143,12 +147,16 @@ function buildOutline(
  * use z-up, centered horizontally around the origin so the orbit camera
  * frames the slab symmetrically:
  *   x ∈ width-direction (top edge wider than bottom when taper is on)
- *   y ∈ [-height/2, height/2] (height along the bed; +y is the slab's "top"
- *                              edge when standing in a box)
+ *   y ∈ [-height/2, height/2] (height along the bed; -y is the slab's "top"
+ *                              edge when standing in a box — the wider end
+ *                              with taper on)
  *   z ∈ [0, thickness]        (slim; bottom sits on z = 0)
  *
- * Top + bottom faces are fan-triangulated from the centroid; the side wall
- * is a quad strip following the perimeter.
+ * Bottom face is fan-triangulated from the centroid; side walls are a quad
+ * strip following the perimeter. Top face is fan-triangulated from the
+ * centroid when no label pocket is requested, otherwise it's the annular
+ * region between the perimeter and a centered rectangular hole, plus the
+ * pocket's 4 vertical walls and floor (see `cutLabelPocket`).
  */
 export function generateDividerTriangles(config: DividerConfig): number[][] {
   const { thickness: t, width: topW, height: h } = config;
@@ -160,9 +168,6 @@ export function generateDividerTriangles(config: DividerConfig): number[][] {
     const a = outline[i];
     const b = outline[(i + 1) % outline.length];
 
-    // Top face — CCW from above (outward normal +z)
-    addTriangle(triangles, 0, 0, t, a.x, a.y, t, b.x, b.y, t);
-
     // Bottom face — CCW from below (outward normal -z)
     addTriangle(triangles, 0, 0, 0, b.x, b.y, 0, a.x, a.y, 0);
 
@@ -171,5 +176,199 @@ export function generateDividerTriangles(config: DividerConfig): number[][] {
     addTriangle(triangles, a.x, a.y, 0, b.x, b.y, t, a.x, a.y, t);
   }
 
+  if (config.labelEnabled) {
+    cutLabelPocket(outline, config, triangles);
+  } else {
+    // Plain top face — same fan as the bottom, opposite winding.
+    for (let i = 0; i < outline.length; i++) {
+      const a = outline[i];
+      const b = outline[(i + 1) % outline.length];
+      addTriangle(triangles, 0, 0, t, a.x, a.y, t, b.x, b.y, t);
+    }
+  }
+
   return triangles;
+}
+
+/**
+ * Replace the plain top face with one that has a centered rectangular hole,
+ * then build the pocket's walls and floor. Works for any convex outline by
+ * shooting a ray from the origin through each pocket corner to find the
+ * matching outer-perimeter intersection, then fan-triangulating the four
+ * annular strips between them.
+ */
+function cutLabelPocket(
+  outline: Pt[],
+  config: DividerConfig,
+  triangles: number[][],
+): void {
+  const { thickness: t, labelWidth, labelHeight, labelDepth } = config;
+  // Clamp defensively in case validation was bypassed.
+  const depth = Math.max(0, Math.min(labelDepth, t / 2));
+  if (depth <= 0) {
+    // Treat as no-pocket and just emit the plain top face.
+    for (let i = 0; i < outline.length; i++) {
+      const a = outline[i];
+      const b = outline[(i + 1) % outline.length];
+      addTriangle(triangles, 0, 0, t, a.x, a.y, t, b.x, b.y, t);
+    }
+    return;
+  }
+
+  const z = t;
+  const pz = t - depth;
+  const lhw = labelWidth / 2;
+  const lhh = labelHeight / 2;
+  const cy = labelCenterY(config);
+
+  // Pocket corners in CCW order viewed from above (matches outline winding
+  // so the inward-normal calc below works out). The whole rectangle is
+  // shifted by `cy` so the position selector ("top" / "center" / "bottom")
+  // moves the pocket along the slab.
+  const pocket: Pt[] = [
+    { x: lhw, y: cy - lhh },
+    { x: lhw, y: cy + lhh },
+    { x: -lhw, y: cy + lhh },
+    { x: -lhw, y: cy - lhh },
+  ];
+
+  // Project each pocket corner outward via a ray from the pocket's center
+  // (not the slab origin — the pocket can be offset for "top"/"bottom"
+  // alignment) and find where it hits the outline. Returns the intersection
+  // point + the outline edge index it landed on.
+  const pocketCenter: Pt = { x: 0, y: cy };
+  const projections = pocket.map((p) =>
+    rayHit(outline, pocketCenter, {
+      x: p.x - pocketCenter.x,
+      y: p.y - pocketCenter.y,
+    }),
+  );
+
+  // Annular top face: four strips, one per gap between consecutive pocket
+  // corners. Each strip fans from the start pocket corner across the outer
+  // arc to the end pocket corner.
+  const n = outline.length;
+  for (let i = 0; i < 4; i++) {
+    const j = (i + 1) % 4;
+    const pStart = pocket[i];
+    const pEnd = pocket[j];
+    const startProj = projections[i];
+    const endProj = projections[j];
+
+    const arc: Pt[] = [startProj.point];
+    let cur = (startProj.edgeIdx + 1) % n;
+    const stop = (endProj.edgeIdx + 1) % n;
+    // Walk CCW around the outline collecting any vertices that lie strictly
+    // between startProj and endProj.
+    let safety = n + 1;
+    while (cur !== stop && safety-- > 0) {
+      arc.push(outline[cur]);
+      cur = (cur + 1) % n;
+    }
+    arc.push(endProj.point);
+
+    for (let k = 0; k < arc.length - 1; k++) {
+      addTriangle(
+        triangles,
+        pStart.x,
+        pStart.y,
+        z,
+        arc[k].x,
+        arc[k].y,
+        z,
+        arc[k + 1].x,
+        arc[k + 1].y,
+        z,
+      );
+    }
+    // Closing triangle to the next pocket corner.
+    addTriangle(
+      triangles,
+      pStart.x,
+      pStart.y,
+      z,
+      arc[arc.length - 1].x,
+      arc[arc.length - 1].y,
+      z,
+      pEnd.x,
+      pEnd.y,
+      z,
+    );
+  }
+
+  // Pocket walls — wound so the normals point INTO the pocket (away from
+  // the surrounding slab material).
+  for (let i = 0; i < 4; i++) {
+    const a = pocket[i];
+    const b = pocket[(i + 1) % 4];
+    addTriangle(triangles, a.x, a.y, z, b.x, b.y, z, b.x, b.y, pz);
+    addTriangle(triangles, a.x, a.y, z, b.x, b.y, pz, a.x, a.y, pz);
+  }
+
+  // Pocket floor — CCW from above (normal +z, visible when looking down
+  // into the recess).
+  addTriangle(
+    triangles,
+    pocket[0].x,
+    pocket[0].y,
+    pz,
+    pocket[1].x,
+    pocket[1].y,
+    pz,
+    pocket[2].x,
+    pocket[2].y,
+    pz,
+  );
+  addTriangle(
+    triangles,
+    pocket[0].x,
+    pocket[0].y,
+    pz,
+    pocket[2].x,
+    pocket[2].y,
+    pz,
+    pocket[3].x,
+    pocket[3].y,
+    pz,
+  );
+}
+
+/**
+ * Ray from `origin` in `direction`. Returns the first outline edge the ray
+ * crosses, and the precise intersection point on that edge. Assumes the
+ * outline is a convex CCW polygon that contains `origin`.
+ */
+function rayHit(
+  outline: Pt[],
+  origin: Pt,
+  direction: Pt,
+): { point: Pt; edgeIdx: number } {
+  let bestT = Infinity;
+  let bestIdx = -1;
+  let bestPoint: Pt = { x: 0, y: 0 };
+  for (let i = 0; i < outline.length; i++) {
+    const a = outline[i];
+    const b = outline[(i + 1) % outline.length];
+    // Ray:  P(t) = origin + t * direction,  t >= 0
+    // Edge: Q(s) = a + s * (b - a),         s in [0, 1]
+    const dx = direction.x;
+    const dy = direction.y;
+    const ex = b.x - a.x;
+    const ey = b.y - a.y;
+    const denom = dx * ey - dy * ex;
+    if (Math.abs(denom) < 1e-12) continue;
+    const ax = a.x - origin.x;
+    const ay = a.y - origin.y;
+    const tParam = (ax * ey - ay * ex) / denom;
+    const sParam = (ax * dy - ay * dx) / denom;
+    if (tParam > 0 && sParam >= -1e-9 && sParam <= 1 + 1e-9 && tParam < bestT) {
+      bestT = tParam;
+      bestIdx = i;
+      bestPoint = {
+        x: origin.x + tParam * dx,
+        y: origin.y + tParam * dy,
+      };
+    }
+  }
+  return { point: bestPoint, edgeIdx: bestIdx };
 }
