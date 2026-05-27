@@ -188,10 +188,13 @@ The OS-window-styled modal. Use this instead of a bare MUI Dialog for any dialog
 
 See `CLAUDE.md` § "FileExplorer interaction model" for the behavior contract. Visually:
 
-- Toolbar uses subtle frosted-strip bg (`rgba(255,255,255,0.02)`)
-- Status bar uses darkened bg (`rgba(0,0,0,0.18)`)
-- Selected items show the selection highlight (`rgba(120, 160, 220, 0.22)`)
-- Context menu uses the higher-opacity frosted material (`rgba(28, 30, 42, 0.96)`)
+- Toolbar is 46px tall with a subtle frosted-strip bg (`rgba(255,255,255,0.025)`) — chunky enough to feel like Finder's unified toolbar, not a webapp filter row.
+- Optional sidebar uses a darker frosted bg (`rgba(0,0,0,0.22)`), 172px wide, hidden below `sm`. Section labels are uppercase 0.62rem, items are 0.78rem with 26px row height and the standard selection highlight when active.
+- Status bar is 28px with content centered (Finder pattern, not left-aligned).
+- Icon grid: 64×64 icon tile, 0.76rem label with 2-line clamp + ellipsis.
+- List rows: 30px tall, 14×16 file glyph in the name column, click column headers to sort with an arrow indicator, subtle alternating row tint, 1px column dividers in the header.
+- Selected items show the selection highlight (`rgba(120, 160, 220, 0.22)`); context menu uses the higher-opacity frosted material (`rgba(28, 30, 42, 0.96)`).
+- Hosts that ship a large grid icon should also ship a matching `iconSmall` (14×16) so the list view stays crisp instead of falling back to a CSS-scaled grid icon.
 
 ---
 

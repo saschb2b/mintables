@@ -19,6 +19,7 @@ import {
 } from "@mintables/shared/lib";
 import { Bookmark, FolderOpen, Trash2 } from "lucide-react";
 import { findGenerator } from "@/lib/registry";
+import { useExplorerSidebar } from "../use-explorer-sidebar";
 
 interface Item extends ExplorerItem {
   preset: Preset;
@@ -26,6 +27,7 @@ interface Item extends ExplorerItem {
 
 export function PresetsWindow() {
   const router = useRouter();
+  const sidebar = useExplorerSidebar("presets");
   const [presets, setPresets] = useState<Preset[]>([]);
 
   useEffect(() => {
@@ -55,6 +57,9 @@ export function PresetsWindow() {
           meta: "PRESET",
           icon: (
             <PresetFileIcon accent={gen?.meta.accent ?? "#a855f7"} />
+          ),
+          iconSmall: (
+            <PresetFileIconSmall accent={gen?.meta.accent ?? "#a855f7"} />
           ),
           preset: p,
         };
@@ -111,6 +116,7 @@ export function PresetsWindow() {
         onOpen={handleOpen}
         onRename={handleRename}
         actions={actions}
+        sidebar={sidebar}
         emptyState="Save a configuration from any generator's Presets menu and it'll appear here."
       />
     </AppWindow>
@@ -157,6 +163,42 @@ function PresetFileIcon({ accent }: { accent: string }) {
       <Bookmark
         size={18}
         style={{ color: accent, marginTop: 10 }}
+        fill={accent}
+      />
+    </Box>
+  );
+}
+
+function PresetFileIconSmall({ accent }: { accent: string }) {
+  return (
+    <Box
+      sx={{
+        position: "relative",
+        width: 14,
+        height: 16,
+        borderRadius: 0.5,
+        background:
+          "linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(225,228,238,0.92) 100%)",
+        boxShadow:
+          "0 1px 2px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.55)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        overflow: "hidden",
+        "&::before": {
+          content: '""',
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 4,
+          background: `linear-gradient(180deg, ${accent} 0%, ${accent}cc 100%)`,
+        },
+      }}
+    >
+      <Bookmark
+        size={8}
+        style={{ color: accent, marginTop: 3 }}
         fill={accent}
       />
     </Box>

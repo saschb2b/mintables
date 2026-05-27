@@ -20,6 +20,7 @@ import {
 import { exportModel, ExportError } from "@mintables/shared/lib/export";
 import { Download, FileText, FolderOpen, Trash2 } from "lucide-react";
 import { findGenerator } from "@/lib/registry";
+import { useExplorerSidebar } from "../use-explorer-sidebar";
 
 interface Item extends ExplorerItem {
   entry: DownloadEntry;
@@ -27,6 +28,7 @@ interface Item extends ExplorerItem {
 
 export function DownloadsWindow() {
   const router = useRouter();
+  const sidebar = useExplorerSidebar("downloads");
   const [entries, setEntries] = useState<DownloadEntry[]>([]);
 
   useEffect(() => {
@@ -59,6 +61,9 @@ export function DownloadsWindow() {
               format={e.format}
               accent={gen?.meta.accent ?? "#5a9a9d"}
             />
+          ),
+          iconSmall: (
+            <DownloadFileIconSmall accent={gen?.meta.accent ?? "#5a9a9d"} />
           ),
           entry: e,
         };
@@ -141,6 +146,7 @@ export function DownloadsWindow() {
         onOpen={handleOpen}
         onRename={handleRename}
         actions={actions}
+        sidebar={sidebar}
         emptyState="Your exported STL and 3MF files will show up here. Download anything from a generator to fill the folder."
       />
     </AppWindow>
@@ -219,5 +225,46 @@ function DownloadFileIcon({
         {format.toUpperCase()}
       </Box>
     </Box>
+  );
+}
+
+/**
+ * 16×16 list-view glyph: tiny page with the accent strip + a folded corner.
+ * Echoes the large grid icon at a fraction of the size.
+ */
+function DownloadFileIconSmall({ accent }: { accent: string }) {
+  return (
+    <Box
+      sx={{
+        position: "relative",
+        width: 14,
+        height: 16,
+        borderRadius: 0.5,
+        background:
+          "linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(225,228,238,0.92) 100%)",
+        boxShadow:
+          "0 1px 2px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.55)",
+        overflow: "hidden",
+        "&::before": {
+          content: '""',
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 4,
+          background: `linear-gradient(180deg, ${accent} 0%, ${accent}cc 100%)`,
+        },
+        "&::after": {
+          content: '""',
+          position: "absolute",
+          top: 0,
+          right: 0,
+          width: 4,
+          height: 4,
+          background:
+            "linear-gradient(135deg, rgba(255,255,255,0.4) 50%, rgba(0,0,0,0.18) 50%)",
+        },
+      }}
+    />
   );
 }

@@ -15,12 +15,12 @@ import ListItemIcon from "@mui/material/ListItemIcon";
 import ListItemText from "@mui/material/ListItemText";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
-import MuiMenuItem from "@mui/material/MenuItem";
-import MuiSelect from "@mui/material/Select";
 import Stack from "@mui/material/Stack";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import {
+  ArrowDown,
+  ArrowUp,
   Check,
   LayoutGrid,
   List as ListIcon,
@@ -43,8 +43,10 @@ export interface ExplorerItem {
   subtitle?: string;
   /** Optional right-aligned metadata in list view (e.g. file format). */
   meta?: string;
-  /** The rendered icon component for this item. */
+  /** Large tile icon — rendered in icon view (~44–64px box). */
   icon: ReactNode;
+  /** Compact icon used in list view (~16px). Falls back to a scaled `icon`. */
+  iconSmall?: ReactNode;
 }
 
 export interface ExplorerAction<T extends ExplorerItem = ExplorerItem> {
@@ -61,6 +63,21 @@ export interface ExplorerAction<T extends ExplorerItem = ExplorerItem> {
   shortcut?: string;
 }
 
+export interface ExplorerSidebarItem {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  /** Tint applied to the icon (and to the active background). */
+  iconColor?: string;
+  active?: boolean;
+  onClick: () => void;
+}
+
+export interface ExplorerSidebarSection {
+  label: string;
+  items: ExplorerSidebarItem[];
+}
+
 interface FileExplorerProps<T extends ExplorerItem> {
   items: T[];
   /** Triggered on double-click / Enter — typically "Open". Single-item. */
@@ -69,6 +86,8 @@ interface FileExplorerProps<T extends ExplorerItem> {
   onRename?: (item: T, newName: string) => void;
   /** Buttons shown in the toolbar action bar + context menu. */
   actions?: ExplorerAction<T>[];
+  /** Optional Finder-style left rail. Rendered above sm; hidden on mobile. */
+  sidebar?: ExplorerSidebarSection[];
   /** Shown when items is empty. */
   emptyState?: ReactNode;
   /** Default view mode (defaults to "icons"). */
@@ -87,6 +106,7 @@ export function FileExplorer<T extends ExplorerItem>({
   onOpen,
   onRename,
   actions = [],
+  sidebar,
   emptyState,
   defaultView = "icons",
 }: FileExplorerProps<T>) {
@@ -210,6 +230,19 @@ export function FileExplorer<T extends ExplorerItem>({
     setRenamingId(id);
   }, [onRename, selectedIds]);
 
+  /** Toggle direction when clicking the active column header; pick desc for new. */
+  const handleHeaderSort = useCallback(
+    (field: SortField) => {
+      if (sort === field) {
+        setDir(dir === "asc" ? "desc" : "asc");
+      } else {
+        setSort(field);
+        setDir(field === "name" ? "asc" : "desc");
+      }
+    },
+    [sort, dir],
+  );
+
   // ─── Keyboard shortcuts ────────────────────────────────────────────
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
@@ -272,18 +305,20 @@ export function FileExplorer<T extends ExplorerItem>({
       <Stack
         direction="row"
         alignItems="center"
-        spacing={1}
+        spacing={1.25}
         sx={{
           flexShrink: 0,
-          px: 1.5,
-          py: 1,
+          height: 46,
+          px: 1.75,
           borderBottom: "1px solid rgba(255,255,255,0.06)",
-          bgcolor: "rgba(255,255,255,0.02)",
+          bgcolor: "rgba(255,255,255,0.025)",
+          backdropFilter: "blur(8px)",
+          WebkitBackdropFilter: "blur(8px)",
         }}
       >
         <ViewToggle view={view} onChange={setView} />
 
-        <Box sx={{ width: "1px", height: 18, bgcolor: "divider", mx: 0.5 }} />
+        <Box sx={{ width: "1px", height: 22, bgcolor: "rgba(255,255,255,0.08)" }} />
 
         <SortControl
           sort={sort}
@@ -292,130 +327,145 @@ export function FileExplorer<T extends ExplorerItem>({
           onChangeDir={setDir}
         />
 
-        <Box sx={{ flex: 1 }} />
-
         {visibleActions.length > 0 && (
-          <Stack direction="row" spacing={0.5} alignItems="center">
-            {visibleActions.map((a) => {
-              const Icon = a.icon;
-              return (
-                <Tooltip key={a.id} title={a.label}>
-                  <Box
-                    component="button"
-                    type="button"
-                    onClick={() => {
-                      a.onClick(selectedItems);
-                    }}
-                    sx={{
-                      all: "unset",
-                      cursor: "pointer",
-                      px: 1,
-                      py: 0.5,
-                      borderRadius: 1,
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 0.5,
-                      fontSize: "0.72rem",
-                      fontWeight: 500,
-                      color: a.danger
-                        ? "rgba(248, 113, 113, 0.95)"
-                        : "text.primary",
-                      transition: "background-color 120ms ease",
-                      "&:hover": {
-                        bgcolor: a.danger
-                          ? "rgba(248, 113, 113, 0.12)"
-                          : "rgba(255,255,255,0.08)",
-                      },
-                    }}
-                  >
-                    <Icon size={13} />
-                    <Box component="span">{a.label}</Box>
-                  </Box>
-                </Tooltip>
-              );
-            })}
-          </Stack>
+          <>
+            <Box sx={{ width: "1px", height: 22, bgcolor: "rgba(255,255,255,0.08)" }} />
+            <Stack direction="row" spacing={0.5} alignItems="center">
+              {visibleActions.map((a) => {
+                const Icon = a.icon;
+                return (
+                  <Tooltip key={a.id} title={a.label}>
+                    <Box
+                      component="button"
+                      type="button"
+                      onClick={() => {
+                        a.onClick(selectedItems);
+                      }}
+                      sx={{
+                        all: "unset",
+                        cursor: "pointer",
+                        height: 28,
+                        px: 1.1,
+                        borderRadius: 1,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 0.6,
+                        fontSize: "0.74rem",
+                        fontWeight: 500,
+                        color: a.danger
+                          ? "rgba(248, 113, 113, 0.95)"
+                          : "text.primary",
+                        transition: "background-color 120ms ease",
+                        "&:hover": {
+                          bgcolor: a.danger
+                            ? "rgba(248, 113, 113, 0.12)"
+                            : "rgba(255,255,255,0.08)",
+                        },
+                      }}
+                    >
+                      <Icon size={14} />
+                      <Box component="span">{a.label}</Box>
+                    </Box>
+                  </Tooltip>
+                );
+              })}
+            </Stack>
+          </>
         )}
+
+        <Box sx={{ flex: 1 }} />
 
         <SearchBox value={query} onChange={setQuery} />
       </Stack>
 
-      {/* ─── Content ─────────────────────────────────────────── */}
-      <Box
-        sx={{
-          flex: 1,
-          overflow: "auto",
-          p: view === "icons" ? { xs: 2, sm: 3 } : 0,
-        }}
-        onClick={(e) => {
-          if (e.target === e.currentTarget) {
-            setSelectedIds(new Set());
-            setAnchorId(null);
-          }
-        }}
-        onContextMenu={(e) => {
-          if (e.target === e.currentTarget) handleContextMenu(e, null);
-        }}
-      >
-        {filtered.length === 0 ? (
-          <EmptyState>
-            {query.length > 0
-              ? `No items match "${query}".`
-              : (emptyState ?? "Nothing here yet.")}
-          </EmptyState>
-        ) : view === "icons" ? (
-          <IconGrid
-            items={filtered}
-            selectedIds={selectedIds}
-            renamingId={renamingId}
-            onSelect={handleSelect}
-            onOpen={onOpen}
-            onCommitRename={commitRename}
-            onCancelRename={() => {
-              setRenamingId(null);
-            }}
-            onContextMenu={handleContextMenu}
-          />
-        ) : (
-          <ListView
-            items={filtered}
-            selectedIds={selectedIds}
-            renamingId={renamingId}
-            onSelect={handleSelect}
-            onOpen={onOpen}
-            onCommitRename={commitRename}
-            onCancelRename={() => {
-              setRenamingId(null);
-            }}
-            onContextMenu={handleContextMenu}
-          />
-        )}
-      </Box>
+      {/* ─── Sidebar + content + status bar ──────────────────── */}
+      <Stack direction="row" sx={{ flex: 1, minHeight: 0 }}>
+        {sidebar && sidebar.length > 0 && <Sidebar sections={sidebar} />}
 
-      {/* ─── Status bar ───────────────────────────────────────── */}
-      <Stack
-        direction="row"
-        alignItems="center"
-        sx={{
-          flexShrink: 0,
-          height: 26,
-          px: 1.5,
-          borderTop: "1px solid rgba(255,255,255,0.06)",
-          bgcolor: "rgba(0,0,0,0.18)",
-        }}
-      >
-        <Typography
-          variant="caption"
-          sx={{ color: "text.secondary", fontSize: "0.7rem" }}
-        >
-          {filtered.length === items.length
-            ? `${String(items.length)} item${items.length === 1 ? "" : "s"}`
-            : `${String(filtered.length)} of ${String(items.length)} item${items.length === 1 ? "" : "s"}`}
-          {selectedItems.length === 1 &&
-            ` · "${selectedItems[0].name}" selected`}
-          {selectedItems.length > 1 &&
-            ` · ${String(selectedItems.length)} selected`}
-        </Typography>
+        <Stack sx={{ flex: 1, minWidth: 0, minHeight: 0 }}>
+          {/* Content */}
+          <Box
+            sx={{
+              flex: 1,
+              minHeight: 0,
+              overflow: "auto",
+              p: view === "icons" ? { xs: 2, sm: 3 } : 0,
+            }}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setSelectedIds(new Set());
+                setAnchorId(null);
+              }
+            }}
+            onContextMenu={(e) => {
+              if (e.target === e.currentTarget) handleContextMenu(e, null);
+            }}
+          >
+            {filtered.length === 0 ? (
+              <EmptyState>
+                {query.length > 0
+                  ? `No items match "${query}".`
+                  : (emptyState ?? "Nothing here yet.")}
+              </EmptyState>
+            ) : view === "icons" ? (
+              <IconGrid
+                items={filtered}
+                selectedIds={selectedIds}
+                renamingId={renamingId}
+                onSelect={handleSelect}
+                onOpen={onOpen}
+                onCommitRename={commitRename}
+                onCancelRename={() => {
+                  setRenamingId(null);
+                }}
+                onContextMenu={handleContextMenu}
+              />
+            ) : (
+              <ListView
+                items={filtered}
+                selectedIds={selectedIds}
+                renamingId={renamingId}
+                sort={sort}
+                dir={dir}
+                onSelect={handleSelect}
+                onOpen={onOpen}
+                onCommitRename={commitRename}
+                onCancelRename={() => {
+                  setRenamingId(null);
+                }}
+                onContextMenu={handleContextMenu}
+                onHeaderSort={handleHeaderSort}
+              />
+            )}
+          </Box>
+
+          {/* Status bar */}
+          <Stack
+            direction="row"
+            alignItems="center"
+            justifyContent="center"
+            sx={{
+              flexShrink: 0,
+              height: 28,
+              px: 1.5,
+              borderTop: "1px solid rgba(255,255,255,0.06)",
+              bgcolor: "rgba(0,0,0,0.18)",
+            }}
+          >
+            <Typography
+              variant="caption"
+              sx={{ color: "text.secondary", fontSize: "0.72rem" }}
+            >
+              {filtered.length === items.length
+                ? `${String(items.length)} item${items.length === 1 ? "" : "s"}`
+                : `${String(filtered.length)} of ${String(items.length)} item${items.length === 1 ? "" : "s"}`}
+              {selectedItems.length === 1 &&
+                ` · "${selectedItems[0].name}" selected`}
+              {selectedItems.length > 1 &&
+                ` · ${String(selectedItems.length)} selected`}
+            </Typography>
+          </Stack>
+        </Stack>
       </Stack>
 
       <ContextMenu
@@ -442,6 +492,103 @@ export function FileExplorer<T extends ExplorerItem>({
   );
 }
 
+/* ─── Sidebar ─────────────────────────────────────────────────── */
+
+function Sidebar({ sections }: { sections: ExplorerSidebarSection[] }) {
+  return (
+    <Stack
+      component="aside"
+      aria-label="Sidebar"
+      sx={{
+        display: { xs: "none", sm: "flex" },
+        width: 172,
+        flexShrink: 0,
+        py: 1.25,
+        px: 0.75,
+        borderRight: "1px solid rgba(255,255,255,0.06)",
+        bgcolor: "rgba(0,0,0,0.22)",
+        overflow: "auto",
+      }}
+      spacing={1.25}
+    >
+      {sections.map((section) => (
+        <Stack key={section.label} spacing={0.25}>
+          <Typography
+            sx={{
+              px: 1.25,
+              pb: 0.5,
+              fontSize: "0.62rem",
+              fontWeight: 600,
+              letterSpacing: 0.6,
+              textTransform: "uppercase",
+              color: "text.secondary",
+            }}
+          >
+            {section.label}
+          </Typography>
+          {section.items.map((item) => {
+            const Icon = item.icon;
+            return (
+              <Box
+                key={item.id}
+                component="button"
+                type="button"
+                onClick={item.onClick}
+                aria-current={item.active ? "page" : undefined}
+                sx={{
+                  all: "unset",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 0.85,
+                  px: 1.25,
+                  height: 26,
+                  borderRadius: 1,
+                  fontSize: "0.78rem",
+                  fontWeight: item.active ? 500 : 400,
+                  color: item.active ? "text.primary" : "rgba(255,255,255,0.78)",
+                  bgcolor: item.active
+                    ? "rgba(120, 160, 220, 0.22)"
+                    : "transparent",
+                  transition: "background-color 120ms ease, color 120ms ease",
+                  "&:hover": {
+                    bgcolor: item.active
+                      ? "rgba(120, 160, 220, 0.28)"
+                      : "rgba(255,255,255,0.05)",
+                    color: "text.primary",
+                  },
+                  "&:focus-visible": {
+                    outline: "none",
+                    bgcolor: "rgba(120, 160, 220, 0.28)",
+                  },
+                }}
+              >
+                <Icon
+                  size={14}
+                  style={{
+                    color: item.iconColor ?? "currentColor",
+                    flexShrink: 0,
+                  }}
+                />
+                <Box
+                  component="span"
+                  sx={{
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {item.label}
+                </Box>
+              </Box>
+            );
+          })}
+        </Stack>
+      ))}
+    </Stack>
+  );
+}
+
 /* ─── Toolbar pieces ──────────────────────────────────────────── */
 
 function ViewToggle({
@@ -455,9 +602,10 @@ function ViewToggle({
     <Stack
       direction="row"
       sx={{
-        bgcolor: "rgba(255,255,255,0.04)",
-        borderRadius: 1,
+        bgcolor: "rgba(255,255,255,0.05)",
+        borderRadius: 1.25,
         p: 0.25,
+        boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.04)",
       }}
     >
       <ToggleBtn
@@ -467,7 +615,7 @@ function ViewToggle({
         }}
         label="Icon view"
       >
-        <LayoutGrid size={14} />
+        <LayoutGrid size={15} />
       </ToggleBtn>
       <ToggleBtn
         active={view === "list"}
@@ -476,7 +624,7 @@ function ViewToggle({
         }}
         label="List view"
       >
-        <ListIcon size={14} />
+        <ListIcon size={15} />
       </ToggleBtn>
     </Stack>
   );
@@ -504,17 +652,20 @@ function ToggleBtn({
         sx={{
           all: "unset",
           cursor: "pointer",
-          width: 26,
-          height: 22,
+          width: 30,
+          height: 26,
           display: "inline-flex",
           alignItems: "center",
           justifyContent: "center",
-          borderRadius: 0.75,
+          borderRadius: 0.85,
           color: active ? "text.primary" : "text.secondary",
-          bgcolor: active ? "rgba(255,255,255,0.10)" : "transparent",
+          bgcolor: active ? "rgba(255,255,255,0.12)" : "transparent",
+          boxShadow: active
+            ? "inset 0 0 0 1px rgba(255,255,255,0.08), 0 1px 2px rgba(0,0,0,0.2)"
+            : "none",
           transition: "background-color 120ms ease, color 120ms ease",
           "&:hover": {
-            bgcolor: active ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.06)",
+            bgcolor: active ? "rgba(255,255,255,0.16)" : "rgba(255,255,255,0.06)",
             color: "text.primary",
           },
         }}
@@ -524,6 +675,12 @@ function ToggleBtn({
     </Tooltip>
   );
 }
+
+const SORT_LABEL: Record<SortField, string> = {
+  date: "Date",
+  name: "Name",
+  kind: "Kind",
+};
 
 function SortControl({
   sort,
@@ -536,68 +693,88 @@ function SortControl({
   onChangeSort: (v: SortField) => void;
   onChangeDir: (v: SortDir) => void;
 }) {
+  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   return (
-    <Stack direction="row" alignItems="center" spacing={0.5}>
-      <Typography
-        variant="caption"
-        sx={{
-          color: "text.secondary",
-          fontSize: "0.68rem",
-          letterSpacing: 0.5,
-          textTransform: "uppercase",
-        }}
-      >
-        Sort
-      </Typography>
-      <MuiSelect<SortField>
-        value={sort}
-        onChange={(e) => {
-          onChangeSort(e.target.value);
-        }}
-        variant="standard"
-        disableUnderline
-        sx={{
-          fontSize: "0.74rem",
-          fontWeight: 600,
-          color: "text.primary",
-          "& .MuiSelect-select": { py: 0.25, pr: "20px !important", pl: 0.75 },
-          "& .MuiSelect-icon": { color: "text.secondary", right: 0 },
-        }}
-      >
-        <MuiMenuItem value="date">Date</MuiMenuItem>
-        <MuiMenuItem value="name">Name</MuiMenuItem>
-        <MuiMenuItem value="kind">Kind</MuiMenuItem>
-      </MuiSelect>
-      <Tooltip title={dir === "asc" ? "Ascending" : "Descending"}>
+    <>
+      <Tooltip title="Sort">
         <Box
           component="button"
           type="button"
-          onClick={() => {
-            onChangeDir(dir === "asc" ? "desc" : "asc");
+          aria-label="Sort"
+          aria-haspopup="menu"
+          onClick={(e) => {
+            setAnchor(e.currentTarget);
           }}
-          aria-label="Toggle sort direction"
           sx={{
             all: "unset",
             cursor: "pointer",
-            width: 18,
-            height: 18,
             display: "inline-flex",
             alignItems: "center",
-            justifyContent: "center",
-            borderRadius: 0.5,
-            color: "text.secondary",
-            fontSize: "0.85rem",
-            transition: "color 120ms ease, background-color 120ms ease",
-            "&:hover": {
-              color: "text.primary",
-              bgcolor: "rgba(255,255,255,0.06)",
-            },
+            gap: 0.5,
+            height: 28,
+            px: 1,
+            borderRadius: 1,
+            color: "text.primary",
+            fontSize: "0.74rem",
+            fontWeight: 500,
+            transition: "background-color 120ms ease",
+            "&:hover": { bgcolor: "rgba(255,255,255,0.06)" },
           }}
         >
-          {dir === "asc" ? "↑" : "↓"}
+          <Box
+            component="span"
+            sx={{
+              color: "text.secondary",
+              fontSize: "0.66rem",
+              letterSpacing: 0.6,
+              textTransform: "uppercase",
+              fontWeight: 600,
+            }}
+          >
+            Sort
+          </Box>
+          <Box component="span">{SORT_LABEL[sort]}</Box>
+          {dir === "asc" ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
         </Box>
       </Tooltip>
-    </Stack>
+      <Menu
+        open={anchor !== null}
+        anchorEl={anchor}
+        onClose={() => {
+          setAnchor(null);
+        }}
+        slotProps={menuPaperProps}
+      >
+        {(["date", "name", "kind"] as const).map((f) => (
+          <MenuItem
+            key={f}
+            onClick={() => {
+              onChangeSort(f);
+              setAnchor(null);
+            }}
+          >
+            <ListItemIcon>
+              {sort === f ? <Check size={13} /> : null}
+            </ListItemIcon>
+            <ListItemText>{SORT_LABEL[f]}</ListItemText>
+          </MenuItem>
+        ))}
+        <Divider sx={{ my: 0.5, borderColor: "rgba(255,255,255,0.06)" }} />
+        <MenuItem
+          onClick={() => {
+            onChangeDir(dir === "asc" ? "desc" : "asc");
+            setAnchor(null);
+          }}
+        >
+          <ListItemIcon>
+            {dir === "asc" ? <ArrowUp size={13} /> : <ArrowDown size={13} />}
+          </ListItemIcon>
+          <ListItemText>
+            {dir === "asc" ? "Ascending" : "Descending"}
+          </ListItemText>
+        </MenuItem>
+      </Menu>
+    </>
   );
 }
 
@@ -612,17 +789,20 @@ function SearchBox({
     <Stack
       direction="row"
       alignItems="center"
-      spacing={0.5}
+      spacing={0.75}
       sx={{
-        bgcolor: "rgba(255,255,255,0.06)",
-        borderRadius: 1,
-        px: 0.85,
-        py: 0.25,
-        minWidth: 160,
-        maxWidth: 220,
+        height: 28,
+        bgcolor: "rgba(0,0,0,0.24)",
+        boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.06)",
+        borderRadius: 1.25,
+        px: 1,
+        minWidth: 180,
+        maxWidth: 240,
+        transition: "background-color 120ms ease, box-shadow 120ms ease",
         "&:focus-within": {
-          bgcolor: "rgba(255,255,255,0.10)",
-          boxShadow: "0 0 0 2px rgba(255,255,255,0.12)",
+          bgcolor: "rgba(0,0,0,0.32)",
+          boxShadow:
+            "inset 0 0 0 1px rgba(120, 160, 220, 0.55), 0 0 0 3px rgba(120, 160, 220, 0.12)",
         },
       }}
     >
@@ -635,9 +815,10 @@ function SearchBox({
         }}
         sx={{
           flex: 1,
-          fontSize: "0.74rem",
+          fontSize: "0.78rem",
           color: "text.primary",
           "& input": { p: 0 },
+          "& input::placeholder": { color: "text.secondary", opacity: 0.8 },
         }}
       />
     </Stack>
@@ -646,7 +827,7 @@ function SearchBox({
 
 /* ─── Views ───────────────────────────────────────────────────── */
 
-interface ViewProps<T extends ExplorerItem> {
+interface IconGridProps<T extends ExplorerItem> {
   items: T[];
   selectedIds: Set<string>;
   renamingId: string | null;
@@ -666,16 +847,17 @@ function IconGrid<T extends ExplorerItem>({
   onCommitRename,
   onCancelRename,
   onContextMenu,
-}: ViewProps<T>) {
+}: IconGridProps<T>) {
   return (
     <Box
       sx={{
         display: "grid",
         gridTemplateColumns: {
-          xs: "repeat(auto-fill, minmax(96px, 1fr))",
-          sm: "repeat(auto-fill, minmax(108px, 1fr))",
+          xs: "repeat(auto-fill, minmax(108px, 1fr))",
+          sm: "repeat(auto-fill, minmax(124px, 1fr))",
         },
-        gap: { xs: 1.5, sm: 2 },
+        gap: { xs: 1.5, sm: 2.25 },
+        rowGap: { xs: 2, sm: 2.75 },
       }}
     >
       {items.map((it) => {
@@ -712,7 +894,8 @@ function IconGrid<T extends ExplorerItem>({
             sx={{
               cursor: "pointer",
               borderRadius: 1.5,
-              p: 1,
+              px: 1,
+              py: 1.25,
               transition: "background-color 120ms ease",
               bgcolor: selected ? "rgba(120, 160, 220, 0.22)" : "transparent",
               "&:hover": {
@@ -728,8 +911,8 @@ function IconGrid<T extends ExplorerItem>({
           >
             <Box
               sx={{
-                width: 56,
-                height: 56,
+                width: 64,
+                height: 64,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -748,12 +931,17 @@ function IconGrid<T extends ExplorerItem>({
             ) : (
               <Typography
                 sx={{
-                  fontSize: "0.74rem",
+                  fontSize: "0.76rem",
                   fontWeight: 500,
-                  color: selected ? "text.primary" : "rgba(255,255,255,0.86)",
+                  color: selected ? "text.primary" : "rgba(255,255,255,0.9)",
                   textAlign: "center",
-                  lineHeight: 1.2,
+                  lineHeight: 1.25,
                   wordBreak: "break-word",
+                  display: "-webkit-box",
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: "vertical",
+                  overflow: "hidden",
+                  maxWidth: "100%",
                 }}
               >
                 {it.name}
@@ -778,16 +966,40 @@ function IconGrid<T extends ExplorerItem>({
   );
 }
 
+interface ListViewProps<T extends ExplorerItem> {
+  items: T[];
+  selectedIds: Set<string>;
+  renamingId: string | null;
+  sort: SortField;
+  dir: SortDir;
+  onSelect: (id: string, mods: { ctrl?: boolean; shift?: boolean }) => void;
+  onOpen?: (item: T) => void;
+  onCommitRename: (id: string, newName: string) => void;
+  onCancelRename: () => void;
+  onContextMenu: (e: MouseEvent, itemId: string) => void;
+  onHeaderSort: (field: SortField) => void;
+}
+
+const LIST_COLUMNS: { id: SortField | "format"; label: string; align?: "right" }[] = [
+  { id: "name", label: "Name" },
+  { id: "kind", label: "Kind" },
+  { id: "date", label: "Date Modified" },
+  { id: "format", label: "Format", align: "right" },
+];
+
 function ListView<T extends ExplorerItem>({
   items,
   selectedIds,
   renamingId,
+  sort,
+  dir,
   onSelect,
   onOpen,
   onCommitRename,
   onCancelRename,
   onContextMenu,
-}: ViewProps<T>) {
+  onHeaderSort,
+}: ListViewProps<T>) {
   return (
     <Box component="table" sx={{ width: "100%", borderCollapse: "collapse" }}>
       <Box
@@ -803,23 +1015,64 @@ function ListView<T extends ExplorerItem>({
             letterSpacing: 0.6,
             textTransform: "uppercase",
             color: "text.secondary",
-            px: 1.5,
-            py: 1,
-            borderBottom: "1px solid rgba(255,255,255,0.06)",
-            bgcolor: "rgba(20,22,32,0.85)",
-            backdropFilter: "blur(8px)",
+            px: 1.75,
+            height: 30,
+            borderBottom: "1px solid rgba(255,255,255,0.08)",
+            bgcolor: "rgba(20,22,32,0.92)",
+            backdropFilter: "blur(10px)",
+            WebkitBackdropFilter: "blur(10px)",
+            userSelect: "none",
+          },
+          "& th + th": {
+            borderLeft: "1px solid rgba(255,255,255,0.04)",
           },
         }}
       >
         <tr>
-          <th>Name</th>
-          <th>Kind</th>
-          <th>Date Modified</th>
-          <th style={{ textAlign: "right" }}>Format</th>
+          {LIST_COLUMNS.map((col) => {
+            const sortable = col.id !== "format";
+            const active = sortable && sort === col.id;
+            return (
+              <Box
+                key={col.id}
+                component="th"
+                onClick={
+                  sortable
+                    ? () => {
+                        onHeaderSort(col.id as SortField);
+                      }
+                    : undefined
+                }
+                sx={{
+                  cursor: sortable ? "pointer" : "default",
+                  textAlign: col.align ?? "left",
+                  color: active ? "text.primary" : "text.secondary",
+                  "&:hover": sortable
+                    ? { color: "text.primary", bgcolor: "rgba(255,255,255,0.03)" }
+                    : undefined,
+                }}
+              >
+                <Stack
+                  direction="row"
+                  alignItems="center"
+                  justifyContent={col.align === "right" ? "flex-end" : "flex-start"}
+                  spacing={0.5}
+                >
+                  <Box component="span">{col.label}</Box>
+                  {active &&
+                    (dir === "asc" ? (
+                      <ArrowUp size={11} strokeWidth={2.4} />
+                    ) : (
+                      <ArrowDown size={11} strokeWidth={2.4} />
+                    ))}
+                </Stack>
+              </Box>
+            );
+          })}
         </tr>
       </Box>
       <Box component="tbody">
-        {items.map((it) => {
+        {items.map((it, idx) => {
           const selected = selectedIds.has(it.id);
           const renaming = renamingId === it.id;
           return (
@@ -855,23 +1108,29 @@ function ListView<T extends ExplorerItem>({
                 transition: "background-color 120ms ease",
                 bgcolor: selected
                   ? "rgba(120, 160, 220, 0.22)"
-                  : "transparent",
+                  : idx % 2 === 1
+                    ? "rgba(255,255,255,0.015)"
+                    : "transparent",
                 "&:hover": {
                   bgcolor: selected
                     ? "rgba(120, 160, 220, 0.28)"
-                    : "rgba(255,255,255,0.04)",
+                    : "rgba(255,255,255,0.05)",
                 },
                 "&:focus-visible": {
                   outline: "none",
                   bgcolor: "rgba(120, 160, 220, 0.28)",
                 },
                 "& td": {
-                  px: 1.5,
-                  py: 0.85,
+                  px: 1.75,
+                  height: 30,
                   borderBottom: "1px solid rgba(255,255,255,0.04)",
                   fontSize: "0.78rem",
                   color: "text.primary",
                   verticalAlign: "middle",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  maxWidth: 0,
                 },
                 "& td.muted": {
                   color: "text.secondary",
@@ -879,11 +1138,9 @@ function ListView<T extends ExplorerItem>({
                 },
               }}
             >
-              <td>
+              <td style={{ width: "45%" }}>
                 <Stack direction="row" spacing={1} alignItems="center">
-                  <Box sx={{ width: 22, height: 22, flexShrink: 0 }}>
-                    {it.icon}
-                  </Box>
+                  <ListIconCell icon={it.iconSmall ?? it.icon} hasSmall={Boolean(it.iconSmall)} />
                   {renaming ? (
                     <RenameInput
                       initial={it.name}
@@ -893,17 +1150,32 @@ function ListView<T extends ExplorerItem>({
                       onCancel={onCancelRename}
                     />
                   ) : (
-                    <Box component="span" sx={{ fontWeight: 500 }}>
+                    <Box
+                      component="span"
+                      sx={{
+                        fontWeight: 500,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
                       {it.name}
                     </Box>
                   )}
                 </Stack>
               </td>
-              <td className="muted">{it.kind}</td>
-              <td className="muted">{formatTimestamp(it.timestamp)}</td>
+              <td className="muted" style={{ width: "20%" }}>
+                {it.kind}
+              </td>
+              <td className="muted" style={{ width: "25%" }}>
+                {formatTimestamp(it.timestamp)}
+              </td>
               <td
                 className="muted"
-                style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}
+                style={{
+                  textAlign: "right",
+                  fontVariantNumeric: "tabular-nums",
+                  width: "10%",
+                }}
               >
                 {it.meta ?? "—"}
               </td>
@@ -911,6 +1183,49 @@ function ListView<T extends ExplorerItem>({
           );
         })}
       </Box>
+    </Box>
+  );
+}
+
+/**
+ * 18×18 icon slot for list view. When the host provided a dedicated `iconSmall`,
+ * we render it directly. Otherwise we scale the large grid icon down so it at
+ * least fits in the row instead of overflowing into the filename.
+ */
+function ListIconCell({
+  icon,
+  hasSmall,
+}: {
+  icon: ReactNode;
+  hasSmall: boolean;
+}) {
+  return (
+    <Box
+      sx={{
+        width: 18,
+        height: 18,
+        flexShrink: 0,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        overflow: "hidden",
+      }}
+    >
+      {hasSmall ? (
+        icon
+      ) : (
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            transform: "scale(0.32)",
+            transformOrigin: "center",
+          }}
+        >
+          {icon}
+        </Box>
+      )}
     </Box>
   );
 }
@@ -988,7 +1303,7 @@ function RenameInput({
         e.stopPropagation();
       }}
       sx={{
-        fontSize: "0.74rem",
+        fontSize: "0.76rem",
         fontWeight: 500,
         textAlign: "center",
         "& input": {
@@ -1006,6 +1321,29 @@ function RenameInput({
 }
 
 /* ─── Context menu ────────────────────────────────────────────── */
+
+const menuPaperProps = {
+  paper: {
+    sx: {
+      bgcolor: "rgba(28, 30, 42, 0.96)",
+      backdropFilter: "blur(20px) saturate(160%)",
+      WebkitBackdropFilter: "blur(20px) saturate(160%)",
+      border: "1px solid rgba(255,255,255,0.10)",
+      borderRadius: 1.5,
+      minWidth: 200,
+      "& .MuiMenuItem-root": {
+        fontSize: "0.78rem",
+        minHeight: 28,
+        py: 0.5,
+        px: 1.5,
+      },
+      "& .MuiListItemIcon-root": {
+        minWidth: "22px !important",
+        color: "text.secondary",
+      },
+    },
+  },
+} as const;
 
 interface ContextMenuProps<T extends ExplorerItem> {
   target: ContextMenuTarget | null;
@@ -1235,27 +1573,7 @@ function ContextMenu<T extends ExplorerItem>({
       onClose={onClose}
       anchorReference="anchorPosition"
       anchorPosition={anchorPosition}
-      slotProps={{
-        paper: {
-          sx: {
-            bgcolor: "rgba(28, 30, 42, 0.96)",
-            backdropFilter: "blur(20px) saturate(160%)",
-            border: "1px solid rgba(255,255,255,0.10)",
-            borderRadius: 1.5,
-            minWidth: 200,
-            "& .MuiMenuItem-root": {
-              fontSize: "0.78rem",
-              minHeight: 28,
-              py: 0.5,
-              px: 1.5,
-            },
-            "& .MuiListItemIcon-root": {
-              minWidth: "22px !important",
-              color: "text.secondary",
-            },
-          },
-        },
-      }}
+      slotProps={menuPaperProps}
     >
       {children}
     </Menu>

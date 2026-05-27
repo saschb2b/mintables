@@ -7,7 +7,12 @@ export { DialogWindow } from "./dialog-window";
 export { DesktopIcon } from "./desktop-icon";
 export { DesktopFolder } from "./desktop-folder";
 export { FileExplorer, formatTimestamp } from "./file-explorer";
-export type { ExplorerItem, ExplorerAction } from "./file-explorer";
+export type {
+  ExplorerItem,
+  ExplorerAction,
+  ExplorerSidebarItem,
+  ExplorerSidebarSection,
+} from "./file-explorer";
 export { SystemClock } from "./system-clock";
 export { GeneratorGrid } from "./generator-grid";
 export { GeneratorHero } from "./generator-hero";
