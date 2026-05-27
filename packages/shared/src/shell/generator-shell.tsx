@@ -681,7 +681,11 @@ export function GeneratorShell<C>({ generator }: GeneratorShellProps<C>) {
 
         <ValidationBanner result={validation} />
 
-        <PreviewPanel generator={generator} config={debouncedConfig} />
+        <PreviewPanel
+          generator={generator}
+          config={debouncedConfig}
+          active={isFocused}
+        />
       </Box>
       </Box>
 
