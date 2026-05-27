@@ -80,9 +80,12 @@ export function reducer(
       const id = windowIdOf(action.payload);
       const existing = state.windows.find((w) => w.id === id);
       if (existing) {
-        // Restore from minimized + focus. Bounds are preserved.
+        // Restore from minimized + focus. Bounds are preserved. The payload
+        // is overwritten with the new action's payload so singleton-id
+        // windows (folders) can navigate between locations in place.
         const restored: OpenWindow = {
           ...existing,
+          payload: action.payload,
           state: existing.state === "minimized" ? "normal" : existing.state,
         };
         const others = state.windows.filter((w) => w.id !== id);
@@ -134,7 +137,7 @@ export function reducer(
     }
     case "RESTORE": {
       const target = state.windows.find((w) => w.id === action.id);
-      if (!target || target.state !== "minimized") return state;
+      if (target?.state !== "minimized") return state;
       const restored = state.windows.map((w) =>
         w.id === action.id ? { ...w, state: "normal" as const } : w,
       );

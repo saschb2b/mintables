@@ -39,12 +39,19 @@ export interface WindowManagerState {
 }
 
 /**
- * Stable id from payload. Two opens with the same payload collapse to a single
- * window (focus + restore), matching macOS app-instance behavior.
+ * Stable id from payload.
+ *
+ * Generators are per-generator: opening Tubes twice focuses the existing
+ * Tubes window. Folders, on the other hand, share a single slot - opening
+ * Presets while Downloads is showing replaces the location of the one
+ * folder window, like a Finder window navigating to a new folder rather
+ * than spawning a second window. The reducer's OPEN branch updates the
+ * payload of the existing window when the ids collide, so the body and
+ * dock tile swap to reflect the new location.
  */
 export function windowIdOf(payload: WindowPayload): string {
   if (payload.kind === "generator") return `generator:${payload.generatorId}`;
-  return `folder:${payload.folderId}`;
+  return "folder";
 }
 
 export interface WindowManagerActions {
