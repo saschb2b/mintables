@@ -157,6 +157,7 @@ When you add new persisted state that should reflect on the desktop or in a wind
 
 - **Flex + WebGL canvas: every ancestor needs `minWidth: 0`.** Three.js / R3F sets the `<canvas>` to its drawing buffer width, which becomes the flex item's intrinsic min-width. Without explicit `minWidth: 0` on each flex container above the canvas, the canvas anchors them and they can't shrink — e.g. after maximize → restore the shell overflows the window and the right edge gets clipped by the window's `overflow: hidden`. `GeneratorShell` sets `minWidth: 0` on both the outer row container and the `<main>` element for this reason. Preserve those.
 - **The dock is `position: fixed`.** Windows respect it via `mb` (a buffer that keeps the bottom edge above the dock) — even when maximized. Don't set `mb: 0` on `AppWindow`.
+- **Narrow-width split: Controls/Preview tab.** Below the `md` breakpoint (~900px), `GeneratorShell` swaps the side-by-side layout for a segmented Controls/Preview tab at the top, mirroring the iPad-design-app pattern (Figma, Affinity). At md+ the layout is 320px controls + flex preview, which comfortably fits even half-screen on most desktops. Each pane is toggled via `display: none/flex` (kept mounted, so state survives switches). The shell dispatches a `window` resize event 30ms after switching to Preview so R3F's `<Canvas>` re-fits — some browsers don't notify ResizeObserver when an ancestor flips from `display: none`. Don't replace this with an unmount/remount.
 
 ## Conventions
 

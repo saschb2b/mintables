@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import ButtonGroup from "@mui/material/ButtonGroup";
@@ -12,14 +13,18 @@ import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import Snackbar from "@mui/material/Snackbar";
 import Stack from "@mui/material/Stack";
+import { useTheme } from "@mui/material/styles";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
+import useMediaQuery from "@mui/material/useMediaQuery";
 import {
   Bookmark,
   ChevronDown,
   Download,
+  Eye,
   RotateCcw,
   Share2,
+  SlidersHorizontal,
   Trash2,
 } from "lucide-react";
 import type { Generator } from "../lib/generator";
@@ -244,6 +249,29 @@ export function GeneratorShell<C>({ generator }: GeneratorShellProps<C>) {
   const Controls = generator.Controls;
   const Summary = generator.Summary;
 
+  // Below `md` (≈900px) the panes stack vertically, so we swap them for a
+  // segmented Controls/Preview tab — like Figma / Affinity on iPad. Default
+  // to Controls since opening a generator usually means "configure", not
+  // "look at". Above md the side-by-side layout works comfortably (320px
+  // controls + ≥500px preview).
+  const theme = useTheme();
+  const stacked = !useMediaQuery(theme.breakpoints.up("md"));
+  const [pane, setPane] = useState<"controls" | "preview">("controls");
+
+  // R3F's <Canvas> tracks size via ResizeObserver, but a parent flipping from
+  // display:none to flex doesn't trigger that observer in some browsers — the
+  // canvas keeps its stale 0×0 dims until the next window resize. Nudge it.
+  useEffect(() => {
+    if (!stacked) return;
+    if (pane !== "preview") return;
+    const t = window.setTimeout(() => {
+      window.dispatchEvent(new Event("resize"));
+    }, 30);
+    return () => {
+      window.clearTimeout(t);
+    };
+  }, [stacked, pane]);
+
   return (
     <Box
       sx={{
@@ -254,21 +282,32 @@ export function GeneratorShell<C>({ generator }: GeneratorShellProps<C>) {
         // canvas anchors the row at its widest measured size and the shell
         // overflows its window when the window restores from maximized.
         minWidth: 0,
-        flexDirection: { xs: "column", lg: "row" },
+        flexDirection: "column",
       }}
     >
+      {stacked && <PaneToggle pane={pane} onChange={setPane} accent={generator.meta.accent} />}
+
+      <Box
+        sx={{
+          display: "flex",
+          flex: 1,
+          minHeight: 0,
+          minWidth: 0,
+          flexDirection: { xs: "column", md: "row" },
+        }}
+      >
       {/* Sidebar Controls */}
       <Box
         component="aside"
         sx={{
-          width: { xs: "100%", lg: 320, xl: 384 },
+          width: { xs: "100%", md: 320, xl: 384 },
           flexShrink: 0,
-          borderBottom: { xs: 1, lg: 0 },
-          borderRight: { lg: 1 },
+          borderRight: { md: 1 },
           borderColor: "divider",
           bgcolor: "background.paper",
-          display: "flex",
+          display: stacked && pane !== "controls" ? "none" : "flex",
           flexDirection: "column",
+          minHeight: 0,
         }}
       >
         <Box sx={{ flex: 1, overflow: "auto", p: 2 }}>
@@ -444,9 +483,9 @@ export function GeneratorShell<C>({ generator }: GeneratorShellProps<C>) {
         component="main"
         sx={{
           flex: 1,
-          display: "flex",
+          display: stacked && pane !== "preview" ? "none" : "flex",
           flexDirection: "column",
-          minHeight: { xs: "50vh", lg: 0 },
+          minHeight: { md: 0 },
           // Allow this flex item to shrink below the WebGL canvas's
           // intrinsic min-width — otherwise once R3F grows the canvas
           // (e.g. window maximize), it anchors `main` and can't shrink back.
@@ -570,6 +609,7 @@ export function GeneratorShell<C>({ generator }: GeneratorShellProps<C>) {
 
         <PreviewPanel generator={generator} config={debouncedConfig} />
       </Box>
+      </Box>
 
       <ThankYouDrawer
         open={showThankYou}
@@ -606,6 +646,123 @@ export function GeneratorShell<C>({ generator }: GeneratorShellProps<C>) {
         message={toast}
         anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
       />
+    </Box>
+  );
+}
+
+/**
+ * Segmented "Controls / Preview" tab shown above the shell when the viewport
+ * is too narrow to fit both panes side by side. Mirrors the iPad design-app
+ * pattern (Figma, Affinity) of swapping editor and canvas instead of forcing
+ * the user to scroll past one to reach the other.
+ */
+function PaneToggle({
+  pane,
+  onChange,
+  accent,
+}: {
+  pane: "controls" | "preview";
+  onChange: (p: "controls" | "preview") => void;
+  accent: string;
+}) {
+  return (
+    <Stack
+      direction="row"
+      justifyContent="center"
+      sx={{
+        flexShrink: 0,
+        px: 1.5,
+        py: 1,
+        borderBottom: "1px solid rgba(255,255,255,0.06)",
+        bgcolor: "rgba(255,255,255,0.025)",
+        backdropFilter: "blur(8px)",
+        WebkitBackdropFilter: "blur(8px)",
+      }}
+    >
+      <Stack
+        direction="row"
+        role="tablist"
+        aria-label="Pane"
+        sx={{
+          bgcolor: "rgba(0,0,0,0.28)",
+          borderRadius: 1.5,
+          p: 0.3,
+          boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.05)",
+        }}
+      >
+        <PaneTab
+          active={pane === "controls"}
+          onClick={() => {
+            onChange("controls");
+          }}
+          accent={accent}
+        >
+          <SlidersHorizontal size={14} />
+          <Box component="span">Controls</Box>
+        </PaneTab>
+        <PaneTab
+          active={pane === "preview"}
+          onClick={() => {
+            onChange("preview");
+          }}
+          accent={accent}
+        >
+          <Eye size={14} />
+          <Box component="span">Preview</Box>
+        </PaneTab>
+      </Stack>
+    </Stack>
+  );
+}
+
+function PaneTab({
+  active,
+  onClick,
+  accent,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  accent: string;
+  children: ReactNode;
+}) {
+  return (
+    <Box
+      component="button"
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      sx={{
+        all: "unset",
+        cursor: "pointer",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 0.75,
+        minWidth: 116,
+        height: 30,
+        px: 1.75,
+        borderRadius: 1,
+        justifyContent: "center",
+        fontSize: "0.78rem",
+        fontWeight: 600,
+        color: active ? "text.primary" : "text.secondary",
+        bgcolor: active ? "rgba(255,255,255,0.10)" : "transparent",
+        boxShadow: active
+          ? `inset 0 0 0 1px rgba(255,255,255,0.06), 0 1px 2px rgba(0,0,0,0.25), inset 0 -1.5px 0 ${accent}55`
+          : "none",
+        transition: "background-color 140ms ease, color 140ms ease",
+        "&:hover": {
+          bgcolor: active ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.05)",
+          color: "text.primary",
+        },
+        "&:focus-visible": {
+          outline: "2px solid rgba(120, 160, 220, 0.55)",
+          outlineOffset: 1,
+        },
+      }}
+    >
+      {children}
     </Box>
   );
 }
