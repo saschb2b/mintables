@@ -1,10 +1,12 @@
 import type { AnyGenerator } from "@mintables/shared/lib";
 import { tubeGenerator } from "@mintables/gen-tubes";
 import { adapterGenerator } from "@mintables/gen-adapters";
+import { dividerGenerator } from "@mintables/gen-dividers";
 
 export const generators: AnyGenerator[] = [
   tubeGenerator as AnyGenerator,
   adapterGenerator as AnyGenerator,
+  dividerGenerator as AnyGenerator,
 ];
 
 export const bySlug: Record<string, AnyGenerator> = Object.fromEntries(

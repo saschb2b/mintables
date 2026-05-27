@@ -74,6 +74,7 @@ packages/
         types.ts, geometry.ts, validation.ts, controls.tsx, scene.tsx, summary.tsx, print-tips.ts, spec.ts
       tests/
     adapters/                          # @mintables/gen-adapters (same shape, icon-art is an elbow)
+    dividers/                          # @mintables/gen-dividers (flat slab — thickness × width × height)
 ```
 
 ## The Generator contract

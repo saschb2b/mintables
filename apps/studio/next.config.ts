@@ -6,6 +6,7 @@ const nextConfig: NextConfig = {
     "@mintables/shared",
     "@mintables/gen-tubes",
     "@mintables/gen-adapters",
+    "@mintables/gen-dividers",
   ],
   experimental: {
     optimizePackageImports: ["three"],
