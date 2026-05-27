@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -151,17 +151,25 @@ function useWorkArea(): AppWindowWorkArea {
  * we point at `/`. The route shims fire `openWindow` on their own mount, so
  * navigating via Link or a typed URL still produces the right WM state.
  *
- * Loop avoidance: we only `replace` if the target path differs from the
- * current pathname. `openWindow` on the same payload is idempotent and a
- * no-op once focused.
+ * IMPORTANT: this effect only runs when the focused window's target path
+ * actually changes, not when pathname changes. Reason: when the user
+ * navigates from /generators/tubes to /folders/downloads, pathname updates
+ * before the new route's shim has a chance to dispatch its openWindow
+ * effect. If we also reacted to pathname, we'd see the new pathname but
+ * still-stale focused window and replace right back to the old URL,
+ * stealing focus from the just-opened window. Reading pathname through a
+ * ref lets us check "did we already match?" without depending on it.
  */
 function useFocusUrlSync(focusedWindow: OpenWindow | null) {
   const router = useRouter();
   const pathname = usePathname();
+  const pathnameRef = useRef(pathname);
+  pathnameRef.current = pathname;
+
+  const target = focusedWindow ? pathForPayload(focusedWindow.payload) : "/";
   useEffect(() => {
-    const target = focusedWindow ? pathForPayload(focusedWindow.payload) : "/";
-    if (target !== pathname) router.replace(target);
-  }, [focusedWindow, pathname, router]);
+    if (target !== pathnameRef.current) router.replace(target);
+  }, [target, router]);
 }
 
 function pathForPayload(payload: WindowPayload): string {
