@@ -48,7 +48,7 @@ import { ShareDialog } from "../ui/share-dialog";
 import { ThankYouDrawer } from "../ui/thank-you-drawer";
 import { ValidationBanner } from "../ui/validation-banner";
 import { PreviewPanel } from "./preview-panel";
-import { ViewportProvider, useViewport, type ViewPreset } from "./viewport-context";
+import { requestView, type ViewPreset } from "./viewport-context";
 
 const EXPORT_FORMAT_STORAGE_KEY = "mintables.exportFormat";
 
@@ -552,10 +552,10 @@ export function GeneratorShell<C>({ generator }: GeneratorShellProps<C>) {
         </Box>
       </Box>
 
-      {/* Preview Area. Wrapped in ViewportProvider so the view-preset buttons
-        in the info bar share the same `requestView` channel as the
-        PreviewSceneRig inside the drei <View>. */}
-      <ViewportProvider>
+      {/* Preview area. The info bar's view-preset buttons reach the
+        PreviewSceneRig (inside drei's <View>) through a window event
+        tagged with this generator's id - cross-portal React context
+        doesn't bridge in drei View, events do. */}
       <Box
         component="main"
         sx={{
@@ -673,14 +673,13 @@ export function GeneratorShell<C>({ generator }: GeneratorShellProps<C>) {
               />
             ))}
           </Stack>
-          <ViewPresetButtons />
+          <ViewPresetButtons generatorId={generator.id} />
         </Box>
 
         <ValidationBanner result={validation} />
 
         <PreviewPanel generator={generator} config={debouncedConfig} />
       </Box>
-      </ViewportProvider>
       </Box>
 
       <ThankYouDrawer
@@ -927,8 +926,7 @@ const VIEW_PRESETS: { id: ViewPreset; label: string }[] = [
   { id: "right", label: "Right" },
 ];
 
-function ViewPresetButtons() {
-  const { requestView } = useViewport();
+function ViewPresetButtons({ generatorId }: { generatorId: string }) {
   return (
     <Stack
       direction="row"
@@ -948,7 +946,7 @@ function ViewPresetButtons() {
             component="button"
             type="button"
             onClick={() => {
-              requestView(p.id);
+              requestView(generatorId, p.id);
             }}
             aria-label={`${p.label} view`}
             sx={{

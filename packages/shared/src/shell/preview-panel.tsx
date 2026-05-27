@@ -4,6 +4,7 @@ import Box from "@mui/material/Box";
 import { View } from "@react-three/drei";
 import type { Generator } from "../lib/generator";
 import { StudioLights } from "./studio-lights";
+import { ViewportProvider } from "./viewport-context";
 
 interface PreviewPanelProps<C> {
   generator: Generator<C>;
@@ -44,8 +45,15 @@ export function PreviewPanel<C>({ generator, config }: PreviewPanelProps<C>) {
           background: "transparent",
         }}
       >
-        <StudioLights />
-        <Scene config={config} />
+        {/* The provider lives inside the View so PreviewSceneRig (also
+          inside the View) can consume it. Buttons in the info bar above
+          publish view requests through a window event tagged with this
+          generator id; cross-View React context can't bridge drei's
+          portal, but events can. */}
+        <ViewportProvider generatorId={generator.id}>
+          <StudioLights />
+          <Scene config={config} />
+        </ViewportProvider>
       </View>
     </Box>
   );
