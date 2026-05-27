@@ -1,12 +1,15 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import NextLink from "next/link";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
+import Tooltip, { tooltipClasses } from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
-import { Sparkles } from "lucide-react";
+import { Search, Sparkles } from "lucide-react";
 import type { AnyGenerator } from "../lib/generator";
 import { useWindowManager } from "../lib/window-manager";
+import { SPOTLIGHT_OPEN_EVENT } from "./spotlight";
 import { SystemClock } from "./system-clock";
 
 interface AppHeaderProps {
@@ -102,6 +105,7 @@ export function AppHeader({ generators }: AppHeaderProps) {
           alignItems: "center",
           ml: "auto"
         }}>
+        <SpotlightTrigger />
         <Stack direction="row" spacing={0.5} sx={{
           alignItems: "center"
         }}>
@@ -132,4 +136,84 @@ export function AppHeader({ generators }: AppHeaderProps) {
       </Stack>
     </Box>
   );
+}
+
+/**
+ * Magnifying-glass icon in the menu bar (macOS-style). Click dispatches the
+ * spotlight-open event; the keyboard shortcut (Cmd/Ctrl+K) continues to work
+ * independently. Tooltip shows the platform-correct modifier so users learn
+ * the shortcut by hovering.
+ */
+function SpotlightTrigger() {
+  const isMac = useIsMac();
+  const shortcut = isMac ? "⌘K" : "Ctrl+K";
+
+  return (
+    <Tooltip
+      title={`Search · ${shortcut}`}
+      placement="bottom"
+      arrow
+      enterDelay={200}
+      slotProps={{
+        tooltip: {
+          sx: {
+            bgcolor: "rgba(24, 26, 38, 0.94)",
+            backdropFilter: "blur(12px)",
+            border: "1px solid rgba(255, 255, 255, 0.08)",
+            fontSize: "0.72rem",
+            fontWeight: 600,
+            letterSpacing: 0.2,
+            px: 1.25,
+            py: 0.5,
+            mt: "6px !important",
+            [`& .${tooltipClasses.arrow}`]: {
+              color: "rgba(24, 26, 38, 0.94)",
+            },
+          },
+        },
+      }}
+    >
+      <Box
+        component="button"
+        type="button"
+        aria-label={`Search (${shortcut})`}
+        onClick={() => {
+          window.dispatchEvent(new CustomEvent(SPOTLIGHT_OPEN_EVENT));
+        }}
+        sx={{
+          all: "unset",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: 22,
+          height: 22,
+          borderRadius: 1,
+          cursor: "pointer",
+          color: "text.secondary",
+          transition: "background-color 120ms ease, color 120ms ease",
+          "&:hover": {
+            bgcolor: "rgba(255, 255, 255, 0.10)",
+            color: "text.primary",
+          },
+          "&:focus-visible": {
+            outline: "none",
+            bgcolor: "rgba(255, 255, 255, 0.10)",
+            color: "text.primary",
+            boxShadow: "0 0 0 1px rgba(255,255,255,0.25)",
+          },
+        }}
+      >
+        <Search size={13} />
+      </Box>
+    </Tooltip>
+  );
+}
+
+function useIsMac(): boolean {
+  const [isMac, setIsMac] = useState(false);
+  useEffect(() => {
+    const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
+    setIsMac(/Mac|iPhone|iPad|iPod/i.test(ua));
+  }, []);
+  return isMac;
 }
