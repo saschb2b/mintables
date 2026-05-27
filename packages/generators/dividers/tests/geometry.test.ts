@@ -4,9 +4,10 @@ import { generateDividerTriangles } from "../src/geometry";
 import { DEFAULT_DIVIDER_CONFIG } from "../src/types";
 
 describe("generateDividerTriangles", () => {
-  it("produces a watertight 12-triangle box for the default config", () => {
+  it("produces a watertight 16-triangle box for the default sharp-corner config", () => {
+    // Fan-triangulated top/bottom (4 tris each) + 4 side quads (2 tris each).
     const triangles = generateDividerTriangles(DEFAULT_DIVIDER_CONFIG);
-    expect(triangles).toHaveLength(12);
+    expect(triangles).toHaveLength(16);
     expect(isPrintableMesh(triangles)).toBe(true);
   });
 
@@ -30,6 +31,7 @@ describe("generateDividerTriangles", () => {
       thickness: 1,
       width: w,
       height: h,
+      cornerRadius: 0,
     });
     const xs = triangles.flatMap((tri) => [tri[0], tri[3], tri[6]]);
     const ys = triangles.flatMap((tri) => [tri[1], tri[4], tri[7]]);
@@ -47,5 +49,52 @@ describe("generateDividerTriangles", () => {
       });
       expect(isPrintableMesh(triangles)).toBe(true);
     }
+  });
+
+  it("produces a watertight mesh with rounded corners", () => {
+    const triangles = generateDividerTriangles({
+      ...DEFAULT_DIVIDER_CONFIG,
+      cornerRadius: 5,
+    });
+    expect(isPrintableMesh(triangles)).toBe(true);
+    // A rounded slab has many more tris than the 12-tri sharp box.
+    expect(triangles.length).toBeGreaterThan(40);
+  });
+
+  it("keeps every vertex inside the bounding rectangle when rounded", () => {
+    const w = 80;
+    const h = 50;
+    const r = 12;
+    const triangles = generateDividerTriangles({
+      thickness: 2,
+      width: w,
+      height: h,
+      cornerRadius: r,
+    });
+    const xs = triangles.flatMap((tri) => [tri[0], tri[3], tri[6]]);
+    const ys = triangles.flatMap((tri) => [tri[1], tri[4], tri[7]]);
+    // Floating-point rounding can nudge a value past the half-side by a hair.
+    const eps = 1e-5;
+    expect(Math.max(...xs)).toBeLessThanOrEqual(w / 2 + eps);
+    expect(Math.min(...xs)).toBeGreaterThanOrEqual(-w / 2 - eps);
+    expect(Math.max(...ys)).toBeLessThanOrEqual(h / 2 + eps);
+    expect(Math.min(...ys)).toBeGreaterThanOrEqual(-h / 2 - eps);
+  });
+
+  it("clamps an oversized corner radius to half the shorter side (stadium)", () => {
+    const oversized = generateDividerTriangles({
+      thickness: 1,
+      width: 40,
+      height: 30,
+      cornerRadius: 999,
+    });
+    const stadium = generateDividerTriangles({
+      thickness: 1,
+      width: 40,
+      height: 30,
+      cornerRadius: 15,
+    });
+    expect(isPrintableMesh(oversized)).toBe(true);
+    expect(oversized.length).toBe(stadium.length);
   });
 });

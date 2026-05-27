@@ -77,6 +77,33 @@ export function validateDividerConfig(config: DividerConfig): ValidationResult {
     });
   }
 
+  const maxRadius = Math.min(config.width, config.height) / 2;
+  if (config.cornerRadius < 0) {
+    parts.push({
+      errors: [
+        issue(
+          "error",
+          "corner_radius_negative",
+          "Corner radius can't be negative.",
+          "cornerRadius",
+        ),
+      ],
+      warnings: [],
+    });
+  } else if (config.cornerRadius > maxRadius) {
+    parts.push({
+      errors: [
+        issue(
+          "error",
+          "corner_radius_too_large",
+          `Corner radius must be at most ${maxRadius.toFixed(1)} mm (half of the shorter side).`,
+          "cornerRadius",
+        ),
+      ],
+      warnings: [],
+    });
+  }
+
   if (parts.length === 0) return emptyValidation();
   return mergeValidation(...parts);
 }

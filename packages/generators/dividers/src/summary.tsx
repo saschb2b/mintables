@@ -28,6 +28,12 @@ export function DividerSummary({ config }: { config: DividerConfig }) {
       <SpecRow label="Thickness" value={`${spec.thickness.toFixed(2)} mm`} />
       <SpecRow label="Width" value={`${String(spec.width)} mm`} />
       <SpecRow label="Height" value={`${String(spec.height)} mm`} />
+      {config.cornerRadius > 0 && (
+        <SpecRow
+          label="Corner radius"
+          value={`${config.cornerRadius.toFixed(1)} mm`}
+        />
+      )}
       <SpecRow label="Est. volume" value={`~${spec.volumeCm3.toFixed(2)} cm³`} />
     </SpecCard>
   );

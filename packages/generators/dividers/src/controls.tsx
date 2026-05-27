@@ -21,6 +21,11 @@ export function DividerControls({
     onChange({ ...config, ...patch });
   };
 
+  // Geometric max — half the shorter side, where the rectangle collapses
+  // into a stadium. Snap to 0.1 mm so the slider doesn't expose junk decimals.
+  const maxRadius =
+    Math.floor((Math.min(config.width, config.height) / 2) * 10) / 10;
+
   return (
     <Stack spacing={2}>
       <SectionCard title="Dimensions">
@@ -65,6 +70,22 @@ export function DividerControls({
             unit="mm"
           />
         </Box>
+      </SectionCard>
+
+      <SectionCard title="Corners">
+        <NumberInput
+          label="Corner radius"
+          value={config.cornerRadius}
+          onChange={(v) => {
+            update({ cornerRadius: v });
+          }}
+          field="cornerRadius"
+          validation={validation}
+          min={0}
+          max={maxRadius}
+          step={0.5}
+          unit="mm"
+        />
       </SectionCard>
     </Stack>
   );

@@ -38,4 +38,34 @@ describe("validateDividerConfig", () => {
     });
     expect(h.errors.some((e) => e.code === "height_range")).toBe(true);
   });
+
+  it("accepts a corner radius up to half the shorter side", () => {
+    // Default 65 × 35 → max r = 17.5.
+    const result = validateDividerConfig({
+      ...DEFAULT_DIVIDER_CONFIG,
+      cornerRadius: 17.5,
+    });
+    expect(result.errors).toHaveLength(0);
+  });
+
+  it("errors on a negative corner radius", () => {
+    const result = validateDividerConfig({
+      ...DEFAULT_DIVIDER_CONFIG,
+      cornerRadius: -1,
+    });
+    expect(result.errors.some((e) => e.code === "corner_radius_negative")).toBe(
+      true,
+    );
+  });
+
+  it("errors when the corner radius exceeds half the shorter side", () => {
+    // Default 65 × 35 → max is 17.5; 18 should fail.
+    const result = validateDividerConfig({
+      ...DEFAULT_DIVIDER_CONFIG,
+      cornerRadius: 18,
+    });
+    expect(
+      result.errors.some((e) => e.code === "corner_radius_too_large"),
+    ).toBe(true);
+  });
 });

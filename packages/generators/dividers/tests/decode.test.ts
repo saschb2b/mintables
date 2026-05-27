@@ -24,6 +24,7 @@ describe("dividerGenerator.decode", () => {
       thickness: 1.5,
       width: DEFAULT_DIVIDER_CONFIG.width,
       height: 40,
+      cornerRadius: DEFAULT_DIVIDER_CONFIG.cornerRadius,
     });
   });
 
@@ -37,6 +38,12 @@ describe("dividerGenerator.decode", () => {
       thickness: DEFAULT_DIVIDER_CONFIG.thickness,
       width: DEFAULT_DIVIDER_CONFIG.width,
       height: 35,
+      cornerRadius: DEFAULT_DIVIDER_CONFIG.cornerRadius,
     });
+  });
+
+  it("picks up cornerRadius from the incoming payload", () => {
+    const decoded = dividerGenerator.decode({ cornerRadius: 4.5 });
+    expect(decoded?.cornerRadius).toBe(4.5);
   });
 });
