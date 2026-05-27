@@ -1,8 +1,9 @@
 "use client";
 
-import type { RefObject } from "react";
-import { Canvas } from "@react-three/fiber";
+import { useEffect, type RefObject } from "react";
+import { Canvas, useThree } from "@react-three/fiber";
 import { View } from "@react-three/drei";
+import { PREVIEW_INVALIDATE_EVENT } from "../lib/preview-events";
 
 // R3F's eventSource expects a non-nullable RefObject<HTMLElement>, but
 // React's useRef gives back a nullable variant. The ref is only read after
@@ -31,6 +32,13 @@ interface PreviewStageProps {
  * preview-area background. It's pointer-events: none so it doesn't block
  * UI; drei's View handles routing events to the correct scene through the
  * tracked div under the pointer.
+ *
+ * `frameloop="demand"` keeps the GPU idle when nothing is changing.
+ * Anything that wants the canvas to render an extra frame without going
+ * through a React state update (e.g. window drag writing inline transforms
+ * straight to the DOM) calls `invalidatePreview()` from
+ * @mintables/shared/lib, which fires the event the bridge below listens
+ * for.
  */
 export function PreviewStage({ containerRef }: PreviewStageProps) {
   return (
@@ -49,7 +57,28 @@ export function PreviewStage({ containerRef }: PreviewStageProps) {
         zIndex: 1150,
       }}
     >
+      <InvalidateBridge />
       <View.Port />
     </Canvas>
   );
+}
+
+/**
+ * Tiny child component that lives inside the Canvas so it has access to
+ * R3F's `invalidate`. It listens for the shared window event and pokes
+ * the canvas to render one frame. Lets non-R3F code (the WM drag
+ * handler) request frames without prop-drilling or context.
+ */
+function InvalidateBridge() {
+  const invalidate = useThree((state) => state.invalidate);
+  useEffect(() => {
+    const handler = () => {
+      invalidate();
+    };
+    window.addEventListener(PREVIEW_INVALIDATE_EVENT, handler);
+    return () => {
+      window.removeEventListener(PREVIEW_INVALIDATE_EVENT, handler);
+    };
+  }, [invalidate]);
+  return null;
 }

@@ -14,6 +14,7 @@ import Tooltip from "@mui/material/Tooltip";
 import { tooltipClasses } from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { Maximize2, Minimize2, Minus, X, type LucideIcon } from "lucide-react";
+import { invalidatePreview } from "../lib/preview-events";
 
 export interface AppWindowBounds {
   x: number;
@@ -236,6 +237,11 @@ export function AppWindow({
     if (el) {
       el.style.transform = `translate3d(${String(clamped.x)}px, ${String(clamped.y)}px, 0) ${phaseTransform[phase]}`;
     }
+    // The preview <View> inside the window tracks its scissor rect off the
+    // canvas render loop. Since we bypassed React, the canvas (in demand
+    // mode) hasn't been told anything changed - ping it so the View can
+    // re-read its rect and the 3D follows the window.
+    invalidatePreview();
   };
 
   const endDrag = (e: ReactPointerEvent<HTMLDivElement>) => {

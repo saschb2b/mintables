@@ -75,3 +75,8 @@ export { windowIdOf, WindowManagerProvider, useWindowManager } from "./window-ma
 
 export type { FolderMeta } from "./folders";
 export { FOLDER_META, folderPath } from "./folders";
+
+export {
+  invalidatePreview,
+  PREVIEW_INVALIDATE_EVENT,
+} from "./preview-events";
