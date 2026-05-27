@@ -3,7 +3,7 @@
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { Eye } from "lucide-react";
-import { View } from "@react-three/drei";
+import { GizmoHelper, GizmoViewport, View } from "@react-three/drei";
 import type { Generator } from "../lib/generator";
 import { StudioLights } from "./studio-lights";
 import { ViewportProvider } from "./viewport-context";
@@ -67,6 +67,9 @@ export function PreviewPanel<C>({ generator, config, active }: PreviewPanelProps
           <ViewportProvider generatorId={generator.id}>
             <StudioLights />
             <Scene config={config} />
+            <GizmoHelper alignment="bottom-right" margin={[80, 80]}>
+              <GizmoViewport labelColor="white" axisHeadScale={1} />
+            </GizmoHelper>
           </ViewportProvider>
         </View>
       ) : (
