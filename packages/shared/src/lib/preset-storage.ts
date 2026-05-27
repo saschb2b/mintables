@@ -71,15 +71,20 @@ export function buildShareUrl(generatorId: string, config: unknown): string {
 export interface UrlConfig {
   /** Raw decoded config, suitable for `generator.decode(raw)`. */
   raw: unknown;
+  /** Optional preset id carried alongside `?config=` (e.g. when the Presets
+   *  folder window navigates here). Lets the shell mark the loaded preset
+   *  as active and fire the same toast as the in-shell preset menu. */
+  presetId?: string;
 }
 
-/** Read the `?config=` param from the current URL. */
+/** Read the `?config=` and optional `?preset=` params from the current URL. */
 export function readUrlConfig(): UrlConfig {
   if (typeof window === "undefined") return { raw: null };
   const params = new URLSearchParams(window.location.search);
   const raw = params.get("config");
-  if (!raw) return { raw: null };
-  return { raw: decodeConfig(raw) };
+  const presetId = params.get("preset") ?? undefined;
+  if (!raw) return { raw: null, presetId };
+  return { raw: decodeConfig(raw), presetId };
 }
 
 /**

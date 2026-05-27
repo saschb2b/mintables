@@ -64,8 +64,11 @@ export function PresetsWindow() {
   const handleOpen = (it: Item) => {
     const gen = findGenerator(it.preset.generatorId);
     if (!gen) return;
-    const url = buildShareUrl(gen.id, it.preset.config);
-    router.push(new URL(url).pathname + new URL(url).search);
+    // Append `?preset=<id>` so the shell's hydration marks this preset as
+    // active and fires the same toast as the in-shell preset menu.
+    const target = new URL(buildShareUrl(gen.id, it.preset.config));
+    target.searchParams.set("preset", it.preset.id);
+    router.push(target.pathname + target.search);
   };
 
   const handleDelete = (it: Item) => {

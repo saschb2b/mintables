@@ -55,10 +55,32 @@ export function GeneratorShell<C>({ generator }: GeneratorShellProps<C>) {
   const debouncedConfig = useDebouncedValue(config, 500);
 
   useEffect(() => {
-    const { raw } = readUrlConfig();
+    const { raw, presetId } = readUrlConfig();
     if (raw !== null) {
       const decoded = generator.decode(raw);
-      if (decoded) setConfig(decoded);
+      if (decoded) {
+        setConfig(decoded);
+        // If the URL carried `?preset=<id>` (e.g. opened from the Presets
+        // folder window), mark that preset as active so the shell behaves
+        // exactly as if the user picked it from the in-shell preset menu.
+        if (presetId) {
+          const preset = listPresets(generator.id).find(
+            (p) => p.id === presetId,
+          );
+          if (preset) {
+            setActivePreset({
+              id: preset.id,
+              name: preset.name,
+              snapshot: JSON.stringify(decoded),
+            });
+            setToast(`Loaded preset "${preset.name}"`);
+            trackEvent("preset_load", {
+              generator: generator.id,
+              source: "url",
+            });
+          }
+        }
+      }
     }
     setHydrated(true);
   }, [generator]);
