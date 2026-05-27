@@ -72,3 +72,6 @@ export type {
   FolderId,
 } from "./window-manager";
 export { windowIdOf, WindowManagerProvider, useWindowManager } from "./window-manager";
+
+export type { FolderMeta } from "./folders";
+export { FOLDER_META, folderPath } from "./folders";

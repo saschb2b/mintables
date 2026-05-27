@@ -6,6 +6,7 @@ export type { AppWindowBounds, AppWindowWorkArea } from "./app-window";
 export { DialogWindow } from "./dialog-window";
 export { DesktopIcon } from "./desktop-icon";
 export { DesktopFolder } from "./desktop-folder";
+export { FolderSvg } from "./folder-svg";
 export { FileExplorer, formatTimestamp } from "./file-explorer";
 export type {
   ExplorerItem,

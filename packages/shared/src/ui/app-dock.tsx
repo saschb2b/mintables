@@ -1,6 +1,6 @@
 "use client";
 
-import type { ComponentType } from "react";
+import type { ComponentType, ReactNode } from "react";
 import NextLink from "next/link";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
@@ -11,8 +11,12 @@ import type { AnyGenerator } from "../lib/generator";
 import {
   useWindowManager,
   windowIdOf,
+  type FolderId,
+  type OpenWindow,
   type WindowPayload,
 } from "../lib/window-manager";
+import { FOLDER_META, folderPath } from "../lib/folders";
+import { FolderSvg } from "./folder-svg";
 
 interface AppDockProps {
   generators: AnyGenerator[];
@@ -20,13 +24,20 @@ interface AppDockProps {
 
 /**
  * Floating macOS-style dock: persistent across the desktop and any open
- * windows. Apps only — Home returns to the desktop (minimizes all windows),
- * each generator gets a tile with a running-indicator dot under it when an
- * instance is open. Solid dot = focused + visible, dim dot = open but
- * background or minimized, no dot = not open. Secondary links (GitHub,
- * sponsor, about) live on the desktop as shortcut icons.
+ * windows.
+ *
+ * Two zones:
+ *  · Left (pinned): Home + per-generator tiles. Always present.
+ *  · Right (running): one folder tile per open folder window. Appears when
+ *    the user opens Downloads or Presets, disappears when the folder closes.
+ *
+ * Indicator dots under tiles: solid bright when focused + visible, dim when
+ * open but background or minimized, hidden when not open. Click cycles
+ * open / focus + restore / minimize, the same way macOS dock tiles do.
  */
 export function AppDock({ generators }: AppDockProps) {
+  const openFolders = useOpenFolderWindows();
+
   return (
     <Box
       component="nav"
@@ -71,15 +82,34 @@ export function AppDock({ generators }: AppDockProps) {
         {generators.map((gen) => (
           <GeneratorDockTile key={gen.id} generator={gen} />
         ))}
+
+        {openFolders.length > 0 && (
+          <>
+            <DockSeparator />
+            {openFolders.map((win) => (
+              <FolderDockTile key={win.id} window={win} />
+            ))}
+          </>
+        )}
       </Box>
     </Box>
   );
 }
 
+/** All open folder windows in z-order (back to front), so newer folders sit to the right. */
+function useOpenFolderWindows(): OpenWindow[] {
+  const { windows } = useWindowManager();
+  return windows
+    .filter((w) => w.payload.kind === "folder")
+    .sort((a, b) => a.z - b.z);
+}
+
+/* ─── Tile kinds ─────────────────────────────────────────────────────── */
+
 /**
- * Home tile — clicking it sends the user back to the desktop. macOS-style
- * "show desktop" by minimizing every open window. Also navigates the URL to
- * `/` via NextLink so direct bookmarks land cleanly.
+ * Home tile. Clicking it does "show desktop": minimizes every open window.
+ * The NextLink still navigates the URL to `/` so direct bookmarks land
+ * cleanly, and aria-current reflects whether nothing is focused.
  */
 function HomeDockTile() {
   const { windows, focusedWindow, minimizeWindow } = useWindowManager();
@@ -92,20 +122,21 @@ function HomeDockTile() {
   };
 
   return (
-    <DockTile
+    <DockTileShell
       href="/"
       onClick={handleClick}
       label="Mintables"
-      // Accent (used for hover glow + focus ring) is the mid-tone of the
-      // brand gradient. The gradient itself is supplied explicitly so Home
-      // doesn't share a hue with any single generator.
       accent="#7c66f5"
-      gradient="linear-gradient(155deg, #5cb6b9 0%, #7c66f5 48%, #ec4899 100%)"
       indicator={onDesktop ? "focused" : "none"}
       ariaCurrent={onDesktop}
-      icon={House}
-      iconArt={HomeIconArt}
-    />
+    >
+      <AppTileFace
+        accent="#7c66f5"
+        gradient="linear-gradient(155deg, #5cb6b9 0%, #7c66f5 48%, #ec4899 100%)"
+        icon={House}
+        iconArt={HomeIconArt}
+      />
+    </DockTileShell>
   );
 }
 
@@ -149,57 +180,104 @@ function GeneratorDockTile({ generator }: { generator: AnyGenerator }) {
   };
 
   return (
-    <DockTile
+    <DockTileShell
       href={`/generators/${generator.id}`}
       onClick={handleClick}
       label={generator.meta.name}
       accent={generator.meta.accent}
       indicator={indicator}
       ariaCurrent={isFocused && !isMinimized}
-      icon={generator.meta.icon}
-      iconArt={generator.meta.iconArt}
-    />
+    >
+      <AppTileFace
+        accent={generator.meta.accent}
+        icon={generator.meta.icon}
+        iconArt={generator.meta.iconArt}
+      />
+    </DockTileShell>
   );
 }
 
+/**
+ * Folder dock tile. Only rendered while the folder window is open, so it
+ * doubles as a presence indicator (no tile, no folder open). Click matches
+ * generator tiles: minimize when already focused, otherwise focus + restore.
+ */
+function FolderDockTile({ window: win }: { window: OpenWindow }) {
+  const {
+    focusedWindow,
+    focusWindow,
+    minimizeWindow,
+    restoreWindow,
+  } = useWindowManager();
+
+  if (win.payload.kind !== "folder") return null;
+  const folderId: FolderId = win.payload.folderId;
+  const meta = FOLDER_META[folderId];
+
+  const isFocused = focusedWindow?.id === win.id;
+  const isMinimized = win.state === "minimized";
+
+  const indicator: DockIndicator =
+    isFocused && !isMinimized ? "focused" : "background";
+
+  const handleClick = () => {
+    if (isMinimized) {
+      restoreWindow(win.id);
+      return;
+    }
+    if (isFocused) {
+      minimizeWindow(win.id);
+      return;
+    }
+    focusWindow(win.id);
+  };
+
+  return (
+    <DockTileShell
+      href={folderPath(folderId)}
+      onClick={handleClick}
+      label={meta.title}
+      accent={meta.accent}
+      indicator={indicator}
+      ariaCurrent={isFocused && !isMinimized}
+    >
+      <FolderTileFace accent={meta.accent} />
+    </DockTileShell>
+  );
+}
+
+/* ─── Shell + tile faces ─────────────────────────────────────────────── */
+
 type DockIndicator = "none" | "background" | "focused";
 
-interface DockTileProps {
+interface DockTileShellProps {
   href: string;
   onClick: () => void;
   label: string;
-  /** Base color — drives hover glow + focus ring. When `gradient` is omitted,
-   *  it also seeds the tile gradient (lightened top → accent → darkened). */
+  /** Drives the hover glow halo around any tile face. */
   accent: string;
-  /** Optional explicit CSS gradient for the tile fill — used when a single
-   *  accent doesn't tell the whole story (e.g. the multi-color Home tile). */
-  gradient?: string;
   indicator: DockIndicator;
   ariaCurrent: boolean;
-  /** Lucide fallback when no `iconArt` is provided. */
-  icon: LucideIcon;
-  iconArt?: ComponentType<{ size?: number }>;
+  children: ReactNode;
 }
 
 const ICON_BOX = 52;
-const ART_SIZE = 32;
 
-function DockTile({
+/**
+ * Outer chrome shared by every dock tile: tooltip, NextLink navigation, the
+ * hover lift, the focus ring, and the indicator dot underneath. The visual
+ * face (squircle for apps, folder graphic for folders) is supplied as
+ * `children`, so each tile type renders distinctly while sharing motion.
+ */
+function DockTileShell({
   href,
   onClick,
   label,
   accent,
-  gradient,
   indicator,
   ariaCurrent,
-  icon: Icon,
-  iconArt: IconArt,
-}: DockTileProps) {
-  const top = lighten(accent, 0.35);
-  const bottom = darken(accent, 0.32);
-  const tileGradient =
-    gradient ?? `linear-gradient(155deg, ${top} 0%, ${accent} 50%, ${bottom} 100%)`;
-
+  children,
+}: DockTileShellProps) {
   return (
     <Tooltip
       title={label}
@@ -229,8 +307,8 @@ function DockTile({
         component={NextLink}
         href={href}
         onClick={(e) => {
-          // The click handler drives WM state. We don't preventDefault — Next
-          // still navigates the URL (the WM and route shims are idempotent).
+          // The click handler drives WM state. We don't preventDefault, so
+          // Next still navigates the URL (the WM and route shims are idempotent).
           onClick();
           void e;
         }}
@@ -246,10 +324,16 @@ function DockTile({
           "&:hover": {
             transform: "translateY(-6px) scale(1.08)",
           },
+          "&:hover .dt-face": {
+            filter: `drop-shadow(0 18px 22px ${accent}80) brightness(1.05)`,
+          },
           "&:hover .dt-tile": {
             boxShadow: `0 18px 30px -10px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.18) inset, 0 18px 42px -14px ${accent}aa`,
           },
           "&:focus-visible": { outline: "none" },
+          "&:focus-visible .dt-face": {
+            filter: `drop-shadow(0 0 0 2px rgba(255,255,255,0.6)) drop-shadow(0 14px 18px ${accent}aa)`,
+          },
           "&:focus-visible .dt-tile": {
             boxShadow: `0 0 0 2px rgba(255,255,255,0.6), 0 14px 28px -10px ${accent}aa`,
           },
@@ -258,57 +342,121 @@ function DockTile({
         aria-current={ariaCurrent ? "page" : undefined}
       >
         <Box
-          className="dt-tile"
           sx={{
             position: "relative",
             width: ICON_BOX,
             height: ICON_BOX,
-            // iOS-style squircle approximation via large border-radius
-            // (~22% of the box) — softer corners than a stock rounded rect.
-            borderRadius: "22%",
-            background: tileGradient,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            color: "#fff",
-            boxShadow:
-              "0 10px 22px -8px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.10) inset, 0 -2px 4px rgba(0,0,0,0.18) inset",
-            transition: "box-shadow 220ms ease",
-            overflow: "hidden",
-            "&::before": {
-              // Specular top sheen — a soft white highlight in the upper half
-              // that gives the tile a glass / ceramic feel.
-              content: '""',
-              position: "absolute",
-              top: 0,
-              left: 0,
-              right: 0,
-              height: "55%",
-              background:
-                "linear-gradient(180deg, rgba(255,255,255,0.32) 0%, rgba(255,255,255,0.10) 50%, transparent 100%)",
-              pointerEvents: "none",
-            },
-            "&::after": {
-              // Bottom inner shadow for grounded depth.
-              content: '""',
-              position: "absolute",
-              left: 0,
-              right: 0,
-              bottom: 0,
-              height: "40%",
-              background:
-                "linear-gradient(0deg, rgba(0,0,0,0.18) 0%, transparent 100%)",
-              pointerEvents: "none",
-            },
           }}
         >
-          <Box sx={{ position: "relative", zIndex: 1, display: "flex" }}>
-            {IconArt ? <IconArt size={ART_SIZE} /> : <Icon size={26} />}
-          </Box>
+          {children}
         </Box>
         <DockIndicatorDot kind={indicator} />
       </Stack>
     </Tooltip>
+  );
+}
+
+interface AppTileFaceProps {
+  /** Base color, drives hover glow + focus ring. When `gradient` is omitted,
+   *  it also seeds the tile gradient (lightened top -> accent -> darkened). */
+  accent: string;
+  /** Optional explicit CSS gradient for the tile fill, used when a single
+   *  accent doesn't tell the whole story (e.g. the multi-color Home tile). */
+  gradient?: string;
+  /** Lucide fallback when no `iconArt` is provided. */
+  icon: LucideIcon;
+  iconArt?: ComponentType<{ size?: number }>;
+}
+
+const ART_SIZE = 32;
+
+/**
+ * Squircle face used by Home and every generator. Per-app accent gradient
+ * with a specular top sheen and grounded bottom shadow, hosting either a
+ * generator-supplied `iconArt` SVG or the Lucide fallback.
+ */
+function AppTileFace({ accent, gradient, icon: Icon, iconArt: IconArt }: AppTileFaceProps) {
+  const top = lighten(accent, 0.35);
+  const bottom = darken(accent, 0.32);
+  const tileGradient =
+    gradient ?? `linear-gradient(155deg, ${top} 0%, ${accent} 50%, ${bottom} 100%)`;
+
+  return (
+    <Box
+      className="dt-tile"
+      sx={{
+        position: "relative",
+        width: ICON_BOX,
+        height: ICON_BOX,
+        // iOS-style squircle approximation via large border-radius
+        // (~22% of the box) - softer corners than a stock rounded rect.
+        borderRadius: "22%",
+        background: tileGradient,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color: "#fff",
+        boxShadow:
+          "0 10px 22px -8px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.10) inset, 0 -2px 4px rgba(0,0,0,0.18) inset",
+        transition: "box-shadow 220ms ease",
+        overflow: "hidden",
+        "&::before": {
+          // Specular top sheen, soft white highlight in the upper half
+          // that gives the tile a glass / ceramic feel.
+          content: '""',
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: "55%",
+          background:
+            "linear-gradient(180deg, rgba(255,255,255,0.32) 0%, rgba(255,255,255,0.10) 50%, transparent 100%)",
+          pointerEvents: "none",
+        },
+        "&::after": {
+          // Bottom inner shadow for grounded depth.
+          content: '""',
+          position: "absolute",
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: "40%",
+          background:
+            "linear-gradient(0deg, rgba(0,0,0,0.18) 0%, transparent 100%)",
+          pointerEvents: "none",
+        },
+      }}
+    >
+      <Box sx={{ position: "relative", zIndex: 1, display: "flex" }}>
+        {IconArt ? <IconArt size={ART_SIZE} /> : <Icon size={26} />}
+      </Box>
+    </Box>
+  );
+}
+
+/**
+ * Folder face: the same FolderSvg used on the desktop, fit inside the tile
+ * slot. No squircle background - it's intentionally a different visual
+ * species from app tiles so folders read as files in the dock, not apps.
+ * The depth comes from the shell's drop-shadow on hover.
+ */
+function FolderTileFace({ accent }: { accent: string }) {
+  return (
+    <Box
+      className="dt-face"
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        filter: "drop-shadow(0 6px 10px rgba(0,0,0,0.45))",
+        transition: "filter 220ms ease",
+      }}
+    >
+      <FolderSvg accent={accent} width={46} />
+    </Box>
   );
 }
 
@@ -350,7 +498,7 @@ function DockSeparator() {
   );
 }
 
-/** Brand "Finder-equivalent" home icon — sparkle inside a teal squircle. */
+/** Brand "Finder-equivalent" home icon: sparkle inside a teal squircle. */
 function HomeIconArt({ size = 32 }: { size?: number }) {
   return (
     <Box

@@ -2,14 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Bookmark, FolderOpen, type LucideIcon } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import {
   AppWindow,
   type AppWindowWorkArea,
 } from "@mintables/shared/ui";
 import {
+  FOLDER_META,
   useWindowManager,
-  type FolderId,
   type OpenWindow,
   type WindowPayload,
 } from "@mintables/shared/lib";
@@ -18,32 +18,10 @@ import { findGenerator } from "@/lib/registry";
 import { DownloadsContent } from "./folders/downloads/downloads-content";
 import { PresetsContent } from "./folders/presets/presets-content";
 
-/** Header height in providers.tsx — keep in sync. */
+/** Header height in providers.tsx, keep in sync. */
 const HEADER_H = 30;
 /** Reserved bottom space for the floating dock + some breathing room. */
 const DOCK_RESERVE = 96;
-
-interface FolderMeta {
-  title: string;
-  subtitle: string;
-  icon: LucideIcon;
-  accent: string;
-}
-
-const FOLDER_META: Record<FolderId, FolderMeta> = {
-  downloads: {
-    title: "Downloads",
-    subtitle: "Recently exported parts",
-    icon: FolderOpen,
-    accent: "#3b82f6",
-  },
-  presets: {
-    title: "Presets",
-    subtitle: "Saved configurations across generators",
-    icon: Bookmark,
-    accent: "#a855f7",
-  },
-};
 
 /**
  * Renders every WM-tracked window as an absolutely-positioned <AppWindow>
