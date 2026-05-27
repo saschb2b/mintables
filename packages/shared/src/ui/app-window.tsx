@@ -47,15 +47,17 @@ interface AppWindowProps {
   onMinimize: () => void;
   onToggleMaximize: () => void;
   onFocus: () => void;
-  /** Fired once on pointer-up at the end of a drag, with the final
-   *  pixel-clamped position. Moves are NOT pushed to the parent during
-   *  the drag itself; the window writes its own transform to the DOM
-   *  to keep React out of the per-event hot path. */
-  onMoveCommit: (x: number, y: number) => void;
+  /** Fired once on pointer-up at the end of a drag OR a resize, with the
+   *  final pixel-clamped bounds. Per-event moves/resizes are NOT pushed
+   *  to the parent: the window writes its own transform / size to the
+   *  DOM to keep React out of the per-event hot path. */
+  onBoundsCommit: (x: number, y: number, w: number, h: number) => void;
   children: ReactNode;
 }
 
 type LifecyclePhase = "opening" | "open" | "closing" | "minimizing";
+
+type ResizeDir = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
 
 /** Windows paint above wallpaper (1) and below the header (10) and dock (1200). */
 const Z_BASE = 50;
@@ -63,6 +65,13 @@ const Z_RANGE = 1000;
 /** Minimum dimensions so the title bar + a sliver of content stay reachable. */
 const MIN_W = 320;
 const MIN_H = 200;
+/** Thickness of an edge resize handle. Picked to be grabbable without
+ *  swallowing pointer events that belong to nearby chrome (title bar drag,
+ *  traffic lights). */
+const EDGE_HANDLE = 6;
+/** Square side of a corner resize handle. Sized to clear the traffic-light
+ *  cluster at the top-left of the title bar (lights start at ~x=10). */
+const CORNER_HANDLE = 10;
 
 /**
  * Controlled, absolutely-positioned window chrome wrapping a payload (a
@@ -89,7 +98,7 @@ export function AppWindow({
   onMinimize,
   onToggleMaximize,
   onFocus,
-  onMoveCommit,
+  onBoundsCommit,
   children,
 }: AppWindowProps) {
   const winRef = useRef<HTMLDivElement>(null);
@@ -103,7 +112,22 @@ export function AppWindow({
     lastX: number;
     lastY: number;
   } | null>(null);
+  const resizeRef = useRef<{
+    pointerId: number;
+    dir: ResizeDir;
+    startClientX: number;
+    startClientY: number;
+    startX: number;
+    startY: number;
+    startW: number;
+    startH: number;
+    lastX: number;
+    lastY: number;
+    lastW: number;
+    lastH: number;
+  } | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [resizing, setResizing] = useState(false);
 
   const maximized = state === "maximized";
   const minimized = state === "minimized";
@@ -252,21 +276,118 @@ export function AppWindow({
     } catch {
       // Pointer may have already been released (e.g. lost capture).
     }
-    onMoveCommit(drag.lastX, drag.lastY);
+    onBoundsCommit(drag.lastX, drag.lastY, bounds.w, bounds.h);
     dragRef.current = null;
     setDragging(false);
   };
 
-  // After the drag commits and React renders the new bounds into the sx
-  // transform, strip the inline transform we wrote during the drag so the
-  // sx class can drive the window again. Runs before paint, so there's no
-  // flicker between "old bounds + drag offset" and "new bounds clean".
+  // ─── Resize handles ────────────────────────────────────────────────────
+
+  const handleResizeStart = (
+    dir: ResizeDir,
+    e: ReactPointerEvent<HTMLDivElement>,
+  ) => {
+    if (maximized || minimized) return;
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    const startW = Math.max(MIN_W, bounds.w);
+    const startH = Math.max(MIN_H, bounds.h);
+    resizeRef.current = {
+      pointerId: e.pointerId,
+      dir,
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      startX: bounds.x,
+      startY: bounds.y,
+      startW,
+      startH,
+      lastX: bounds.x,
+      lastY: bounds.y,
+      lastW: startW,
+      lastH: startH,
+    };
+    (e.currentTarget as Element).setPointerCapture(e.pointerId);
+    setResizing(true);
+    onFocus();
+  };
+
+  const handleResizeMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const r = resizeRef.current;
+    if (r?.pointerId !== e.pointerId) return;
+
+    const dx = e.clientX - r.startClientX;
+    const dy = e.clientY - r.startClientY;
+
+    let x = r.startX;
+    let y = r.startY;
+    let w = r.startW;
+    let h = r.startH;
+
+    if (r.dir.includes("n")) {
+      // Top edge follows the pointer. Clamp dy so we don't shrink past
+      // MIN_H, and so we don't pull the top above workArea.
+      const minDy = workArea.top - r.startY;
+      const maxDy = r.startH - MIN_H;
+      const clampedDy = Math.max(minDy, Math.min(dy, maxDy));
+      y = r.startY + clampedDy;
+      h = r.startH - clampedDy;
+    }
+    if (r.dir.includes("s")) {
+      const maxH = workArea.bottom - r.startY;
+      h = Math.max(MIN_H, Math.min(r.startH + dy, maxH));
+    }
+    if (r.dir.includes("w")) {
+      const minDx = workArea.left - r.startX;
+      const maxDx = r.startW - MIN_W;
+      const clampedDx = Math.max(minDx, Math.min(dx, maxDx));
+      x = r.startX + clampedDx;
+      w = r.startW - clampedDx;
+    }
+    if (r.dir.includes("e")) {
+      const maxW = workArea.right - r.startX;
+      w = Math.max(MIN_W, Math.min(r.startW + dx, maxW));
+    }
+
+    r.lastX = x;
+    r.lastY = y;
+    r.lastW = w;
+    r.lastH = h;
+
+    const el = winRef.current;
+    if (el) {
+      el.style.transform = `translate3d(${String(x)}px, ${String(y)}px, 0) ${phaseTransform[phase]}`;
+      el.style.width = `${String(w)}px`;
+      el.style.height = `${String(h)}px`;
+    }
+    invalidatePreview();
+  };
+
+  const endResize = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const r = resizeRef.current;
+    if (r?.pointerId !== e.pointerId) return;
+    try {
+      (e.currentTarget as Element).releasePointerCapture(e.pointerId);
+    } catch {
+      // Pointer may have already been released (e.g. lost capture).
+    }
+    onBoundsCommit(r.lastX, r.lastY, r.lastW, r.lastH);
+    resizeRef.current = null;
+    setResizing(false);
+  };
+
+  // After a drag OR a resize commits and React renders the new bounds into
+  // the sx transform/width/height, strip the inline styles we wrote during
+  // the gesture so the sx class can drive the window again. Runs before
+  // paint so there's no flicker between "old bounds + inline override"
+  // and "new bounds clean".
   useLayoutEffect(() => {
-    if (dragging) return;
+    if (dragging || resizing) return;
     const el = winRef.current;
     if (!el) return;
     if (el.style.transform) el.style.transform = "";
-  }, [dragging, bounds.x, bounds.y]);
+    if (el.style.width) el.style.width = "";
+    if (el.style.height) el.style.height = "";
+  }, [dragging, resizing, bounds.x, bounds.y, bounds.w, bounds.h]);
 
   // ─── Layout / visuals ───────────────────────────────────────────────────
 
@@ -319,13 +440,14 @@ export function AppWindow({
       "transform 400ms cubic-bezier(0.55, 0, 0.85, 0.1), opacity 360ms ease",
   };
 
-  // During a drag we suppress the transform transition entirely so the
-  // window tracks the pointer 1:1 instead of catching up via a 220ms
-  // animation. Width/height transitions stay disabled too: maximize is
-  // never triggered mid-drag.
-  const transition = dragging
-    ? "opacity 200ms ease, border-radius 220ms ease"
-    : phaseTransition[phase];
+  // During a drag or a resize we suppress the transform / width / height
+  // transitions so the window tracks the pointer 1:1 instead of catching
+  // up via a 220ms animation. They're back on for maximize toggles and
+  // lifecycle phases (which DO want to animate).
+  const transition =
+    dragging || resizing
+      ? "opacity 200ms ease, border-radius 220ms ease"
+      : phaseTransition[phase];
 
   // Genie animation when minimized: render with opacity 0 + pointer events
   // disabled so the window stays mounted (preserves shell state) but is
@@ -486,7 +608,172 @@ export function AppWindow({
       <Box sx={{ flex: 1, minHeight: 0, minWidth: 0, display: "flex" }}>
         {children}
       </Box>
+
+      {!maximized && !minimized && (
+        <ResizeHandles
+          onResizeStart={handleResizeStart}
+          onResizeMove={handleResizeMove}
+          onResizeEnd={endResize}
+        />
+      )}
     </Box>
+  );
+}
+
+interface ResizeHandlesProps {
+  onResizeStart: (
+    dir: ResizeDir,
+    e: ReactPointerEvent<HTMLDivElement>,
+  ) => void;
+  onResizeMove: (e: ReactPointerEvent<HTMLDivElement>) => void;
+  onResizeEnd: (e: ReactPointerEvent<HTMLDivElement>) => void;
+}
+
+/**
+ * Eight invisible hit-targets around the window edge for OS-style resize.
+ * Corners (10x10) take priority over edges (6px thick) at the very
+ * corners so diagonal resize works naturally. Cursors come from the
+ * standard `<dir>-resize` CSS values so the OS draws the affordance.
+ *
+ * Positioned at z=5 inside the window so they sit above the title bar's
+ * pointer-down handler at the very top edge. The title-bar drag still
+ * works in the (much larger) interior of the title bar; only the top
+ * 6px belongs to the resize handle.
+ *
+ * Corners stop 10px in from the left so they don't swallow clicks on
+ * the traffic lights, which start at x=10.
+ */
+function ResizeHandles({
+  onResizeStart,
+  onResizeMove,
+  onResizeEnd,
+}: ResizeHandlesProps) {
+  return (
+    <>
+      <Handle
+        dir="n"
+        sx={{
+          top: 0,
+          left: CORNER_HANDLE,
+          right: CORNER_HANDLE,
+          height: EDGE_HANDLE,
+        }}
+        onResizeStart={onResizeStart}
+        onResizeMove={onResizeMove}
+        onResizeEnd={onResizeEnd}
+      />
+      <Handle
+        dir="s"
+        sx={{
+          bottom: 0,
+          left: CORNER_HANDLE,
+          right: CORNER_HANDLE,
+          height: EDGE_HANDLE,
+        }}
+        onResizeStart={onResizeStart}
+        onResizeMove={onResizeMove}
+        onResizeEnd={onResizeEnd}
+      />
+      <Handle
+        dir="e"
+        sx={{
+          top: CORNER_HANDLE,
+          right: 0,
+          bottom: CORNER_HANDLE,
+          width: EDGE_HANDLE,
+        }}
+        onResizeStart={onResizeStart}
+        onResizeMove={onResizeMove}
+        onResizeEnd={onResizeEnd}
+      />
+      <Handle
+        dir="w"
+        sx={{
+          top: CORNER_HANDLE,
+          left: 0,
+          bottom: CORNER_HANDLE,
+          width: EDGE_HANDLE,
+        }}
+        onResizeStart={onResizeStart}
+        onResizeMove={onResizeMove}
+        onResizeEnd={onResizeEnd}
+      />
+      <Handle
+        dir="ne"
+        sx={{ top: 0, right: 0, width: CORNER_HANDLE, height: CORNER_HANDLE }}
+        onResizeStart={onResizeStart}
+        onResizeMove={onResizeMove}
+        onResizeEnd={onResizeEnd}
+      />
+      <Handle
+        dir="nw"
+        sx={{ top: 0, left: 0, width: CORNER_HANDLE, height: CORNER_HANDLE }}
+        onResizeStart={onResizeStart}
+        onResizeMove={onResizeMove}
+        onResizeEnd={onResizeEnd}
+      />
+      <Handle
+        dir="se"
+        sx={{
+          bottom: 0,
+          right: 0,
+          width: CORNER_HANDLE,
+          height: CORNER_HANDLE,
+        }}
+        onResizeStart={onResizeStart}
+        onResizeMove={onResizeMove}
+        onResizeEnd={onResizeEnd}
+      />
+      <Handle
+        dir="sw"
+        sx={{
+          bottom: 0,
+          left: 0,
+          width: CORNER_HANDLE,
+          height: CORNER_HANDLE,
+        }}
+        onResizeStart={onResizeStart}
+        onResizeMove={onResizeMove}
+        onResizeEnd={onResizeEnd}
+      />
+    </>
+  );
+}
+
+interface HandleProps {
+  dir: ResizeDir;
+  sx: Record<string, number | string>;
+  onResizeStart: (
+    dir: ResizeDir,
+    e: ReactPointerEvent<HTMLDivElement>,
+  ) => void;
+  onResizeMove: (e: ReactPointerEvent<HTMLDivElement>) => void;
+  onResizeEnd: (e: ReactPointerEvent<HTMLDivElement>) => void;
+}
+
+function Handle({
+  dir,
+  sx,
+  onResizeStart,
+  onResizeMove,
+  onResizeEnd,
+}: HandleProps) {
+  return (
+    <Box
+      onPointerDown={(e) => {
+        onResizeStart(dir, e);
+      }}
+      onPointerMove={onResizeMove}
+      onPointerUp={onResizeEnd}
+      onPointerCancel={onResizeEnd}
+      sx={{
+        position: "absolute",
+        zIndex: 5,
+        cursor: `${dir}-resize`,
+        touchAction: "none",
+        ...sx,
+      }}
+    />
   );
 }
 

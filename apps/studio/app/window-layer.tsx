@@ -74,8 +74,8 @@ export function WindowLayer() {
             onFocus={() => {
               if (focusedWindow?.id !== win.id) focusWindow(win.id);
             }}
-            onMoveCommit={(x, y) => {
-              setBounds(win.id, x, y, win.w, win.h);
+            onBoundsCommit={(x, y, w, h) => {
+              setBounds(win.id, x, y, w, h);
             }}
           >
             {body}
