@@ -100,12 +100,28 @@ The studio is presented as a desktop environment, not a webpage. Anyone changing
 - **Wallpaper lives in providers**, not inside any page. It persists across hub + generator routes so generator windows visibly float on top of it. The image is in `apps/studio/public/`.
 - **Menu bar = system chrome.** Brand on the left, active-app indicator + tagline center-right, status cluster on the far right (online dot + live `SystemClock`). Never embed page-specific actions here.
 - **Dock = apps only.** Home + per-generator tiles. External links and informational shortcuts (GitHub, sponsor, license, about) live as **desktop icons** in `apps/studio/app/page.tsx`, *not* in the dock. System folders (Downloads, Presets) also live as desktop icons, conditionally rendered when their underlying storage is non-empty (see "Desktop folders + FileExplorer").
-- **Generators open as windows.** `apps/studio/app/generators/[generator]/generator-page-view.tsx` wraps `<GeneratorShell>` in `<AppWindow>`. The window has macOS-style traffic lights:
-  - **Red (close)** — fade animation, then `router.push('/')`
-  - **Yellow (minimize)** — "genie effect" scale toward the app's actual dock-tile rect, then home. Lookup uses `document.querySelector('nav[aria-label="App dock"] [aria-label="<app name>"]')`.
-  - **Green (maximize / restore)** — toggle `mt + mx` to 0 (filling the work area while still respecting the dock via `mb`). **ESC** restores. Label and icon swap between Maximize / Restore.
-  - Group-hover and `:focus-within` reveal the × / − / ⤢ glyphs on all three at once (macOS pattern).
-- **Animation feel.** Windows open with a 420ms `translateY + scale` ease-out. Wallpaper has cursor parallax (~22×16 px shift) and a fade-in. Dock tiles lift on hover. Don't add competing motion or break these.
+- **Multiple windows at once.** Generators and folders are real windows: any number can be open simultaneously, dragged around the desktop, focused independently, and minimized to their dock tile. The compositor is `apps/studio/app/window-layer.tsx`, which maps every WM-tracked window to an absolutely-positioned `<AppWindow>` over the wallpaper.
+- **WM state lives in `@mintables/shared/lib/window-manager`** (provider mounted in `apps/studio/app/providers.tsx`). Consume it via `useWindowManager()`. Stable window ids come from `windowIdOf(payload)` so two opens with the same payload collapse to one window (focus + restore), matching macOS app-instance behavior.
+- **Routes are thin shims.** `/generators/<id>` and `/folders/<kind>` each render `null` and dispatch `openWindow(...)` on mount. The route does not own the window's lifecycle, the WM does. The focused window's path is mirrored to the URL via `router.replace` (see `useFocusUrlSync` in `window-layer.tsx`); when nothing is focused the URL points at `/`.
+- **Traffic lights** on every window (`packages/shared/src/ui/app-window.tsx`):
+  - **Red (close)** calls `closeWindow(id)`. The window is removed from WM state.
+  - **Yellow (minimize)** plays a genie-style scale toward the dock tile rect, then stays in WM as `state: "minimized"`. Restored by clicking its dock tile or via shortcut.
+  - **Green (maximize / restore)** toggles the window's bounds to fill the work area. **ESC** restores the focused window from maximized (only the focused window listens).
+  - Group-hover and `:focus-within` reveal the × / - / ⤢ glyphs on all three at once.
+- **Title bar interactions.** Drag from the title bar to move the window (clamped to the work area). Double-click the title bar to toggle maximize. Clicking anywhere on a window focuses it and bumps its z-index.
+- **Dock indicator dot** (`packages/shared/src/ui/app-dock.tsx`):
+  - bright + solid for the focused window
+  - dim for an open window that is unfocused or minimized
+  - hidden when the app is not open
+  Clicking a dock tile toggles: open if not running, otherwise focus + restore, otherwise (already focused and visible) minimize. The Home tile minimizes all windows ("Show Desktop").
+- **Spotlight** (`packages/shared/src/ui/spotlight.tsx`) is triggered by Cmd/Ctrl+K. It fuzzy-finds generators, presets, and downloads, and activating a result calls `openWindow(...)` (or the equivalent URL push for presets/downloads).
+- **Global shortcuts** live in `apps/studio/app/window-shortcuts.tsx`. The component renders `null` and binds a single keydown listener. The modifier is `Cmd` on macOS, `Ctrl` elsewhere (either is accepted). All bindings bail when the event target is an `<input>`, `<textarea>`, or contenteditable element.
+  - **Cmd/Ctrl+W** close focused window
+  - **Cmd/Ctrl+M** minimize focused window
+  - **Cmd/Ctrl+1..9** open / focus / cycle-minimize generator N (1-indexed into `registry.ts`; out-of-range is a no-op)
+  - **Cmd/Ctrl+K** Spotlight (handled in `spotlight.tsx`, not by this component)
+  - **Cmd/Ctrl+Z / Cmd/Ctrl+Shift+Z** undo / redo of the focused generator's config (handled inside `GeneratorShell`, not by this component)
+- **Animation feel.** Windows open with a translateY + scale ease-out. Minimize plays the genie effect toward the matching dock tile. Wallpaper has cursor parallax (~22x16 px shift) and a fade-in. Dock tiles lift on hover. Don't add competing motion or break these.
 
 ## Desktop folders + FileExplorer
 

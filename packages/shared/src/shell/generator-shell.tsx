@@ -22,13 +22,16 @@ import {
   ChevronDown,
   Download,
   Eye,
+  Redo2,
   RotateCcw,
   Share2,
   SlidersHorizontal,
   Trash2,
+  Undo2,
 } from "lucide-react";
 import type { Generator } from "../lib/generator";
 import { useDebouncedValue } from "../hooks/use-debounced-value";
+import { useWindowManager } from "../lib/window-manager";
 import {
   buildShareUrl,
   deletePreset,
@@ -54,8 +57,17 @@ interface GeneratorShellProps<C> {
 }
 
 export function GeneratorShell<C>({ generator }: GeneratorShellProps<C>) {
-  const [config, setConfig] = useState<C>(generator.defaults);
+  const { config, setConfig, resetConfig, undo, redo, canUndo, canRedo } =
+    useUndoableConfig<C>(generator.defaults);
   const [hydrated, setHydrated] = useState(false);
+
+  // Multiple GeneratorShells coexist in the window layer (each window keeps
+  // its own state). Only the currently focused generator-window may write
+  // back to the URL — otherwise N shells fight over `?` constantly.
+  const { focusedWindow } = useWindowManager();
+  const isFocused =
+    focusedWindow?.payload.kind === "generator" &&
+    focusedWindow.payload.generatorId === generator.id;
 
   const debouncedConfig = useDebouncedValue(config, 500);
 
@@ -64,7 +76,9 @@ export function GeneratorShell<C>({ generator }: GeneratorShellProps<C>) {
     if (raw !== null) {
       const decoded = generator.decode(raw);
       if (decoded) {
-        setConfig(decoded);
+        // Fresh URL load: clear undo history so the user can't undo back into
+        // the pre-hydration default state they never actually saw.
+        resetConfig(decoded);
         // If the URL carried `?preset=<id>` (e.g. opened from the Presets
         // folder window), mark that preset as active so the shell behaves
         // exactly as if the user picked it from the in-shell preset menu.
@@ -95,9 +109,39 @@ export function GeneratorShell<C>({ generator }: GeneratorShellProps<C>) {
   }, []);
 
   useEffect(() => {
-    if (!hydrated) return;
+    if (!hydrated || !isFocused) return;
     syncUrl(debouncedConfig);
-  }, [hydrated, debouncedConfig]);
+  }, [hydrated, isFocused, debouncedConfig]);
+
+  // Cmd/Ctrl+Z / Cmd/Ctrl+Shift+Z / Cmd/Ctrl+Y for undo/redo. Gated by
+  // `isFocused` so two open generator windows don't both swallow the chord.
+  useEffect(() => {
+    if (!isFocused) return;
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || target?.isContentEditable) {
+        return;
+      }
+      const mod = e.metaKey || e.ctrlKey;
+      if (!mod) return;
+      const key = e.key.toLowerCase();
+      if (key === "z" && e.shiftKey) {
+        e.preventDefault();
+        redo();
+      } else if (key === "z") {
+        e.preventDefault();
+        undo();
+      } else if (key === "y") {
+        e.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => {
+      window.removeEventListener("keydown", handler);
+    };
+  }, [isFocused, undo, redo]);
 
   const [showThankYou, setShowThankYou] = useState(false);
   const [exportFormat, setExportFormat] = useState<ExportFormat>("stl");
@@ -193,6 +237,8 @@ export function GeneratorShell<C>({ generator }: GeneratorShellProps<C>) {
       setToast(`Preset "${preset.name}" is incompatible with this generator`);
       return;
     }
+    // Deliberate UX: loading a preset IS undoable. If the user loads a preset
+    // and regrets it, Cmd+Z restores the config they were working on.
     setConfig(decoded);
     setActivePreset({
       id: preset.id,
@@ -243,7 +289,9 @@ export function GeneratorShell<C>({ generator }: GeneratorShellProps<C>) {
 
   const handleReset = () => {
     setActivePreset(null);
-    setConfig(generator.defaults);
+    // Reset drops undo history (different from undo). The user is asking for
+    // a clean slate, not for a step they can immediately walk back from.
+    resetConfig(generator.defaults);
   };
 
   const Controls = generator.Controls;
@@ -464,16 +512,42 @@ export function GeneratorShell<C>({ generator }: GeneratorShellProps<C>) {
                 ))
               )}
             </Menu>
-            <Button
-              onClick={handleReset}
-              variant="text"
-              size="small"
-              fullWidth
-              startIcon={<RotateCcw size={14} />}
-              sx={{ color: "#d9d9d9" }}
-            >
-              Reset to Default
-            </Button>
+            <Stack direction="row" spacing={0.5} alignItems="center">
+              <Tooltip title="Undo (Ctrl+Z)">
+                <span>
+                  <IconButton
+                    onClick={undo}
+                    disabled={!canUndo}
+                    size="small"
+                    aria-label="Undo"
+                  >
+                    <Undo2 size={14} />
+                  </IconButton>
+                </span>
+              </Tooltip>
+              <Tooltip title="Redo (Ctrl+Shift+Z)">
+                <span>
+                  <IconButton
+                    onClick={redo}
+                    disabled={!canRedo}
+                    size="small"
+                    aria-label="Redo"
+                  >
+                    <Redo2 size={14} />
+                  </IconButton>
+                </span>
+              </Tooltip>
+              <Button
+                onClick={handleReset}
+                variant="text"
+                size="small"
+                fullWidth
+                startIcon={<RotateCcw size={14} />}
+                sx={{ color: "#d9d9d9" }}
+              >
+                Reset to Default
+              </Button>
+            </Stack>
           </Stack>
         </Box>
       </Box>
@@ -765,4 +839,77 @@ function PaneTab({
       {children}
     </Box>
   );
+}
+
+/**
+ * Config state with an undo/redo history. Wraps a single value `C` in two
+ * stacks (past, future). Identical writes (deep-equal by JSON serialization,
+ * matching how `presetModified` already compares configs) are dropped so
+ * incidental re-renders don't pollute the timeline. History is capped at 50
+ * entries; resetConfig clears both stacks for a true "fresh start".
+ */
+const HISTORY_LIMIT = 50;
+
+function useUndoableConfig<C>(initial: C): {
+  config: C;
+  setConfig: (next: C | ((prev: C) => C)) => void;
+  resetConfig: (next: C) => void;
+  undo: () => void;
+  redo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
+} {
+  const [state, setState] = useState<{ past: C[]; present: C; future: C[] }>(
+    () => ({ past: [], present: initial, future: [] }),
+  );
+
+  // setConfig accepts an updater; we resolve it against the latest present
+  // inside setState so concurrent updates compose correctly.
+  const setConfig = useCallback((next: C | ((prev: C) => C)) => {
+    setState((s) => {
+      const resolved =
+        typeof next === "function"
+          ? (next as (prev: C) => C)(s.present)
+          : next;
+      if (JSON.stringify(resolved) === JSON.stringify(s.present)) {
+        return s;
+      }
+      const past = [...s.past, s.present];
+      if (past.length > HISTORY_LIMIT) past.shift();
+      return { past, present: resolved, future: [] };
+    });
+  }, []);
+
+  const resetConfig = useCallback((next: C) => {
+    setState({ past: [], present: next, future: [] });
+  }, []);
+
+  const undo = useCallback(() => {
+    setState((s) => {
+      if (s.past.length === 0) return s;
+      const past = s.past.slice(0, -1);
+      const previous = s.past[s.past.length - 1];
+      return { past, present: previous, future: [s.present, ...s.future] };
+    });
+  }, []);
+
+  const redo = useCallback(() => {
+    setState((s) => {
+      if (s.future.length === 0) return s;
+      const [next, ...rest] = s.future;
+      const past = [...s.past, s.present];
+      if (past.length > HISTORY_LIMIT) past.shift();
+      return { past, present: next, future: rest };
+    });
+  }, []);
+
+  return {
+    config: state.present,
+    setConfig,
+    resetConfig,
+    undo,
+    redo,
+    canUndo: state.past.length > 0,
+    canRedo: state.future.length > 0,
+  };
 }

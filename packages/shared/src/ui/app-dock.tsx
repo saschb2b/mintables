@@ -8,22 +8,25 @@ import Tooltip from "@mui/material/Tooltip";
 import { tooltipClasses } from "@mui/material/Tooltip";
 import { House, Sparkles, type LucideIcon } from "lucide-react";
 import type { AnyGenerator } from "../lib/generator";
+import {
+  useWindowManager,
+  windowIdOf,
+  type WindowPayload,
+} from "../lib/window-manager";
 
 interface AppDockProps {
   generators: AnyGenerator[];
-  /** Current generator id (when on a generator route). Undefined on the hub. */
-  currentId?: string;
 }
 
 /**
- * Floating macOS-style dock: persistent across hub + generator routes.
- * Apps only — Home returns to the desktop, each generator gets a tile with
- * a running-indicator dot when active. Secondary links (GitHub, sponsor,
- * about) live on the desktop as shortcut icons.
+ * Floating macOS-style dock: persistent across the desktop and any open
+ * windows. Apps only — Home returns to the desktop (minimizes all windows),
+ * each generator gets a tile with a running-indicator dot under it when an
+ * instance is open. Solid dot = focused + visible, dim dot = open but
+ * background or minimized, no dot = not open. Secondary links (GitHub,
+ * sponsor, about) live on the desktop as shortcut icons.
  */
-export function AppDock({ generators, currentId }: AppDockProps) {
-  const onHub = currentId === undefined;
-
+export function AppDock({ generators }: AppDockProps) {
   return (
     <Box
       component="nav"
@@ -61,39 +64,109 @@ export function AppDock({ generators, currentId }: AppDockProps) {
           "&::-webkit-scrollbar": { display: "none" },
         }}
       >
-        <DockTile
-          href="/"
-          label="Mintables"
-          // Accent (used for hover glow + focus ring) is the mid-tone of the
-          // brand gradient. The gradient itself is supplied explicitly so
-          // Home doesn't share a hue with any single generator.
-          accent="#7c66f5"
-          gradient="linear-gradient(155deg, #5cb6b9 0%, #7c66f5 48%, #ec4899 100%)"
-          active={onHub}
-          icon={House}
-          iconArt={HomeIconArt}
-        />
+        <HomeDockTile />
 
         <DockSeparator />
 
         {generators.map((gen) => (
-          <DockTile
-            key={gen.id}
-            href={`/generators/${gen.id}`}
-            label={gen.meta.name}
-            accent={gen.meta.accent}
-            active={gen.id === currentId}
-            icon={gen.meta.icon}
-            iconArt={gen.meta.iconArt}
-          />
+          <GeneratorDockTile key={gen.id} generator={gen} />
         ))}
       </Box>
     </Box>
   );
 }
 
+/**
+ * Home tile — clicking it sends the user back to the desktop. macOS-style
+ * "show desktop" by minimizing every open window. Also navigates the URL to
+ * `/` via NextLink so direct bookmarks land cleanly.
+ */
+function HomeDockTile() {
+  const { windows, focusedWindow, minimizeWindow } = useWindowManager();
+  const onDesktop = focusedWindow === null;
+
+  const handleClick = () => {
+    for (const w of windows) {
+      if (w.state !== "minimized") minimizeWindow(w.id);
+    }
+  };
+
+  return (
+    <DockTile
+      href="/"
+      onClick={handleClick}
+      label="Mintables"
+      // Accent (used for hover glow + focus ring) is the mid-tone of the
+      // brand gradient. The gradient itself is supplied explicitly so Home
+      // doesn't share a hue with any single generator.
+      accent="#7c66f5"
+      gradient="linear-gradient(155deg, #5cb6b9 0%, #7c66f5 48%, #ec4899 100%)"
+      indicator={onDesktop ? "focused" : "none"}
+      ariaCurrent={onDesktop}
+      icon={House}
+      iconArt={HomeIconArt}
+    />
+  );
+}
+
+function GeneratorDockTile({ generator }: { generator: AnyGenerator }) {
+  const {
+    focusedWindow,
+    windowById,
+    openWindow,
+    focusWindow,
+    minimizeWindow,
+    restoreWindow,
+  } = useWindowManager();
+
+  const payload: WindowPayload = { kind: "generator", generatorId: generator.id };
+  const id = windowIdOf(payload);
+  const win = windowById(id);
+  const isFocused = focusedWindow?.id === id;
+  const isOpen = Boolean(win);
+  const isMinimized = win?.state === "minimized";
+
+  const indicator: DockIndicator = !isOpen
+    ? "none"
+    : isFocused && !isMinimized
+      ? "focused"
+      : "background";
+
+  const handleClick = () => {
+    if (!win) {
+      openWindow(payload);
+      return;
+    }
+    if (isMinimized) {
+      restoreWindow(id);
+      return;
+    }
+    if (isFocused) {
+      minimizeWindow(id);
+      return;
+    }
+    focusWindow(id);
+  };
+
+  return (
+    <DockTile
+      href={`/generators/${generator.id}`}
+      onClick={handleClick}
+      label={generator.meta.name}
+      accent={generator.meta.accent}
+      indicator={indicator}
+      ariaCurrent={isFocused && !isMinimized}
+      icon={generator.meta.icon}
+      iconArt={generator.meta.iconArt}
+    />
+  );
+}
+
+type DockIndicator = "none" | "background" | "focused";
+
 interface DockTileProps {
   href: string;
+  onClick: () => void;
   label: string;
   /** Base color — drives hover glow + focus ring. When `gradient` is omitted,
    *  it also seeds the tile gradient (lightened top → accent → darkened). */
@@ -101,7 +174,8 @@ interface DockTileProps {
   /** Optional explicit CSS gradient for the tile fill — used when a single
    *  accent doesn't tell the whole story (e.g. the multi-color Home tile). */
   gradient?: string;
-  active?: boolean;
+  indicator: DockIndicator;
+  ariaCurrent: boolean;
   /** Lucide fallback when no `iconArt` is provided. */
   icon: LucideIcon;
   iconArt?: ComponentType<{ size?: number }>;
@@ -112,10 +186,12 @@ const ART_SIZE = 32;
 
 function DockTile({
   href,
+  onClick,
   label,
   accent,
   gradient,
-  active = false,
+  indicator,
+  ariaCurrent,
   icon: Icon,
   iconArt: IconArt,
 }: DockTileProps) {
@@ -152,6 +228,12 @@ function DockTile({
       <Stack
         component={NextLink}
         href={href}
+        onClick={(e) => {
+          // The click handler drives WM state. We don't preventDefault — Next
+          // still navigates the URL (the WM and route shims are idempotent).
+          onClick();
+          void e;
+        }}
         alignItems="center"
         sx={{
           position: "relative",
@@ -173,7 +255,7 @@ function DockTile({
           },
         }}
         aria-label={label}
-        aria-current={active ? "page" : undefined}
+        aria-current={ariaCurrent ? "page" : undefined}
       >
         <Box
           className="dt-tile"
@@ -224,23 +306,31 @@ function DockTile({
             {IconArt ? <IconArt size={ART_SIZE} /> : <Icon size={26} />}
           </Box>
         </Box>
-        <Box
-          aria-hidden
-          sx={{
-            position: "absolute",
-            bottom: 0,
-            width: active ? 5 : 0,
-            height: active ? 5 : 0,
-            borderRadius: "50%",
-            bgcolor: "#fff",
-            opacity: active ? 0.85 : 0,
-            boxShadow: active ? "0 0 6px rgba(255,255,255,0.7)" : "none",
-            transition:
-              "width 200ms ease, height 200ms ease, opacity 200ms ease",
-          }}
-        />
+        <DockIndicatorDot kind={indicator} />
       </Stack>
     </Tooltip>
+  );
+}
+
+function DockIndicatorDot({ kind }: { kind: DockIndicator }) {
+  const visible = kind !== "none";
+  const bright = kind === "focused";
+  return (
+    <Box
+      aria-hidden
+      sx={{
+        position: "absolute",
+        bottom: 0,
+        width: visible ? (bright ? 5 : 4) : 0,
+        height: visible ? (bright ? 5 : 4) : 0,
+        borderRadius: "50%",
+        bgcolor: "#fff",
+        opacity: visible ? (bright ? 0.85 : 0.45) : 0,
+        boxShadow: bright ? "0 0 6px rgba(255,255,255,0.7)" : "none",
+        transition:
+          "width 200ms ease, height 200ms ease, opacity 200ms ease",
+      }}
+    />
   );
 }
 

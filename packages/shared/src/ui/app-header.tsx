@@ -6,22 +6,26 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { Sparkles } from "lucide-react";
 import type { AnyGenerator } from "../lib/generator";
+import { useWindowManager } from "../lib/window-manager";
 import { SystemClock } from "./system-clock";
 
 interface AppHeaderProps {
   generators: AnyGenerator[];
-  /** Current generator id (when on a generator route). */
-  currentId?: string;
 }
 
 /**
  * Menu bar — macOS-style strip across the very top of the screen.
  *  · left: brand wordmark (system menu)
- *  · center-left: active app name (only when an app is open)
+ *  · center-left: active app name (only when an app's window is focused)
  *  · right: status cluster — online indicator + live clock
  */
-export function AppHeader({ generators, currentId }: AppHeaderProps) {
-  const current = generators.find((g) => g.id === currentId);
+export function AppHeader({ generators }: AppHeaderProps) {
+  const { focusedWindow } = useWindowManager();
+  const focusedPayload = focusedWindow?.payload;
+  const current =
+    focusedPayload?.kind === "generator"
+      ? generators.find((g) => g.id === focusedPayload.generatorId)
+      : undefined;
 
   return (
     <Box

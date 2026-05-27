@@ -61,3 +61,14 @@ export {
   fieldHasError,
   fieldHelperText,
 } from "./validation/field-errors";
+
+export type {
+  WindowKind,
+  WindowPayload,
+  WindowState,
+  WindowBounds,
+  OpenWindow,
+  WindowManagerState,
+  FolderId,
+} from "./window-manager";
+export { windowIdOf, WindowManagerProvider, useWindowManager } from "./window-manager";
