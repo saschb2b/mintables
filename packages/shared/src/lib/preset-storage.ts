@@ -152,3 +152,13 @@ export function deletePreset(id: string): void {
   writePresets(listPresets().filter((p) => p.id !== id));
   emitPresetChange();
 }
+
+/** Update the stored display name for a preset. */
+export function renamePreset(id: string, newName: string): void {
+  const trimmed = newName.trim();
+  if (!trimmed) return;
+  writePresets(
+    listPresets().map((p) => (p.id === id ? { ...p, name: trimmed } : p)),
+  );
+  emitPresetChange();
+}

@@ -32,6 +32,7 @@ export {
   hasAnyPresets,
   savePreset,
   deletePreset,
+  renamePreset,
 } from "./preset-storage";
 
 export type { DownloadEntry, ExportFormat as DownloadFormat } from "./download-storage";
@@ -41,6 +42,7 @@ export {
   hasDownloads,
   recordDownload,
   deleteDownload,
+  renameDownload,
   getDownload,
 } from "./download-storage";
 

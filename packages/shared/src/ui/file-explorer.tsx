@@ -1,15 +1,27 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import type { ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import type { KeyboardEvent, MouseEvent, ReactNode } from "react";
 import Box from "@mui/material/Box";
+import Divider from "@mui/material/Divider";
 import InputBase from "@mui/material/InputBase";
+import ListItemIcon from "@mui/material/ListItemIcon";
+import ListItemText from "@mui/material/ListItemText";
+import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
-import Select from "@mui/material/Select";
+import MuiMenuItem from "@mui/material/MenuItem";
+import MuiSelect from "@mui/material/Select";
 import Stack from "@mui/material/Stack";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import {
+  Check,
   LayoutGrid,
   List as ListIcon,
   Search,
@@ -39,18 +51,23 @@ export interface ExplorerAction<T extends ExplorerItem = ExplorerItem> {
   id: string;
   label: string;
   icon: LucideIcon;
-  onClick: (item: T) => void;
-  /** Show in red, separated visually. */
+  /** Receives all currently-selected items. Bulk-safe. */
+  onClick: (items: T[]) => void;
+  /** Show in red, with a Divider separating from the rest. */
   danger?: boolean;
-  /** Optional disable predicate. */
-  disabled?: (item: T) => boolean;
+  /** Hide the action when more than one item is selected. */
+  singleOnly?: boolean;
+  /** Optional keyboard hint shown in the context menu (e.g. "⌫"). */
+  shortcut?: string;
 }
 
 interface FileExplorerProps<T extends ExplorerItem> {
   items: T[];
-  /** Triggered on double-click / Enter — typically "Open". */
+  /** Triggered on double-click / Enter — typically "Open". Single-item. */
   onOpen?: (item: T) => void;
-  /** Buttons shown in the toolbar when an item is selected. */
+  /** When provided, items become renameable via F2 / context menu. */
+  onRename?: (item: T, newName: string) => void;
+  /** Buttons shown in the toolbar action bar + context menu. */
   actions?: ExplorerAction<T>[];
   /** Shown when items is empty. */
   emptyState?: ReactNode;
@@ -58,9 +75,17 @@ interface FileExplorerProps<T extends ExplorerItem> {
   defaultView?: ViewMode;
 }
 
+interface ContextMenuTarget {
+  x: number;
+  y: number;
+  /** Items the menu should act on. Empty array means the empty-area menu. */
+  itemIds: string[];
+}
+
 export function FileExplorer<T extends ExplorerItem>({
   items,
   onOpen,
+  onRename,
   actions = [],
   emptyState,
   defaultView = "icons",
@@ -69,7 +94,12 @@ export function FileExplorer<T extends ExplorerItem>({
   const [sort, setSort] = useState<SortField>("date");
   const [dir, setDir] = useState<SortDir>("desc");
   const [query, setQuery] = useState("");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [anchorId, setAnchorId] = useState<string | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [menu, setMenu] = useState<ContextMenuTarget | null>(null);
+
+  const rootRef = useRef<HTMLDivElement>(null);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -92,10 +122,152 @@ export function FileExplorer<T extends ExplorerItem>({
     return sorted;
   }, [items, query, sort, dir]);
 
-  const selected = filtered.find((it) => it.id === selectedId) ?? null;
+  /** Items that survived filtering AND are currently selected. */
+  const selectedItems = useMemo(
+    () => filtered.filter((it) => selectedIds.has(it.id)),
+    [filtered, selectedIds],
+  );
+
+  /** Drop any selected ids that no longer exist (e.g. after delete). */
+  useEffect(() => {
+    const validIds = new Set(items.map((it) => it.id));
+    setSelectedIds((prev) => {
+      let changed = false;
+      const next = new Set<string>();
+      for (const id of prev) {
+        if (validIds.has(id)) next.add(id);
+        else changed = true;
+      }
+      return changed ? next : prev;
+    });
+    if (renamingId && !validIds.has(renamingId)) setRenamingId(null);
+  }, [items, renamingId]);
+
+  const handleSelect = useCallback(
+    (id: string, modifiers: { ctrl?: boolean; shift?: boolean }) => {
+      if (modifiers.shift && anchorId) {
+        const anchorIdx = filtered.findIndex((it) => it.id === anchorId);
+        const clickIdx = filtered.findIndex((it) => it.id === id);
+        if (anchorIdx >= 0 && clickIdx >= 0) {
+          const [from, to] =
+            anchorIdx <= clickIdx
+              ? [anchorIdx, clickIdx]
+              : [clickIdx, anchorIdx];
+          const next = new Set<string>();
+          for (let i = from; i <= to; i++) next.add(filtered[i].id);
+          setSelectedIds(next);
+          return;
+        }
+      }
+      if (modifiers.ctrl) {
+        setSelectedIds((prev) => {
+          const next = new Set(prev);
+          if (next.has(id)) next.delete(id);
+          else next.add(id);
+          return next;
+        });
+        setAnchorId(id);
+        return;
+      }
+      setSelectedIds(new Set([id]));
+      setAnchorId(id);
+    },
+    [anchorId, filtered],
+  );
+
+  const handleContextMenu = useCallback(
+    (e: MouseEvent, itemId: string | null) => {
+      e.preventDefault();
+      e.stopPropagation();
+      // Right-click on a non-selected item promotes it to the selection.
+      let ids = itemId === null ? [] : [itemId];
+      if (itemId !== null && !selectedIds.has(itemId)) {
+        setSelectedIds(new Set([itemId]));
+        setAnchorId(itemId);
+      } else if (itemId !== null) {
+        ids = Array.from(selectedIds);
+      }
+      setMenu({ x: e.clientX, y: e.clientY, itemIds: ids });
+    },
+    [selectedIds],
+  );
+
+  const commitRename = useCallback(
+    (id: string, newName: string) => {
+      const item = items.find((it) => it.id === id);
+      if (item && onRename && newName.trim() && newName.trim() !== item.name) {
+        onRename(item, newName.trim());
+      }
+      setRenamingId(null);
+    },
+    [items, onRename],
+  );
+
+  const beginRename = useCallback(() => {
+    if (!onRename) return;
+    if (selectedIds.size !== 1) return;
+    const [id] = selectedIds;
+    setRenamingId(id);
+  }, [onRename, selectedIds]);
+
+  // ─── Keyboard shortcuts ────────────────────────────────────────────
+  useEffect(() => {
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      // Don't intercept when the user is typing in search/rename.
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) {
+        return;
+      }
+      if (e.key === "Escape") {
+        setSelectedIds(new Set());
+        setAnchorId(null);
+        setMenu(null);
+        return;
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "a") {
+        e.preventDefault();
+        setSelectedIds(new Set(filtered.map((it) => it.id)));
+        return;
+      }
+      if (selectedIds.size === 0) return;
+      if (e.key === "Enter" && selectedIds.size === 1) {
+        const [id] = selectedIds;
+        const it = items.find((x) => x.id === id);
+        if (it && onOpen) onOpen(it);
+        return;
+      }
+      if (e.key === "F2") {
+        e.preventDefault();
+        beginRename();
+        return;
+      }
+      if (e.key === "Delete" || e.key === "Backspace") {
+        const deleteAction = actions.find((a) => a.id === "delete");
+        if (deleteAction) {
+          e.preventDefault();
+          deleteAction.onClick(selectedItems);
+        }
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [actions, beginRename, filtered, items, onOpen, selectedItems, selectedIds]);
+
+  /** Actions visible right now — filters singleOnly entries by selection size. */
+  const visibleActions = useMemo(
+    () =>
+      actions.filter(
+        (a) =>
+          selectedItems.length > 0 &&
+          (!a.singleOnly || selectedItems.length === 1),
+      ),
+    [actions, selectedItems.length],
+  );
 
   return (
-    <Stack sx={{ flex: 1, minHeight: 0 }}>
+    <Stack ref={rootRef} sx={{ flex: 1, minHeight: 0 }} tabIndex={-1}>
       {/* ─── Toolbar ─────────────────────────────────────────── */}
       <Stack
         direction="row"
@@ -122,24 +294,21 @@ export function FileExplorer<T extends ExplorerItem>({
 
         <Box sx={{ flex: 1 }} />
 
-        {/* Selected-item actions */}
-        {selected && actions.length > 0 && (
+        {visibleActions.length > 0 && (
           <Stack direction="row" spacing={0.5} alignItems="center">
-            {actions.map((a) => {
+            {visibleActions.map((a) => {
               const Icon = a.icon;
-              const disabled = a.disabled?.(selected) ?? false;
               return (
                 <Tooltip key={a.id} title={a.label}>
                   <Box
                     component="button"
                     type="button"
-                    disabled={disabled}
                     onClick={() => {
-                      a.onClick(selected);
+                      a.onClick(selectedItems);
                     }}
                     sx={{
                       all: "unset",
-                      cursor: disabled ? "default" : "pointer",
+                      cursor: "pointer",
                       px: 1,
                       py: 0.5,
                       borderRadius: 1,
@@ -151,14 +320,11 @@ export function FileExplorer<T extends ExplorerItem>({
                       color: a.danger
                         ? "rgba(248, 113, 113, 0.95)"
                         : "text.primary",
-                      opacity: disabled ? 0.4 : 1,
                       transition: "background-color 120ms ease",
                       "&:hover": {
-                        bgcolor: disabled
-                          ? "transparent"
-                          : a.danger
-                            ? "rgba(248, 113, 113, 0.12)"
-                            : "rgba(255,255,255,0.08)",
+                        bgcolor: a.danger
+                          ? "rgba(248, 113, 113, 0.12)"
+                          : "rgba(255,255,255,0.08)",
                       },
                     }}
                   >
@@ -182,8 +348,13 @@ export function FileExplorer<T extends ExplorerItem>({
           p: view === "icons" ? { xs: 2, sm: 3 } : 0,
         }}
         onClick={(e) => {
-          // Click on empty space deselects.
-          if (e.target === e.currentTarget) setSelectedId(null);
+          if (e.target === e.currentTarget) {
+            setSelectedIds(new Set());
+            setAnchorId(null);
+          }
+        }}
+        onContextMenu={(e) => {
+          if (e.target === e.currentTarget) handleContextMenu(e, null);
         }}
       >
         {filtered.length === 0 ? (
@@ -195,16 +366,28 @@ export function FileExplorer<T extends ExplorerItem>({
         ) : view === "icons" ? (
           <IconGrid
             items={filtered}
-            selectedId={selectedId}
-            onSelect={setSelectedId}
+            selectedIds={selectedIds}
+            renamingId={renamingId}
+            onSelect={handleSelect}
             onOpen={onOpen}
+            onCommitRename={commitRename}
+            onCancelRename={() => {
+              setRenamingId(null);
+            }}
+            onContextMenu={handleContextMenu}
           />
         ) : (
           <ListView
             items={filtered}
-            selectedId={selectedId}
-            onSelect={setSelectedId}
+            selectedIds={selectedIds}
+            renamingId={renamingId}
+            onSelect={handleSelect}
             onOpen={onOpen}
+            onCommitRename={commitRename}
+            onCancelRename={() => {
+              setRenamingId(null);
+            }}
+            onContextMenu={handleContextMenu}
           />
         )}
       </Box>
@@ -228,9 +411,33 @@ export function FileExplorer<T extends ExplorerItem>({
           {filtered.length === items.length
             ? `${String(items.length)} item${items.length === 1 ? "" : "s"}`
             : `${String(filtered.length)} of ${String(items.length)} item${items.length === 1 ? "" : "s"}`}
-          {selected && ` · "${selected.name}" selected`}
+          {selectedItems.length === 1 &&
+            ` · "${selectedItems[0].name}" selected`}
+          {selectedItems.length > 1 &&
+            ` · ${String(selectedItems.length)} selected`}
         </Typography>
       </Stack>
+
+      <ContextMenu
+        target={menu}
+        actions={actions}
+        selectedItems={selectedItems}
+        canRename={onRename !== undefined}
+        canOpen={onOpen !== undefined && selectedItems.length === 1}
+        sort={sort}
+        dir={dir}
+        view={view}
+        onClose={() => {
+          setMenu(null);
+        }}
+        onOpen={(it) => {
+          onOpen?.(it);
+        }}
+        onRename={beginRename}
+        onChangeView={setView}
+        onChangeSort={setSort}
+        onChangeDir={setDir}
+      />
     </Stack>
   );
 }
@@ -342,7 +549,7 @@ function SortControl({
       >
         Sort
       </Typography>
-      <Select<SortField>
+      <MuiSelect<SortField>
         value={sort}
         onChange={(e) => {
           onChangeSort(e.target.value);
@@ -357,10 +564,10 @@ function SortControl({
           "& .MuiSelect-icon": { color: "text.secondary", right: 0 },
         }}
       >
-        <MenuItem value="date">Date</MenuItem>
-        <MenuItem value="name">Name</MenuItem>
-        <MenuItem value="kind">Kind</MenuItem>
-      </Select>
+        <MuiMenuItem value="date">Date</MuiMenuItem>
+        <MuiMenuItem value="name">Name</MuiMenuItem>
+        <MuiMenuItem value="kind">Kind</MuiMenuItem>
+      </MuiSelect>
       <Tooltip title={dir === "asc" ? "Ascending" : "Descending"}>
         <Box
           component="button"
@@ -439,17 +646,27 @@ function SearchBox({
 
 /* ─── Views ───────────────────────────────────────────────────── */
 
+interface ViewProps<T extends ExplorerItem> {
+  items: T[];
+  selectedIds: Set<string>;
+  renamingId: string | null;
+  onSelect: (id: string, mods: { ctrl?: boolean; shift?: boolean }) => void;
+  onOpen?: (item: T) => void;
+  onCommitRename: (id: string, newName: string) => void;
+  onCancelRename: () => void;
+  onContextMenu: (e: MouseEvent, itemId: string) => void;
+}
+
 function IconGrid<T extends ExplorerItem>({
   items,
-  selectedId,
+  selectedIds,
+  renamingId,
   onSelect,
   onOpen,
-}: {
-  items: T[];
-  selectedId: string | null;
-  onSelect: (id: string | null) => void;
-  onOpen?: (item: T) => void;
-}) {
+  onCommitRename,
+  onCancelRename,
+  onContextMenu,
+}: ViewProps<T>) {
   return (
     <Box
       sx={{
@@ -462,7 +679,8 @@ function IconGrid<T extends ExplorerItem>({
       }}
     >
       {items.map((it) => {
-        const selected = it.id === selectedId;
+        const selected = selectedIds.has(it.id);
+        const renaming = renamingId === it.id;
         return (
           <Stack
             key={it.id}
@@ -470,17 +688,25 @@ function IconGrid<T extends ExplorerItem>({
             spacing={0.75}
             tabIndex={0}
             role="button"
-            aria-label={`Open ${it.name}`}
+            aria-label={`${it.name}${selected ? " (selected)" : ""}`}
             onClick={(e) => {
               e.stopPropagation();
-              onSelect(it.id);
+              if (renaming) return;
+              onSelect(it.id, { ctrl: e.metaKey || e.ctrlKey, shift: e.shiftKey });
             }}
-            onDoubleClick={() => onOpen?.(it)}
-            onKeyDown={(e) => {
+            onDoubleClick={() => {
+              if (renaming) return;
+              onOpen?.(it);
+            }}
+            onContextMenu={(e) => {
+              onContextMenu(e, it.id);
+            }}
+            onKeyDown={(e: KeyboardEvent) => {
+              if (renaming) return;
               if (e.key === "Enter" || e.key === " ") {
                 e.preventDefault();
                 if (selected) onOpen?.(it);
-                else onSelect(it.id);
+                else onSelect(it.id, {});
               }
             }}
             sx={{
@@ -511,19 +737,29 @@ function IconGrid<T extends ExplorerItem>({
             >
               {it.icon}
             </Box>
-            <Typography
-              sx={{
-                fontSize: "0.74rem",
-                fontWeight: 500,
-                color: selected ? "text.primary" : "rgba(255,255,255,0.86)",
-                textAlign: "center",
-                lineHeight: 1.2,
-                wordBreak: "break-word",
-              }}
-            >
-              {it.name}
-            </Typography>
-            {it.subtitle && (
+            {renaming ? (
+              <RenameInput
+                initial={it.name}
+                onCommit={(value) => {
+                  onCommitRename(it.id, value);
+                }}
+                onCancel={onCancelRename}
+              />
+            ) : (
+              <Typography
+                sx={{
+                  fontSize: "0.74rem",
+                  fontWeight: 500,
+                  color: selected ? "text.primary" : "rgba(255,255,255,0.86)",
+                  textAlign: "center",
+                  lineHeight: 1.2,
+                  wordBreak: "break-word",
+                }}
+              >
+                {it.name}
+              </Typography>
+            )}
+            {it.subtitle && !renaming && (
               <Typography
                 sx={{
                   fontSize: "0.66rem",
@@ -544,15 +780,14 @@ function IconGrid<T extends ExplorerItem>({
 
 function ListView<T extends ExplorerItem>({
   items,
-  selectedId,
+  selectedIds,
+  renamingId,
   onSelect,
   onOpen,
-}: {
-  items: T[];
-  selectedId: string | null;
-  onSelect: (id: string | null) => void;
-  onOpen?: (item: T) => void;
-}) {
+  onCommitRename,
+  onCancelRename,
+  onContextMenu,
+}: ViewProps<T>) {
   return (
     <Box component="table" sx={{ width: "100%", borderCollapse: "collapse" }}>
       <Box
@@ -585,22 +820,34 @@ function ListView<T extends ExplorerItem>({
       </Box>
       <Box component="tbody">
         {items.map((it) => {
-          const selected = it.id === selectedId;
+          const selected = selectedIds.has(it.id);
+          const renaming = renamingId === it.id;
           return (
             <Box
               key={it.id}
               component="tr"
               tabIndex={0}
               role="row"
-              onClick={() => {
-                onSelect(it.id);
+              onClick={(e) => {
+                if (renaming) return;
+                onSelect(it.id, {
+                  ctrl: e.metaKey || e.ctrlKey,
+                  shift: e.shiftKey,
+                });
               }}
-              onDoubleClick={() => onOpen?.(it)}
-              onKeyDown={(e) => {
+              onDoubleClick={() => {
+                if (renaming) return;
+                onOpen?.(it);
+              }}
+              onContextMenu={(e) => {
+                onContextMenu(e, it.id);
+              }}
+              onKeyDown={(e: KeyboardEvent) => {
+                if (renaming) return;
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
                   if (selected) onOpen?.(it);
-                  else onSelect(it.id);
+                  else onSelect(it.id, {});
                 }
               }}
               sx={{
@@ -637,9 +884,19 @@ function ListView<T extends ExplorerItem>({
                   <Box sx={{ width: 22, height: 22, flexShrink: 0 }}>
                     {it.icon}
                   </Box>
-                  <Box component="span" sx={{ fontWeight: 500 }}>
-                    {it.name}
-                  </Box>
+                  {renaming ? (
+                    <RenameInput
+                      initial={it.name}
+                      onCommit={(value) => {
+                        onCommitRename(it.id, value);
+                      }}
+                      onCancel={onCancelRename}
+                    />
+                  ) : (
+                    <Box component="span" sx={{ fontWeight: 500 }}>
+                      {it.name}
+                    </Box>
+                  )}
                 </Stack>
               </td>
               <td className="muted">{it.kind}</td>
@@ -675,6 +932,326 @@ function EmptyState({ children }: { children: ReactNode }) {
         {children}
       </Typography>
     </Box>
+  );
+}
+
+/* ─── Inline rename input ─────────────────────────────────────── */
+
+function RenameInput({
+  initial,
+  onCommit,
+  onCancel,
+}: {
+  initial: string;
+  onCommit: (value: string) => void;
+  onCancel: () => void;
+}) {
+  const [value, setValue] = useState(initial);
+  const ref = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.focus();
+    // Select the filename stem only (everything before the last "."), the
+    // way Finder + Windows Explorer behave.
+    const dotIdx = initial.lastIndexOf(".");
+    if (dotIdx > 0) el.setSelectionRange(0, dotIdx);
+    else el.select();
+  }, [initial]);
+
+  return (
+    <InputBase
+      inputRef={ref}
+      value={value}
+      onChange={(e) => {
+        setValue(e.target.value);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          onCommit(value);
+        } else if (e.key === "Escape") {
+          e.preventDefault();
+          onCancel();
+        } else {
+          e.stopPropagation();
+        }
+      }}
+      onBlur={() => {
+        onCommit(value);
+      }}
+      onClick={(e) => {
+        e.stopPropagation();
+      }}
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+      }}
+      sx={{
+        fontSize: "0.74rem",
+        fontWeight: 500,
+        textAlign: "center",
+        "& input": {
+          p: "1px 4px",
+          textAlign: "inherit",
+          bgcolor: "rgba(20, 22, 32, 0.95)",
+          color: "text.primary",
+          borderRadius: 0.5,
+          boxShadow: "0 0 0 1.5px rgba(120, 160, 220, 0.8)",
+          maxWidth: "100%",
+        },
+      }}
+    />
+  );
+}
+
+/* ─── Context menu ────────────────────────────────────────────── */
+
+interface ContextMenuProps<T extends ExplorerItem> {
+  target: ContextMenuTarget | null;
+  actions: ExplorerAction<T>[];
+  selectedItems: T[];
+  canRename: boolean;
+  canOpen: boolean;
+  sort: SortField;
+  dir: SortDir;
+  view: ViewMode;
+  onClose: () => void;
+  onOpen: (item: T) => void;
+  onRename: () => void;
+  onChangeView: (v: ViewMode) => void;
+  onChangeSort: (v: SortField) => void;
+  onChangeDir: (v: SortDir) => void;
+}
+
+function ContextMenu<T extends ExplorerItem>({
+  target,
+  actions,
+  selectedItems,
+  canRename,
+  canOpen,
+  sort,
+  dir,
+  view,
+  onClose,
+  onOpen,
+  onRename,
+  onChangeView,
+  onChangeSort,
+  onChangeDir,
+}: ContextMenuProps<T>) {
+  const open = target !== null;
+  const onEmpty = open && target.itemIds.length === 0;
+  const anchorPosition = target ? { top: target.y, left: target.x } : undefined;
+
+  const dangerActions = actions.filter(
+    (a) =>
+      a.danger &&
+      selectedItems.length > 0 &&
+      (!a.singleOnly || selectedItems.length === 1),
+  );
+  const normalActions = actions.filter(
+    (a) =>
+      !a.danger &&
+      selectedItems.length > 0 &&
+      (!a.singleOnly || selectedItems.length === 1),
+  );
+
+  return (
+    <Menu
+      open={open}
+      onClose={onClose}
+      anchorReference="anchorPosition"
+      anchorPosition={anchorPosition}
+      slotProps={{
+        paper: {
+          sx: {
+            bgcolor: "rgba(28, 30, 42, 0.96)",
+            backdropFilter: "blur(20px) saturate(160%)",
+            border: "1px solid rgba(255,255,255,0.10)",
+            borderRadius: 1.5,
+            minWidth: 200,
+            "& .MuiMenuItem-root": {
+              fontSize: "0.78rem",
+              minHeight: 28,
+              py: 0.5,
+              px: 1.5,
+            },
+            "& .MuiListItemIcon-root": {
+              minWidth: "22px !important",
+              color: "text.secondary",
+            },
+          },
+        },
+      }}
+    >
+      {onEmpty ? (
+        <>
+          <SubmenuLabel>View as</SubmenuLabel>
+          <MenuItem
+            onClick={() => {
+              onChangeView("icons");
+              onClose();
+            }}
+          >
+            <ListItemIcon>
+              {view === "icons" ? <Check size={13} /> : null}
+            </ListItemIcon>
+            <ListItemText>Icons</ListItemText>
+          </MenuItem>
+          <MenuItem
+            onClick={() => {
+              onChangeView("list");
+              onClose();
+            }}
+          >
+            <ListItemIcon>
+              {view === "list" ? <Check size={13} /> : null}
+            </ListItemIcon>
+            <ListItemText>List</ListItemText>
+          </MenuItem>
+          <Divider sx={{ my: 0.5, borderColor: "rgba(255,255,255,0.06)" }} />
+          <SubmenuLabel>Sort by</SubmenuLabel>
+          {(["date", "name", "kind"] as const).map((s) => (
+            <MenuItem
+              key={s}
+              onClick={() => {
+                onChangeSort(s);
+                onClose();
+              }}
+            >
+              <ListItemIcon>
+                {sort === s ? <Check size={13} /> : null}
+              </ListItemIcon>
+              <ListItemText>
+                {s === "date" ? "Date" : s === "name" ? "Name" : "Kind"}
+              </ListItemText>
+            </MenuItem>
+          ))}
+          <Divider sx={{ my: 0.5, borderColor: "rgba(255,255,255,0.06)" }} />
+          <MenuItem
+            onClick={() => {
+              onChangeDir(dir === "asc" ? "desc" : "asc");
+              onClose();
+            }}
+          >
+            <ListItemText>
+              {dir === "asc" ? "Sort descending" : "Sort ascending"}
+            </ListItemText>
+          </MenuItem>
+        </>
+      ) : (
+        <>
+          {canOpen && (
+            <MenuItem
+              onClick={() => {
+                if (selectedItems[0]) onOpen(selectedItems[0]);
+                onClose();
+              }}
+            >
+              <ListItemText>Open</ListItemText>
+              <Typography
+                variant="caption"
+                sx={{ color: "text.secondary", ml: 2 }}
+              >
+                ↵
+              </Typography>
+            </MenuItem>
+          )}
+          {canRename && selectedItems.length === 1 && (
+            <MenuItem
+              onClick={() => {
+                onRename();
+                onClose();
+              }}
+            >
+              <ListItemText>Rename</ListItemText>
+              <Typography
+                variant="caption"
+                sx={{ color: "text.secondary", ml: 2 }}
+              >
+                F2
+              </Typography>
+            </MenuItem>
+          )}
+          {normalActions
+            .filter((a) => a.id !== "open" && a.id !== "rename")
+            .map((a) => {
+              const Icon = a.icon;
+              return (
+                <MenuItem
+                  key={a.id}
+                  onClick={() => {
+                    a.onClick(selectedItems);
+                    onClose();
+                  }}
+                >
+                  <ListItemIcon>
+                    <Icon size={13} />
+                  </ListItemIcon>
+                  <ListItemText>{a.label}</ListItemText>
+                  {a.shortcut && (
+                    <Typography
+                      variant="caption"
+                      sx={{ color: "text.secondary", ml: 2 }}
+                    >
+                      {a.shortcut}
+                    </Typography>
+                  )}
+                </MenuItem>
+              );
+            })}
+          {dangerActions.length > 0 && (
+            <Divider sx={{ my: 0.5, borderColor: "rgba(255,255,255,0.06)" }} />
+          )}
+          {dangerActions.map((a) => {
+            const Icon = a.icon;
+            return (
+              <MenuItem
+                key={a.id}
+                onClick={() => {
+                  a.onClick(selectedItems);
+                  onClose();
+                }}
+                sx={{ color: "rgba(248,113,113,0.95) !important" }}
+              >
+                <ListItemIcon sx={{ color: "inherit !important" }}>
+                  <Icon size={13} />
+                </ListItemIcon>
+                <ListItemText>{a.label}</ListItemText>
+                <Typography
+                  variant="caption"
+                  sx={{ color: "inherit", opacity: 0.65, ml: 2 }}
+                >
+                  ⌫
+                </Typography>
+              </MenuItem>
+            );
+          })}
+        </>
+      )}
+    </Menu>
+  );
+}
+
+function SubmenuLabel({ children }: { children: ReactNode }) {
+  return (
+    <Typography
+      variant="caption"
+      sx={{
+        display: "block",
+        px: 1.5,
+        pt: 0.75,
+        pb: 0.25,
+        fontSize: "0.62rem",
+        letterSpacing: 0.6,
+        textTransform: "uppercase",
+        color: "text.secondary",
+        fontWeight: 600,
+      }}
+    >
+      {children}
+    </Typography>
   );
 }
 

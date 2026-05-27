@@ -84,6 +84,18 @@ export function deleteDownload(id: string): void {
   emitChange();
 }
 
+/** Update the stored filename for a download entry. */
+export function renameDownload(id: string, newFilename: string): void {
+  const trimmed = newFilename.trim();
+  if (!trimmed) return;
+  writeDownloads(
+    listDownloads().map((d) =>
+      d.id === id ? { ...d, filename: trimmed } : d,
+    ),
+  );
+  emitChange();
+}
+
 export function getDownload(id: string): DownloadEntry | null {
   return listDownloads().find((d) => d.id === id) ?? null;
 }

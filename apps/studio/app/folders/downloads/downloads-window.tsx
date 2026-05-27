@@ -15,6 +15,7 @@ import {
   deleteDownload,
   DOWNLOADS_CHANGED_EVENT,
   listDownloads,
+  renameDownload,
 } from "@mintables/shared/lib";
 import { exportModel, ExportError } from "@mintables/shared/lib/export";
 import { Download, FileText, FolderOpen, Trash2 } from "lucide-react";
@@ -72,36 +73,60 @@ export function DownloadsWindow() {
     router.push(new URL(url).pathname + new URL(url).search);
   };
 
-  const handleReDownload = (it: Item) => {
-    const gen = findGenerator(it.entry.generatorId);
-    if (!gen) return;
-    const config = gen.decode(it.entry.config);
-    if (config === null) {
-      window.alert(
-        "This download's configuration is incompatible with the current version of the generator.",
-      );
-      return;
-    }
-    try {
-      exportModel(gen, config, it.entry.format);
-    } catch (err: unknown) {
-      if (err instanceof ExportError) window.alert(err.message);
+  const handleReDownload = (its: Item[]) => {
+    for (const it of its) {
+      const gen = findGenerator(it.entry.generatorId);
+      if (!gen) continue;
+      const config = gen.decode(it.entry.config);
+      if (config === null) {
+        window.alert(
+          `"${it.entry.filename}" is incompatible with the current version of ${gen.meta.name}.`,
+        );
+        continue;
+      }
+      try {
+        exportModel(gen, config, it.entry.format);
+      } catch (err: unknown) {
+        if (err instanceof ExportError) window.alert(err.message);
+      }
     }
   };
 
-  const handleDelete = (it: Item) => {
-    deleteDownload(it.entry.id);
+  const handleDelete = (its: Item[]) => {
+    for (const it of its) deleteDownload(it.entry.id);
+  };
+
+  const handleRename = (it: Item, newName: string) => {
+    // Strip a trailing ".stl" / ".3mf" if the user typed the extension —
+    // the format is implied by `entry.format` and reattached on display.
+    const cleaned = newName.replace(/\.(stl|3mf)$/i, "").trim();
+    if (!cleaned) return;
+    renameDownload(it.entry.id, cleaned);
   };
 
   const actions: ExplorerAction<Item>[] = [
-    { id: "open", label: "Open in app", icon: FolderOpen, onClick: handleOpen },
+    {
+      id: "open",
+      label: "Open in app",
+      icon: FolderOpen,
+      onClick: (its) => {
+        if (its[0]) handleOpen(its[0]);
+      },
+      singleOnly: true,
+    },
     {
       id: "re-download",
       label: "Re-download",
       icon: Download,
       onClick: handleReDownload,
     },
-    { id: "delete", label: "Delete", icon: Trash2, onClick: handleDelete, danger: true },
+    {
+      id: "delete",
+      label: "Delete",
+      icon: Trash2,
+      onClick: handleDelete,
+      danger: true,
+    },
   ];
 
   return (
@@ -114,6 +139,7 @@ export function DownloadsWindow() {
       <FileExplorer
         items={items}
         onOpen={handleOpen}
+        onRename={handleRename}
         actions={actions}
         emptyState="Your exported STL and 3MF files will show up here. Download anything from a generator to fill the folder."
       />

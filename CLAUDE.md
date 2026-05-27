@@ -115,7 +115,23 @@ The desktop "earns" system folders as the user creates state:
 
 Both folders open as routes (`/folders/downloads`, `/folders/presets`) wrapped in `<AppWindow>` so they get the same traffic-light chrome as generator windows. Close returns to the desktop.
 
-Inside each window, the **FileExplorer** (`packages/shared/src/ui/file-explorer.tsx`) renders a Finder-style UI: toolbar (view toggle icon ↔ list, sort dropdown name/date/kind + asc/desc, search input), an icon grid or table body, and a footer status bar. Hosts pass in an `items` array of `ExplorerItem`s (`id`, `name`, `kind`, `timestamp`, `icon`, `subtitle?`, `meta?`) plus `onOpen(item)` and an `actions` array of toolbar buttons that appear when an item is selected. Keep FileExplorer item-agnostic — generator-specific concerns (registry lookup, re-download, share-URL building) belong in the host window component.
+Inside each window, the **FileExplorer** (`packages/shared/src/ui/file-explorer.tsx`) renders a Finder-style UI: toolbar (view toggle icon ↔ list, sort dropdown name/date/kind + asc/desc, search input, contextual action toolbar), an icon grid or table body, a native-feeling right-click context menu, and a footer status bar. Hosts pass in an `items` array of `ExplorerItem`s (`id`, `name`, `kind`, `timestamp`, `icon`, `subtitle?`, `meta?`), `onOpen(item)`, optional `onRename(item, newName)`, and an `actions` array of toolbar buttons. Keep FileExplorer item-agnostic — generator-specific concerns (registry lookup, re-download, share-URL building) belong in the host window component.
+
+### FileExplorer interaction model
+
+Match real OS file managers — drift from this only with a good reason.
+
+- **Selection.** Single click replaces selection; **Cmd/Ctrl-click** toggles an item in/out; **Shift-click** range-selects from the last anchor. Click on empty space deselects. Right-click on a non-selected item promotes it to be the (single) selection before opening the menu.
+- **Actions** receive the full selection: `onClick: (items: T[]) => void`. Mark actions that only make sense for a single item with `singleOnly: true` — they're hidden from both the toolbar and the context menu when `items.length > 1`. Mark destructive actions with `danger: true` — they sit below a Divider in the context menu and render in red.
+- **Rename.** When the host passes `onRename`, items become renameable via **F2**, the context-menu Rename item, or by selecting "Rename" in the toolbar. The label flips to a focused, controlled `<InputBase>` with the filename *stem* (everything before the last `.`) pre-selected — Enter commits, Escape cancels, blur commits. Hosts decide what "rename" actually mutates (filename for downloads, display name for presets).
+- **Context menu.** Right-click on an item shows item actions (Open ↵ / Rename F2 / [host actions] / [danger actions, Delete ⌫]). Right-click on empty space shows View as (Icons/List) and Sort by (Date/Name/Kind) + a direction toggle. Always `preventDefault` on the native event to suppress the browser menu.
+- **Keyboard shortcuts** (active when the explorer has focus and no input is focused):
+  - **Enter** — open the single selected item
+  - **F2** — begin rename
+  - **Delete / Backspace** — invoke the action with `id: "delete"` if present
+  - **Cmd/Ctrl + A** — select all filtered items
+  - **Escape** — deselect everything, close menus, cancel rename
+- **Self-healing selection.** When `items` changes (e.g. after a delete), the explorer drops any selected ids that no longer exist. Hosts don't need to manage that.
 
 ### Event-driven storage reactivity
 

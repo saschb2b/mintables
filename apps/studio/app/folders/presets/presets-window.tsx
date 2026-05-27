@@ -15,6 +15,7 @@ import {
   listAllPresets,
   type Preset,
   PRESETS_CHANGED_EVENT,
+  renamePreset,
 } from "@mintables/shared/lib";
 import { Bookmark, FolderOpen, Trash2 } from "lucide-react";
 import { findGenerator } from "@/lib/registry";
@@ -71,13 +72,31 @@ export function PresetsWindow() {
     router.push(target.pathname + target.search);
   };
 
-  const handleDelete = (it: Item) => {
-    deletePreset(it.preset.id);
+  const handleDelete = (its: Item[]) => {
+    for (const it of its) deletePreset(it.preset.id);
+  };
+
+  const handleRename = (it: Item, newName: string) => {
+    renamePreset(it.preset.id, newName);
   };
 
   const actions: ExplorerAction<Item>[] = [
-    { id: "open", label: "Open in app", icon: FolderOpen, onClick: handleOpen },
-    { id: "delete", label: "Delete", icon: Trash2, onClick: handleDelete, danger: true },
+    {
+      id: "open",
+      label: "Open in app",
+      icon: FolderOpen,
+      onClick: (its) => {
+        if (its[0]) handleOpen(its[0]);
+      },
+      singleOnly: true,
+    },
+    {
+      id: "delete",
+      label: "Delete",
+      icon: Trash2,
+      onClick: handleDelete,
+      danger: true,
+    },
   ];
 
   return (
@@ -90,6 +109,7 @@ export function PresetsWindow() {
       <FileExplorer
         items={items}
         onOpen={handleOpen}
+        onRename={handleRename}
         actions={actions}
         emptyState="Save a configuration from any generator's Presets menu and it'll appear here."
       />
