@@ -26,9 +26,10 @@ export function DesktopFolder({ href, label, accent }: DesktopFolderProps) {
     <Stack
       component={NextLink}
       href={href}
-      alignItems="center"
       spacing={0.5}
+      aria-label={label}
       sx={{
+        alignItems: "center",
         width: 84,
         py: 0.5,
         px: 0.5,
@@ -38,24 +39,26 @@ export function DesktopFolder({ href, label, accent }: DesktopFolderProps) {
         cursor: "pointer",
         userSelect: "none",
         transition: "background-color 120ms ease, transform 180ms ease",
+
         "& .folder-svg-wrap": {
           transition:
             "transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1), filter 180ms ease",
         },
+
         "&:hover": {
           bgcolor: "rgba(120, 160, 220, 0.18)",
         },
+
         "&:hover .folder-svg-wrap": {
           transform: "translateY(-2px) scale(1.04)",
           filter: "brightness(1.08) drop-shadow(0 8px 12px rgba(0,0,0,0.5))",
         },
+
         "&:focus-visible": {
           outline: "none",
           bgcolor: "rgba(120, 160, 220, 0.26)",
-        },
-      }}
-      aria-label={label}
-    >
+        }
+      }}>
       <Box className="folder-svg-wrap">
         <FolderSvg accent={accent} width={60} shadow />
       </Box>

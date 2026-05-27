@@ -304,18 +304,17 @@ export function FileExplorer<T extends ExplorerItem>({
       {/* ─── Toolbar ─────────────────────────────────────────── */}
       <Stack
         direction="row"
-        alignItems="center"
         spacing={1.25}
         sx={{
+          alignItems: "center",
           flexShrink: 0,
           height: 46,
           px: 1.75,
           borderBottom: "1px solid rgba(255,255,255,0.06)",
           bgcolor: "rgba(255,255,255,0.025)",
           backdropFilter: "blur(8px)",
-          WebkitBackdropFilter: "blur(8px)",
-        }}
-      >
+          WebkitBackdropFilter: "blur(8px)"
+        }}>
         <ViewToggle view={view} onChange={setView} />
 
         <Box sx={{ width: "1px", height: 22, bgcolor: "rgba(255,255,255,0.08)" }} />
@@ -330,7 +329,9 @@ export function FileExplorer<T extends ExplorerItem>({
         {visibleActions.length > 0 && (
           <>
             <Box sx={{ width: "1px", height: 22, bgcolor: "rgba(255,255,255,0.08)" }} />
-            <Stack direction="row" spacing={0.5} alignItems="center">
+            <Stack direction="row" spacing={0.5} sx={{
+              alignItems: "center"
+            }}>
               {visibleActions.map((a) => {
                 const Icon = a.icon;
                 return (
@@ -377,7 +378,6 @@ export function FileExplorer<T extends ExplorerItem>({
 
         <SearchBox value={query} onChange={setQuery} />
       </Stack>
-
       {/* ─── Sidebar + content + status bar ──────────────────── */}
       <Stack direction="row" sx={{ flex: 1, minHeight: 0 }}>
         {sidebar && sidebar.length > 0 && <Sidebar sections={sidebar} />}
@@ -442,16 +442,15 @@ export function FileExplorer<T extends ExplorerItem>({
           {/* Status bar */}
           <Stack
             direction="row"
-            alignItems="center"
-            justifyContent="center"
             sx={{
+              alignItems: "center",
+              justifyContent: "center",
               flexShrink: 0,
               height: 28,
               px: 1.5,
               borderTop: "1px solid rgba(255,255,255,0.06)",
-              bgcolor: "rgba(0,0,0,0.18)",
-            }}
-          >
+              bgcolor: "rgba(0,0,0,0.18)"
+            }}>
             <Typography
               variant="caption"
               sx={{ color: "text.secondary", fontSize: "0.72rem" }}
@@ -467,7 +466,6 @@ export function FileExplorer<T extends ExplorerItem>({
           </Stack>
         </Stack>
       </Stack>
-
       <ContextMenu
         target={menu}
         actions={actions}
@@ -788,9 +786,9 @@ function SearchBox({
   return (
     <Stack
       direction="row"
-      alignItems="center"
       spacing={0.75}
       sx={{
+        alignItems: "center",
         height: 28,
         bgcolor: "rgba(0,0,0,0.24)",
         boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.06)",
@@ -799,13 +797,13 @@ function SearchBox({
         minWidth: 180,
         maxWidth: 240,
         transition: "background-color 120ms ease, box-shadow 120ms ease",
+
         "&:focus-within": {
           bgcolor: "rgba(0,0,0,0.32)",
           boxShadow:
             "inset 0 0 0 1px rgba(120, 160, 220, 0.55), 0 0 0 3px rgba(120, 160, 220, 0.12)",
-        },
-      }}
-    >
+        }
+      }}>
       <Search size={13} style={{ color: "var(--mui-palette-text-secondary)" }} />
       <InputBase
         placeholder="Search"
@@ -866,7 +864,6 @@ function IconGrid<T extends ExplorerItem>({
         return (
           <Stack
             key={it.id}
-            alignItems="center"
             spacing={0.75}
             tabIndex={0}
             role="button"
@@ -892,23 +889,25 @@ function IconGrid<T extends ExplorerItem>({
               }
             }}
             sx={{
+              alignItems: "center",
               cursor: "pointer",
               borderRadius: 1.5,
               px: 1,
               py: 1.25,
               transition: "background-color 120ms ease",
               bgcolor: selected ? "rgba(120, 160, 220, 0.22)" : "transparent",
+
               "&:hover": {
                 bgcolor: selected
                   ? "rgba(120, 160, 220, 0.28)"
                   : "rgba(255, 255, 255, 0.04)",
               },
+
               "&:focus-visible": {
                 outline: "none",
                 bgcolor: "rgba(120, 160, 220, 0.28)",
-              },
-            }}
-          >
+              }
+            }}>
             <Box
               sx={{
                 width: 64,
@@ -1054,10 +1053,11 @@ function ListView<T extends ExplorerItem>({
               >
                 <Stack
                   direction="row"
-                  alignItems="center"
-                  justifyContent={col.align === "right" ? "flex-end" : "flex-start"}
                   spacing={0.5}
-                >
+                  sx={{
+                    alignItems: "center",
+                    justifyContent: col.align === "right" ? "flex-end" : "flex-start"
+                  }}>
                   <Box component="span">{col.label}</Box>
                   {active &&
                     (dir === "asc" ? (
@@ -1139,7 +1139,9 @@ function ListView<T extends ExplorerItem>({
               }}
             >
               <td style={{ width: "45%" }}>
-                <Stack direction="row" spacing={1} alignItems="center">
+                <Stack direction="row" spacing={1} sx={{
+                  alignItems: "center"
+                }}>
                   <ListIconCell icon={it.iconSmall ?? it.icon} hasSmall={Boolean(it.iconSmall)} />
                   {renaming ? (
                     <RenameInput

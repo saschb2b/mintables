@@ -94,7 +94,6 @@ export function DividerControls({
           />
         </Box>
       </SectionCard>
-
       <SectionCard title="Corners">
         <NumberInput
           label="Corner radius"
@@ -110,7 +109,6 @@ export function DividerControls({
           unit="mm"
         />
       </SectionCard>
-
       <SectionCard title="Taper">
         <Stack spacing={1.5}>
           <Box
@@ -120,7 +118,9 @@ export function DividerControls({
               justifyContent: "space-between",
             }}
           >
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               Shrink the bottom edge to fit a tapered slot
             </Typography>
             <Switch
@@ -157,7 +157,9 @@ export function DividerControls({
                 unit="mm"
               />
               {taperWarning && (
-                <Typography variant="caption" color="warning.main">
+                <Typography variant="caption" sx={{
+                  color: "warning.main"
+                }}>
                   {taperWarning}
                 </Typography>
               )}
@@ -165,7 +167,6 @@ export function DividerControls({
           )}
         </Stack>
       </SectionCard>
-
       <SectionCard title="Label pocket">
         <Stack spacing={1.5}>
           <Box
@@ -175,7 +176,9 @@ export function DividerControls({
               justifyContent: "space-between",
             }}
           >
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               Recess a sticker into the top face
             </Typography>
             <Switch

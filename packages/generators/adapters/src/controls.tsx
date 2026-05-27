@@ -17,10 +17,7 @@ import {
   DEFAULT_RECTANGULAR_TUBE,
 } from "./types";
 import type { ValidationResult } from "@mintables/shared/lib/validation";
-import {
-  fieldHasError,
-  fieldHelperText,
-} from "@mintables/shared/lib/validation";
+import { fieldHelperText } from "@mintables/shared/lib/validation";
 import {
   CollapsibleSection,
   NumberField,
@@ -71,7 +68,9 @@ function TubeEndSection({
   return (
     <SectionCard title={label}>
       {fieldHelperText(validation, field) && (
-        <Typography variant="caption" color="error.main">
+        <Typography variant="caption" sx={{
+          color: "error.main"
+        }}>
           {fieldHelperText(validation, field)}
         </Typography>
       )}
@@ -100,7 +99,6 @@ function TubeEndSection({
           <MenuItem value="plug">Plug (inside)</MenuItem>
         </TextField>
       </Box>
-
       {tube.shape === "round" && (
         <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1.5 }}>
           <NumberField
@@ -124,7 +122,6 @@ function TubeEndSection({
           )}
         </Box>
       )}
-
       {tube.shape === "square" && (
         <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1.5 }}>
           <NumberField
@@ -156,7 +153,6 @@ function TubeEndSection({
           )}
         </Box>
       )}
-
       {tube.shape === "rectangular" && (
         <Box
           sx={{
@@ -202,8 +198,9 @@ function TubeEndSection({
           )}
         </Box>
       )}
-
-      <Typography variant="caption" color="text.secondary">
+      <Typography variant="caption" sx={{
+        color: "text.secondary"
+      }}>
         {fitType === "socket"
           ? "Socket wraps around the outside of the tube"
           : "Plug fits inside the tube bore"}
@@ -228,7 +225,6 @@ export function AdapterControls({
         field="endA"
         validation={validation}
       />
-
       <TubeEndSection
         label="End B (Top)"
         tube={config.endB}
@@ -238,7 +234,6 @@ export function AdapterControls({
         field="endB"
         validation={validation}
       />
-
       <SectionCard title="Adapter Body">
         <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1.5 }}>
           <NumberField
@@ -268,11 +263,12 @@ export function AdapterControls({
           min={0}
           step={0.05}
         />
-        <Typography variant="caption" color="text.secondary">
+        <Typography variant="caption" sx={{
+          color: "text.secondary"
+        }}>
           0.2mm snug, 0.3mm loose
         </Typography>
       </SectionCard>
-
       <CollapsibleSection
         title="Elbow / Bend"
         defaultExpanded={config.bendAngle > 0}
@@ -297,11 +293,12 @@ export function AdapterControls({
             min={0}
           />
         </Box>
-        <Typography variant="caption" color="text.secondary">
+        <Typography variant="caption" sx={{
+          color: "text.secondary"
+        }}>
           0° = straight, 90° = elbow. Radius 0 = auto
         </Typography>
       </CollapsibleSection>
-
       <CollapsibleSection title="Export Resolution">
         <NumberField
           label="Segments"
@@ -312,7 +309,9 @@ export function AdapterControls({
           min={4}
           unit=""
         />
-        <Typography variant="caption" color="text.secondary">
+        <Typography variant="caption" sx={{
+          color: "text.secondary"
+        }}>
           Circular segments in exported STL. More = smoother but larger file.
         </Typography>
       </CollapsibleSection>

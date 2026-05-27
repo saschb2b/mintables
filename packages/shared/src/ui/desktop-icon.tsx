@@ -44,9 +44,9 @@ export function DesktopIcon(props: DesktopIconProps) {
 
   const inner = (
     <Stack
-      alignItems="center"
       spacing={0.5}
       sx={{
+        alignItems: "center",
         width: 78,
         py: 0.75,
         px: 0.5,
@@ -56,23 +56,26 @@ export function DesktopIcon(props: DesktopIconProps) {
         cursor: "pointer",
         userSelect: "none",
         transition: "background-color 120ms ease, transform 160ms ease",
+
         "& .di-tile": {
           transition: "filter 160ms ease, box-shadow 160ms ease",
         },
+
         "&:hover": {
           bgcolor: "rgba(120, 160, 220, 0.18)",
         },
+
         "&:hover .di-tile": {
           filter: "brightness(1.1)",
           boxShadow:
             "0 8px 18px -6px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.16)",
         },
+
         "&:focus-visible": {
           outline: "none",
           bgcolor: "rgba(120, 160, 220, 0.26)",
-        },
-      }}
-    >
+        }
+      }}>
       <Box
         className="di-tile"
         sx={{
@@ -170,7 +173,7 @@ export function DesktopIcon(props: DesktopIconProps) {
   return (
     <Box
       component={NextLink}
-      href={props.href ?? "#"}
+      href={props.href}
       aria-label={label}
       sx={{ textDecoration: "none", color: "inherit", display: "block" }}
     >

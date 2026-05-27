@@ -312,35 +312,41 @@ function DockTileShell({
           onClick();
           void e;
         }}
-        alignItems="center"
+        aria-label={label}
+        aria-current={ariaCurrent ? "page" : undefined}
         sx={{
+          alignItems: "center",
           position: "relative",
           width: ICON_BOX + 4,
           height: ICON_BOX + 8,
           textDecoration: "none",
           color: "inherit",
+
           transition:
             "transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1), filter 240ms ease",
+
           "&:hover": {
             transform: "translateY(-6px) scale(1.08)",
           },
+
           "&:hover .dt-face": {
             filter: `drop-shadow(0 18px 22px ${accent}80) brightness(1.05)`,
           },
+
           "&:hover .dt-tile": {
             boxShadow: `0 18px 30px -10px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.18) inset, 0 18px 42px -14px ${accent}aa`,
           },
+
           "&:focus-visible": { outline: "none" },
+
           "&:focus-visible .dt-face": {
             filter: `drop-shadow(0 0 0 2px rgba(255,255,255,0.6)) drop-shadow(0 14px 18px ${accent}aa)`,
           },
+
           "&:focus-visible .dt-tile": {
             boxShadow: `0 0 0 2px rgba(255,255,255,0.6), 0 14px 28px -10px ${accent}aa`,
-          },
-        }}
-        aria-label={label}
-        aria-current={ariaCurrent ? "page" : undefined}
-      >
+          }
+        }}>
         <Box
           sx={{
             position: "relative",

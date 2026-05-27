@@ -81,7 +81,6 @@ function EndCutControls({
         <MenuItem value="chamfer">Chamfer (Beveled Edge)</MenuItem>
         <MenuItem value="saddle">Saddle (T-Joint / Fish-mouth)</MenuItem>
       </TextField>
-
       {cutConfig.type === "miter" && (
         <NumberInput
           label="Miter Angle"
@@ -95,7 +94,6 @@ function EndCutControls({
           unit="°"
         />
       )}
-
       {cutConfig.type === "chamfer" && (
         <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1.5 }}>
           <NumberInput
@@ -121,10 +119,11 @@ function EndCutControls({
           />
         </Box>
       )}
-
       {cutConfig.type === "saddle" && (
         <>
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="caption" sx={{
+            color: "text.secondary"
+          }}>
             Creates a curved cut to fit against another cylindrical pipe
           </Typography>
           <Box
@@ -201,12 +200,12 @@ export function TubeControls({ config, onChange, validation }: TubeControlsProps
     onChange({
       ...config,
       flare: { ...config.flare, ...updates },
-    } as TubeConfig);
+    });
   };
 
   const updateClamshell = (updates: Partial<ClamshellConfig>) => {
     const newClamshell = { ...config.clamshell, ...updates };
-    const newConfig = { ...config, clamshell: newClamshell } as TubeConfig;
+    const newConfig = { ...config, clamshell: newClamshell };
     // When enabling clamshell, force flat cuts, disable flare, ensure wall thickness
     if (updates.enabled) {
       newConfig.topCut = { type: "flat" };
@@ -357,7 +356,6 @@ export function TubeControls({ config, onChange, validation }: TubeControlsProps
           />
         </Box>
       </SectionCard>
-
       <CollapsibleSection title="End Cuts" defaultExpanded>
         <Stack spacing={2}>
           <SectionCard title="Top End">
@@ -370,14 +368,18 @@ export function TubeControls({ config, onChange, validation }: TubeControlsProps
               validation={validation}
             />
             {clamshellActive && (
-              <Typography variant="caption" color="text.secondary">
+              <Typography variant="caption" sx={{
+                color: "text.secondary"
+              }}>
                 End cuts disabled in clamshell mode
               </Typography>
             )}
             {!clamshellActive &&
               config.topCut.type !== "flat" &&
               config.flare.enabled && (
-                <Typography variant="caption" color="warning.main">
+                <Typography variant="caption" sx={{
+                  color: "warning.main"
+                }}>
                   Flare disabled - only works with flat top cut
                 </Typography>
               )}
@@ -393,14 +395,15 @@ export function TubeControls({ config, onChange, validation }: TubeControlsProps
               validation={validation}
             />
             {clamshellActive && (
-              <Typography variant="caption" color="text.secondary">
+              <Typography variant="caption" sx={{
+                color: "text.secondary"
+              }}>
                 End cuts disabled in clamshell mode
               </Typography>
             )}
           </SectionCard>
         </Stack>
       </CollapsibleSection>
-
       <CollapsibleSection title="Clamshell Split" defaultExpanded={clamshellActive}>
         <Stack spacing={1.5}>
           <Box
@@ -410,7 +413,9 @@ export function TubeControls({ config, onChange, validation }: TubeControlsProps
               justifyContent: "space-between",
             }}
           >
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               Split into two interlocking halves
             </Typography>
             <Switch
@@ -422,12 +427,16 @@ export function TubeControls({ config, onChange, validation }: TubeControlsProps
           </Box>
 
           {!canUseClamshell && config.clamshell.enabled && (
-            <Typography variant="caption" color="warning.main">
+            <Typography variant="caption" sx={{
+              color: "warning.main"
+            }}>
               Clamshell split is only available for round tubes
             </Typography>
           )}
           {fieldHelperText(validation, "clamshell") && (
-            <Typography variant="caption" color="warning.main">
+            <Typography variant="caption" sx={{
+              color: "warning.main"
+            }}>
               {fieldHelperText(validation, "clamshell")}
             </Typography>
           )}
@@ -488,7 +497,6 @@ export function TubeControls({ config, onChange, validation }: TubeControlsProps
           )}
         </Stack>
       </CollapsibleSection>
-
       <CollapsibleSection
         title="Press-Fit Flare"
         defaultExpanded={config.flare.enabled && canUseFlare}
@@ -501,7 +509,9 @@ export function TubeControls({ config, onChange, validation }: TubeControlsProps
               justifyContent: "space-between",
             }}
           >
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               Add a press-fit flare at the top
             </Typography>
             <Switch
@@ -513,12 +523,16 @@ export function TubeControls({ config, onChange, validation }: TubeControlsProps
           </Box>
 
           {!canUseFlare && (
-            <Typography variant="caption" color="warning.main">
+            <Typography variant="caption" sx={{
+              color: "warning.main"
+            }}>
               Flare only available with flat top cut
             </Typography>
           )}
           {fieldHelperText(validation, "flare") && (
-            <Typography variant="caption" color="error.main">
+            <Typography variant="caption" sx={{
+              color: "error.main"
+            }}>
               {fieldHelperText(validation, "flare")}
             </Typography>
           )}
@@ -634,10 +648,11 @@ export function TubeControls({ config, onChange, validation }: TubeControlsProps
                   />
                   <Typography
                     variant="caption"
-                    color="text.secondary"
-                    textAlign="center"
-                    sx={{ lineHeight: 1.2 }}
-                  >
+                    sx={{
+                      color: "text.secondary",
+                      textAlign: "center",
+                      lineHeight: 1.2
+                    }}>
                     Lead-in Chamfer
                   </Typography>
                 </Box>
@@ -658,10 +673,11 @@ export function TubeControls({ config, onChange, validation }: TubeControlsProps
                   />
                   <Typography
                     variant="caption"
-                    color="text.secondary"
-                    textAlign="center"
-                    sx={{ lineHeight: 1.2 }}
-                  >
+                    sx={{
+                      color: "text.secondary",
+                      textAlign: "center",
+                      lineHeight: 1.2
+                    }}>
                     Stop Shoulder
                   </Typography>
                 </Box>
@@ -682,10 +698,11 @@ export function TubeControls({ config, onChange, validation }: TubeControlsProps
                   />
                   <Typography
                     variant="caption"
-                    color="text.secondary"
-                    textAlign="center"
-                    sx={{ lineHeight: 1.2 }}
-                  >
+                    sx={{
+                      color: "text.secondary",
+                      textAlign: "center",
+                      lineHeight: 1.2
+                    }}>
                     Anti-Rotation
                   </Typography>
                 </Box>

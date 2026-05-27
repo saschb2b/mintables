@@ -39,17 +39,21 @@ export function ShareDialog({
           <Box>
             <Typography
               variant="overline"
-              color="text.secondary"
-              sx={{ display: "block", mb: 0.5 }}
-            >
+              sx={{
+                color: "text.secondary",
+                display: "block",
+                mb: 0.5
+              }}>
               What you&apos;re sharing
             </Typography>
             <Typography variant="body2">{summary}</Typography>
             <Typography
               variant="caption"
-              color="text.secondary"
-              sx={{ display: "block", mt: 0.5 }}
-            >
+              sx={{
+                color: "text.secondary",
+                display: "block",
+                mt: 0.5
+              }}>
               Anyone opening this link sees the same {noun} with every dimension
               and option preserved.
             </Typography>
@@ -57,12 +61,16 @@ export function ShareDialog({
           <Box>
             <Typography
               variant="overline"
-              color="text.secondary"
-              sx={{ display: "block", mb: 0.5 }}
-            >
+              sx={{
+                color: "text.secondary",
+                display: "block",
+                mb: 0.5
+              }}>
               Link
             </Typography>
-            <Stack direction="row" spacing={1} alignItems="flex-start">
+            <Stack direction="row" spacing={1} sx={{
+              alignItems: "flex-start"
+            }}>
               <TextField
                 fullWidth
                 size="small"

@@ -51,9 +51,10 @@ export function CollapsibleSection({
       >
         <Typography
           variant="overline"
-          color="text.secondary"
-          sx={{ letterSpacing: 1 }}
-        >
+          sx={{
+            color: "text.secondary",
+            letterSpacing: 1
+          }}>
           {title}
         </Typography>
       </AccordionSummary>

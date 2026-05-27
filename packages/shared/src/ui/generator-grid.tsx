@@ -63,7 +63,6 @@ function GeneratorCard({
           to { opacity: 1; transform: translateY(0); }
         }
       `}</style>
-
       {withPreview && (
         <Box
           sx={{
@@ -78,7 +77,6 @@ function GeneratorCard({
           <MiniPreview generator={generator} hover={hover} height={140} />
         </Box>
       )}
-
       <Stack spacing={1.5}>
         <Box
           sx={{
@@ -115,18 +113,23 @@ function GeneratorCard({
           />
         </Box>
         <Box>
-          <Typography variant="subtitle1" fontWeight={600}>
+          <Typography variant="subtitle1" sx={{
+            fontWeight: 600
+          }}>
             {generator.meta.name}
           </Typography>
           <Typography
             variant="caption"
-            color="primary.main"
-            fontFamily="monospace"
-          >
+            sx={{
+              color: "primary.main",
+              fontFamily: "monospace"
+            }}>
             /{generator.id}
           </Typography>
         </Box>
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="body2" sx={{
+          color: "text.secondary"
+        }}>
           {generator.meta.description}
         </Typography>
       </Stack>

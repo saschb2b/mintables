@@ -42,7 +42,9 @@ export function WelcomeDialog({ open, onClose }: WelcomeDialogProps) {
     >
       <Stack spacing={2.75} sx={{ p: 3 }}>
         {/* Hero — small icon + headline, like a doc title (not a marketing banner). */}
-        <Stack direction="row" spacing={2} alignItems="center">
+        <Stack direction="row" spacing={2} sx={{
+          alignItems: "center"
+        }}>
           <Box
             sx={{
               flexShrink: 0,
@@ -137,7 +139,12 @@ export function WelcomeDialog({ open, onClose }: WelcomeDialogProps) {
         </Stack>
 
         {/* CTA aligned to the right, the macOS dialog convention. */}
-        <Stack direction="row" justifyContent="flex-end" sx={{ pt: 0.5 }}>
+        <Stack
+          direction="row"
+          sx={{
+            justifyContent: "flex-end",
+            pt: 0.5
+          }}>
           <Button
             onClick={onClose}
             variant="contained"
@@ -176,7 +183,9 @@ function Tip({
   children: ReactNode;
 }) {
   return (
-    <Stack direction="row" spacing={1.5} alignItems="flex-start">
+    <Stack direction="row" spacing={1.5} sx={{
+      alignItems: "flex-start"
+    }}>
       <Box
         sx={{
           flexShrink: 0,

@@ -377,8 +377,8 @@ export function Spotlight({
       if (e.key === "Enter") {
         e.preventDefault();
         e.stopPropagation();
-        const target = grouped.flat[selectedIndex];
-        if (target) activate(target);
+        if (grouped.flat.length === 0) return;
+        activate(grouped.flat[selectedIndex]);
         return;
       }
       if (e.key === "Escape") {
@@ -463,15 +463,14 @@ export function Spotlight({
         {/* Search row */}
         <Stack
           direction="row"
-          alignItems="center"
           spacing={1.25}
           sx={{
+            alignItems: "center",
             flexShrink: 0,
             height: 56,
             px: 2,
-            borderBottom: "1px solid rgba(255, 255, 255, 0.06)",
-          }}
-        >
+            borderBottom: "1px solid rgba(255, 255, 255, 0.06)"
+          }}>
           <Search
             size={18}
             style={{ color: "var(--mui-palette-text-secondary)" }}
@@ -561,17 +560,16 @@ export function Spotlight({
         {/* Footer hint bar */}
         <Stack
           direction="row"
-          alignItems="center"
-          justifyContent="center"
           spacing={2}
           sx={{
+            alignItems: "center",
+            justifyContent: "center",
             flexShrink: 0,
             height: 28,
             px: 1.5,
             borderTop: "1px solid rgba(255, 255, 255, 0.06)",
-            bgcolor: "rgba(0, 0, 0, 0.18)",
-          }}
-        >
+            bgcolor: "rgba(0, 0, 0, 0.18)"
+          }}>
           <HintItem keys="↑↓" label="Navigate" />
           <HintItem keys="↵" label="Open" />
           <HintItem keys="Esc" label="Close" />
@@ -679,7 +677,9 @@ function EmptyState({ query }: { query: string }) {
 
 function HintItem({ keys, label }: { keys: string; label: string }) {
   return (
-    <Stack direction="row" spacing={0.6} alignItems="center">
+    <Stack direction="row" spacing={0.6} sx={{
+      alignItems: "center"
+    }}>
       <Box
         component="span"
         sx={{

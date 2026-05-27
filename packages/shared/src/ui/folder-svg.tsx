@@ -26,16 +26,16 @@ export function FolderSvg({ accent, width = 60, shadow = false }: FolderSvgProps
     <Box
       component="svg"
       viewBox="0 0 64 52"
-      width={width}
-      height={height}
+      aria-hidden
       sx={{
+        width: width,
+        height: height,
         display: "block",
+
         filter: shadow
           ? "drop-shadow(0 6px 10px rgba(0,0,0,0.45))"
-          : undefined,
-      }}
-      aria-hidden
-    >
+          : undefined
+      }}>
       <defs>
         <linearGradient id={`fld-back-${id}`} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor={lighten(accent, 0.55)} />
@@ -51,25 +51,21 @@ export function FolderSvg({ accent, width = 60, shadow = false }: FolderSvgProps
           <stop offset="100%" stopColor="rgba(255,255,255,0)" />
         </linearGradient>
       </defs>
-
       {/* Back sheet peeking up at the top with the tab. */}
       <path
         d="M 4 14 Q 4 10 8 10 L 22 10 L 26 6 Q 27 5 28 5 L 56 5 Q 60 5 60 9 L 60 38 Q 60 42 56 42 L 8 42 Q 4 42 4 38 Z"
         fill={`url(#fld-back-${id})`}
       />
-
       {/* Front sheet, the main folder body. */}
       <path
         d="M 4 18 Q 4 14 8 14 L 56 14 Q 60 14 60 18 L 60 44 Q 60 48 56 48 L 8 48 Q 4 48 4 44 Z"
         fill={`url(#fld-front-${id})`}
       />
-
       {/* Top-edge specular highlight on the front. */}
       <path
         d="M 4 18 Q 4 14 8 14 L 56 14 Q 60 14 60 18 L 60 22 L 4 22 Z"
         fill={`url(#fld-sheen-${id})`}
       />
-
       {/* Hairline stroke along the top of the front for the seam between sheets. */}
       <line
         x1="4"

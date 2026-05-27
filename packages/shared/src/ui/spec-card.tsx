@@ -34,10 +34,17 @@ export function SpecStatusChip({
 export function SpecRow({ label, value }: { label: string; value: string }) {
   return (
     <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1 }}>
-      <Typography variant="caption" color="text.secondary">
+      <Typography variant="caption" sx={{
+        color: "text.secondary"
+      }}>
         {label}
       </Typography>
-      <Typography variant="caption" fontWeight={600} color="text.primary">
+      <Typography
+        variant="caption"
+        sx={{
+          fontWeight: 600,
+          color: "text.primary"
+        }}>
         {value}
       </Typography>
     </Box>
@@ -73,9 +80,10 @@ export function SpecCard({ title = "Live Spec", status, children }: SpecCardProp
         >
           <Typography
             variant="overline"
-            color="primary.main"
-            sx={{ letterSpacing: 1 }}
-          >
+            sx={{
+              color: "primary.main",
+              letterSpacing: 1
+            }}>
             {title}
           </Typography>
           {status && <SpecStatusChip {...status} />}

@@ -87,18 +87,25 @@ function SupportCtaButton({
       <Stack
         direction="row"
         spacing={1.5}
-        alignItems="flex-start"
-        sx={{ width: "100%" }}
-      >
+        sx={{
+          alignItems: "flex-start",
+          width: "100%"
+        }}>
         <Box sx={{ mt: 0.25, flexShrink: 0, display: "flex" }}>{icon}</Box>
         <Stack spacing={0.25} sx={{ flex: 1, minWidth: 0 }}>
           <Stack
             direction="row"
-            alignItems="center"
-            justifyContent="space-between"
             spacing={1}
-          >
-            <Typography variant="body2" fontWeight={600} color="inherit">
+            sx={{
+              alignItems: "center",
+              justifyContent: "space-between"
+            }}>
+            <Typography
+              variant="body2"
+              sx={{
+                fontWeight: 600,
+                color: "inherit"
+              }}>
               {title}
             </Typography>
             <ExternalLink size={14} style={{ flexShrink: 0, opacity: 0.7 }} />
@@ -139,21 +146,26 @@ export function ThankYouDrawer({
             mb: 2,
           }}
         >
-          <Stack direction="row" spacing={1.5} alignItems="flex-start">
+          <Stack direction="row" spacing={1.5} sx={{
+            alignItems: "flex-start"
+          }}>
             <CheckCircle2
               size={22}
               color="#5a9a9d"
               style={{ marginTop: 2, flexShrink: 0 }}
             />
             <Box>
-              <Typography variant="h6" lineHeight={1.3}>
+              <Typography variant="h6" sx={{
+                lineHeight: 1.3
+              }}>
                 Download started
               </Typography>
               <Typography
                 variant="body2"
-                color="text.secondary"
-                sx={{ mt: 0.5 }}
-              >
+                sx={{
+                  color: "text.secondary",
+                  mt: 0.5
+                }}>
                 Your {formatLabel} file should appear in your downloads folder.
               </Typography>
             </Box>
@@ -167,7 +179,9 @@ export function ThankYouDrawer({
           <Divider />
 
           <Box>
-            <Typography variant="overline" color="text.secondary">
+            <Typography variant="overline" sx={{
+              color: "text.secondary"
+            }}>
               Tips for this part
             </Typography>
             <Stack spacing={1.5} sx={{ mt: 1 }}>
@@ -176,10 +190,14 @@ export function ThankYouDrawer({
                   key={tip.title}
                   direction="row"
                   spacing={1.5}
-                  alignItems="flex-start"
+                  sx={{
+                    alignItems: "flex-start"
+                  }}
                 >
                   {renderTipIcon(tip.icon)}
-                  <Typography variant="caption" color="text.secondary">
+                  <Typography variant="caption" sx={{
+                    color: "text.secondary"
+                  }}>
                     <strong>{tip.title}:</strong> {tip.body}
                   </Typography>
                 </Stack>
@@ -190,14 +208,19 @@ export function ThankYouDrawer({
           <Divider />
 
           <Box>
-            <Typography variant="overline" color="text.secondary">
+            <Typography variant="overline" sx={{
+              color: "text.secondary"
+            }}>
               Keep {generatorName} free
             </Typography>
             <Typography
               variant="body2"
-              color="text.secondary"
-              sx={{ mt: 0.75, mb: 2, lineHeight: 1.5 }}
-            >
+              sx={{
+                color: "text.secondary",
+                mt: 0.75,
+                mb: 2,
+                lineHeight: 1.5
+              }}>
               Mintables is free, open source, and runs entirely in your browser
               — no uploads and no account. A GitHub star helps others find it; a
               coffee helps keep it online.

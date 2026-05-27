@@ -334,7 +334,6 @@ export function GeneratorShell<C>({ generator }: GeneratorShellProps<C>) {
       }}
     >
       {stacked && <PaneToggle pane={pane} onChange={setPane} accent={generator.meta.accent} />}
-
       <Box
         sx={{
           display: "flex",
@@ -512,7 +511,9 @@ export function GeneratorShell<C>({ generator }: GeneratorShellProps<C>) {
                 ))
               )}
             </Menu>
-            <Stack direction="row" spacing={0.5} alignItems="center">
+            <Stack direction="row" spacing={0.5} sx={{
+              alignItems: "center"
+            }}>
               <Tooltip title="Undo (Ctrl+Z)">
                 <span>
                   <IconButton
@@ -585,10 +586,11 @@ export function GeneratorShell<C>({ generator }: GeneratorShellProps<C>) {
           <Stack
             direction="row"
             spacing={1.5}
-            alignItems="center"
-            flexWrap="wrap"
             useFlexGap
-          >
+            sx={{
+              alignItems: "center",
+              flexWrap: "wrap"
+            }}>
             <Chip
               label={exportFormat.toUpperCase()}
               size="small"
@@ -685,7 +687,6 @@ export function GeneratorShell<C>({ generator }: GeneratorShellProps<C>) {
         />
       </Box>
       </Box>
-
       <ThankYouDrawer
         open={showThankYou}
         exportFormat={exportFormat}
@@ -693,7 +694,6 @@ export function GeneratorShell<C>({ generator }: GeneratorShellProps<C>) {
         printTips={printTips}
         onClose={() => setShowThankYou(false)}
       />
-
       <SavePresetDialog
         open={saveDialogOpen}
         name={saveDialogName}
@@ -701,7 +701,6 @@ export function GeneratorShell<C>({ generator }: GeneratorShellProps<C>) {
         onClose={() => setSaveDialogOpen(false)}
         onSave={handleSavePreset}
       />
-
       <ShareDialog
         open={shareDialogOpen}
         noun={generator.meta.name.toLowerCase()}
@@ -713,7 +712,6 @@ export function GeneratorShell<C>({ generator }: GeneratorShellProps<C>) {
           void handleCopyShareUrl();
         }}
       />
-
       <Snackbar
         open={toast !== null}
         autoHideDuration={2500}
@@ -743,17 +741,16 @@ function PaneToggle({
   return (
     <Stack
       direction="row"
-      justifyContent="center"
       sx={{
+        justifyContent: "center",
         flexShrink: 0,
         px: 1.5,
         py: 1,
         borderBottom: "1px solid rgba(255,255,255,0.06)",
         bgcolor: "rgba(255,255,255,0.025)",
         backdropFilter: "blur(8px)",
-        WebkitBackdropFilter: "blur(8px)",
-      }}
-    >
+        WebkitBackdropFilter: "blur(8px)"
+      }}>
       <Stack
         direction="row"
         role="tablist"

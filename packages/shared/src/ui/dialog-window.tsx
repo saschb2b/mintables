@@ -98,8 +98,8 @@ export function DialogWindow({
       {showTitleBar && (
         <Stack
           direction="row"
-          alignItems="center"
           sx={{
+            alignItems: "center",
             flexShrink: 0,
             height: 34,
             px: 1.25,
@@ -107,25 +107,23 @@ export function DialogWindow({
             bgcolor: "rgba(30, 32, 42, 0.7)",
             backdropFilter: "blur(16px) saturate(150%)",
             WebkitBackdropFilter: "blur(16px) saturate(150%)",
-            position: "relative",
-          }}
-        >
+            position: "relative"
+          }}>
           <DialogTrafficLights onClose={onClose} />
 
           <Stack
             direction="row"
-            alignItems="center"
             spacing={0.75}
             sx={{
+              alignItems: "center",
               position: "absolute",
               left: "50%",
               top: 0,
               height: 34,
               transform: "translateX(-50%)",
               pointerEvents: "none",
-              maxWidth: "calc(100% - 80px)",
-            }}
-          >
+              maxWidth: "calc(100% - 80px)"
+            }}>
             {Icon && (
               <Box
                 sx={{
@@ -170,7 +168,6 @@ export function DialogWindow({
           </Stack>
         </Stack>
       )}
-
       <Box>{children}</Box>
     </Dialog>
   );
@@ -186,8 +183,9 @@ function DialogTrafficLights({ onClose }: { onClose: () => void }) {
     <Stack
       direction="row"
       spacing={0.75}
-      alignItems="center"
       sx={{
+        alignItems: "center",
+
         "& .tl-glyph": {
           opacity: 0,
           transition: "opacity 120ms ease",
@@ -196,9 +194,9 @@ function DialogTrafficLights({ onClose }: { onClose: () => void }) {
           alignItems: "center",
           justifyContent: "center",
         },
-        "&:hover .tl-glyph": { opacity: 1 },
-      }}
-    >
+
+        "&:hover .tl-glyph": { opacity: 1 }
+      }}>
       <Tooltip title="Close" placement="bottom" arrow enterDelay={250}>
         <Box
           component="button"

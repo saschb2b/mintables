@@ -16,9 +16,10 @@ export function SectionCard({ title, children }: SectionCardProps) {
     <Stack spacing={1}>
       <Typography
         variant="overline"
-        color="text.secondary"
-        sx={{ letterSpacing: 1 }}
-      >
+        sx={{
+          color: "text.secondary",
+          letterSpacing: 1
+        }}>
         {title}
       </Typography>
       <Box

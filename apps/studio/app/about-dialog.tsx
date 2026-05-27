@@ -35,7 +35,13 @@ export function AboutDialog({ open, onClose }: AboutDialogProps) {
       accent="#5a9a9d"
       maxWidth="xs"
     >
-      <Stack spacing={2.5} alignItems="center" textAlign="center" sx={{ p: 3 }}>
+      <Stack
+        spacing={2.5}
+        sx={{
+          alignItems: "center",
+          textAlign: "center",
+          p: 3
+        }}>
         <Box
           sx={{
             width: 64,
@@ -84,9 +90,11 @@ export function AboutDialog({ open, onClose }: AboutDialogProps) {
         <Stack
           direction="row"
           spacing={1}
-          justifyContent="center"
-          sx={{ width: "100%", pt: 1 }}
-        >
+          sx={{
+            justifyContent: "center",
+            width: "100%",
+            pt: 1
+          }}>
           <Button
             component="a"
             href={SITE_LINKS.github}

@@ -58,15 +58,19 @@ export function AppHeader({ generators }: AppHeaderProps) {
         <Sparkles size={13} style={{ color: "var(--mui-palette-primary-main)" }} />
         <Typography
           variant="caption"
-          fontWeight={700}
-          sx={{ fontSize: "0.78rem", letterSpacing: 0.1, lineHeight: 1 }}
-        >
+          sx={{
+            fontWeight: 700,
+            fontSize: "0.78rem",
+            letterSpacing: 0.1,
+            lineHeight: 1
+          }}>
           Mintables
         </Typography>
       </Box>
-
       {current && (
-        <Stack direction="row" alignItems="center" spacing={0.75}>
+        <Stack direction="row" spacing={0.75} sx={{
+          alignItems: "center"
+        }}>
           <Typography
             variant="caption"
             sx={{
@@ -91,14 +95,16 @@ export function AppHeader({ generators }: AppHeaderProps) {
           </Typography>
         </Stack>
       )}
-
       <Stack
         direction="row"
         spacing={1.5}
-        alignItems="center"
-        sx={{ ml: "auto" }}
-      >
-        <Stack direction="row" spacing={0.5} alignItems="center">
+        sx={{
+          alignItems: "center",
+          ml: "auto"
+        }}>
+        <Stack direction="row" spacing={0.5} sx={{
+          alignItems: "center"
+        }}>
           <Box
             aria-hidden
             sx={{

@@ -47,7 +47,9 @@ export function NumberField({
         input: {
           endAdornment: unit ? (
             <InputAdornment position="end">
-              <Typography variant="caption" color="text.secondary">
+              <Typography variant="caption" sx={{
+                color: "text.secondary"
+              }}>
                 {unit}
               </Typography>
             </InputAdornment>

@@ -517,7 +517,6 @@ export function AppWindow({
     >
       <Stack
         direction="row"
-        alignItems="center"
         onPointerDown={handleTitleBarPointerDown}
         onPointerMove={handleTitleBarPointerMove}
         onPointerUp={endDrag}
@@ -529,6 +528,7 @@ export function AppWindow({
           handleMaximize();
         }}
         sx={{
+          alignItems: "center",
           flexShrink: 0,
           height: 34,
           px: 1.25,
@@ -540,9 +540,8 @@ export function AppWindow({
           cursor: maximized ? "default" : dragging ? "grabbing" : "grab",
           touchAction: "none",
           userSelect: "none",
-          transition: "background-color 180ms ease",
-        }}
-      >
+          transition: "background-color 180ms ease"
+        }}>
         <TrafficLights
           maximized={maximized}
           onClose={handleClose}
@@ -552,17 +551,16 @@ export function AppWindow({
 
         <Stack
           direction="row"
-          alignItems="center"
           spacing={0.75}
           sx={{
+            alignItems: "center",
             position: "absolute",
             left: "50%",
             top: 0,
             height: 34,
             transform: "translateX(-50%)",
-            pointerEvents: "none",
-          }}
-        >
+            pointerEvents: "none"
+          }}>
           <Box
             sx={{
               display: "flex",
@@ -604,11 +602,9 @@ export function AppWindow({
           )}
         </Stack>
       </Stack>
-
       <Box sx={{ flex: 1, minHeight: 0, minWidth: 0, display: "flex" }}>
         {children}
       </Box>
-
       {!maximized && !minimized && (
         <ResizeHandles
           onResizeStart={handleResizeStart}
@@ -794,8 +790,9 @@ function TrafficLights({
     <Stack
       direction="row"
       spacing={0.75}
-      alignItems="center"
       sx={{
+        alignItems: "center",
+
         // Hidden glyphs reveal on group hover / focus — macOS pattern.
         "& .tl-glyph": {
           opacity: 0,
@@ -805,10 +802,10 @@ function TrafficLights({
           alignItems: "center",
           justifyContent: "center",
         },
+
         "&:hover .tl-glyph": { opacity: 1 },
-        "&:focus-within .tl-glyph": { opacity: 1 },
-      }}
-    >
+        "&:focus-within .tl-glyph": { opacity: 1 }
+      }}>
       <TrafficLight color="#ff5f57" label="Close" onClick={onClose}>
         <X size={8} strokeWidth={2.6} />
       </TrafficLight>
