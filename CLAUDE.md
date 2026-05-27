@@ -146,6 +146,8 @@ When you add new persisted state that should reflect on the desktop or in a wind
 
 ## Visual language
 
+> Full visual direction lives in **`DESIGN.md`** at the repo root — color tokens, material recipes, typography, motion, the per-component catalog, and a Don't-do list. Read it before adding new surfaces or restyling existing ones. This section is just the headline rules.
+
 - **Wallpaper** sets the mood — photographic, calm. UI floats over it as **frosted glass**: `bgcolor: rgba(...)` + `backdrop-filter: blur(...) saturate(...)`. Menu bar, dock, About dialog, and window title bars all use this material.
 - **App tiles** (the dock) use a per-app **accent gradient** (top color = accent lightened, bottom = darkened) with a top sheen pseudo-element and a bottom inner-shadow pseudo-element. Squircle radius (~22%). Each app ships its own `iconArt` SVG so it has a recognizable subject illustration (cylinder, elbow, etc.), not a generic line icon.
 - **Desktop icons** intentionally use a *different* aesthetic — small frosted dark file-tiles with strong text-shadow on the label — so they read as "files on the desktop," not as apps. Don't blur the line between dock and desktop icons.
