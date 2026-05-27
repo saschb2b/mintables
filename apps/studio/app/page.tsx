@@ -1,22 +1,31 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import { Coffee, ExternalLink, FileText, Scale } from "lucide-react";
 import GitHubIcon from "@mui/icons-material/GitHub";
-import { DesktopIcon } from "@mintables/shared/ui";
-import { SITE_LINKS } from "@mintables/shared/lib";
+import { DesktopFolder, DesktopIcon } from "@mintables/shared/ui";
+import {
+  DOWNLOADS_CHANGED_EVENT,
+  hasAnyPresets,
+  hasDownloads,
+  PRESETS_CHANGED_EVENT,
+  SITE_LINKS,
+} from "@mintables/shared/lib";
 import { AboutDialog } from "./about-dialog";
 
 /**
- * The desktop. Mostly empty wallpaper — like a real OS home screen. A
- * vertical column of "shortcut" file icons on the right handles secondary
- * navigation (about, license, external links). App launching lives in the
- * dock at the bottom.
+ * The desktop. Mostly empty wallpaper — like a real OS home screen. The
+ * right-edge column carries (top → bottom) any system folders the user has
+ * earned by interacting with the app (Downloads once the first export
+ * happens, Presets once the first preset is saved), then the file-style
+ * shortcut icons. App launching lives in the dock at the bottom.
  */
 export default function HubPage() {
   const [aboutOpen, setAboutOpen] = useState(false);
+  const downloadsExist = useStorageFlag(hasDownloads, DOWNLOADS_CHANGED_EVENT);
+  const presetsExist = useStorageFlag(hasAnyPresets, PRESETS_CHANGED_EVENT);
 
   return (
     <Box
@@ -33,9 +42,10 @@ export default function HubPage() {
         spacing={1}
         sx={{
           position: "absolute",
-          top: { xs: 16, md: 24 },
-          right: { xs: 12, md: 24 },
+          top: { xs: 8, md: 12 },
+          right: { xs: 10, md: 18 },
           zIndex: 2,
+          alignItems: "center",
           opacity: 0,
           animation:
             "desktop-icons-in 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) 200ms forwards",
@@ -44,6 +54,33 @@ export default function HubPage() {
           },
         }}
       >
+        {downloadsExist && (
+          <DesktopFolder
+            href="/folders/downloads"
+            label="Downloads"
+            accent="#3b82f6"
+          />
+        )}
+        {presetsExist && (
+          <DesktopFolder
+            href="/folders/presets"
+            label="Presets"
+            accent="#a855f7"
+          />
+        )}
+
+        {(downloadsExist || presetsExist) && (
+          <Box
+            aria-hidden
+            sx={{
+              width: 56,
+              height: "1px",
+              my: 0.75,
+              bgcolor: "rgba(255, 255, 255, 0.12)",
+            }}
+          />
+        )}
+
         <DesktopIcon
           icon={FileText}
           label="README.md"
@@ -82,6 +119,28 @@ export default function HubPage() {
       />
     </Box>
   );
+}
+
+/**
+ * Subscribe to a storage-backed boolean flag. Re-reads via `read` on mount
+ * and whenever the named custom event fires (or a cross-tab `storage` event
+ * lands). Returns the current value.
+ */
+function useStorageFlag(read: () => boolean, changeEvent: string): boolean {
+  const [value, setValue] = useState(false);
+  useEffect(() => {
+    const sync = () => {
+      setValue(read());
+    };
+    sync();
+    window.addEventListener(changeEvent, sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      window.removeEventListener(changeEvent, sync);
+      window.removeEventListener("storage", sync);
+    };
+  }, [read, changeEvent]);
+  return value;
 }
 
 function GitHubIconAdapter({ size = 24 }: { size?: number }) {

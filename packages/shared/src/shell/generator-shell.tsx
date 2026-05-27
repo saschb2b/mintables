@@ -34,6 +34,7 @@ import {
   type Preset,
 } from "../lib/preset-storage";
 import { trackEvent, trackPageview } from "../lib/analytics";
+import { recordDownload } from "../lib/download-storage";
 import { ExportError, exportModel, type ExportFormat } from "../lib/export";
 import { SavePresetDialog } from "../ui/save-preset-dialog";
 import { ShareDialog } from "../ui/share-dialog";
@@ -193,6 +194,13 @@ export function GeneratorShell<C>({ generator }: GeneratorShellProps<C>) {
     setExporting(true);
     try {
       exportModel(generator, config, exportFormat);
+      // Record in the Downloads folder so the desktop can list / re-run it.
+      recordDownload(
+        generator.id,
+        generator.filename(config),
+        exportFormat,
+        config,
+      );
       trackEvent("download", { generator: generator.id, format: exportFormat });
       setShowThankYou(true);
     } catch (err) {

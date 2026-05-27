@@ -16,6 +16,14 @@ export interface Preset {
 
 export const CONFIG_SCHEMA_VERSION = 3;
 const PRESET_KEY = "mintables.presets";
+const PRESETS_CHANGE_EVENT = "mintables:presets-changed";
+
+export const PRESETS_CHANGED_EVENT = PRESETS_CHANGE_EVENT;
+
+function emitPresetChange(): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(PRESETS_CHANGE_EVENT));
+}
 
 function toBase64Url(s: string): string {
   const bytes = new TextEncoder().encode(s);
@@ -99,6 +107,15 @@ export function listPresets(generatorId?: string): Preset[] {
   }
 }
 
+/** Every preset across all generators, sorted newest-first. */
+export function listAllPresets(): Preset[] {
+  return [...listPresets()].sort((a, b) => b.createdAt - a.createdAt);
+}
+
+export function hasAnyPresets(): boolean {
+  return listPresets().length > 0;
+}
+
 function writePresets(presets: Preset[]): void {
   window.localStorage.setItem(PRESET_KEY, JSON.stringify(presets));
 }
@@ -122,9 +139,11 @@ export function savePreset(
   };
   const next = [preset, ...listPresets()];
   writePresets(next);
+  emitPresetChange();
   return preset;
 }
 
 export function deletePreset(id: string): void {
   writePresets(listPresets().filter((p) => p.id !== id));
+  emitPresetChange();
 }

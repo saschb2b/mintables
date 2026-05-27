@@ -37,6 +37,10 @@ apps/
       desktop-wallpaper.tsx            # Full-bleed wallpaper layer + vignette
       generators/[generator]/page.tsx  # Dynamic route → <GeneratorPageView>
       generators/[generator]/generator-page-view.tsx  # Wraps shell in <AppWindow>
+      folders/downloads/page.tsx       # Downloads folder route
+      folders/downloads/downloads-window.tsx  # AppWindow + FileExplorer over local download history
+      folders/presets/page.tsx         # Presets folder route
+      folders/presets/presets-window.tsx      # AppWindow + FileExplorer over all saved presets
     public/
       wallpaper-mountains.jpg          # The desktop wallpaper image
     lib/registry.ts                    # Imports every generator and exposes bySlug
@@ -47,6 +51,7 @@ packages/
         generator.ts                   # Generator<C> contract — the central interface
         theme.ts, analytics.ts, …      # Cross-cutting helpers
         preset-storage.ts              # Generic share-URL + localStorage presets
+        download-storage.ts            # Local export history (id, generator, config, format, ts)
         validation/                    # ValidationResult types + field helpers
         geometry/                      # Mesh helpers (utils, analysis, STL binary)
         export/                        # Generic exportModel<C>(generator, config, format)
@@ -55,6 +60,8 @@ packages/
         app-dock.tsx                   #   Floating bottom dock — Home + per-generator tiles
         app-window.tsx                 #   Window chrome — traffic lights, title bar, animations
         desktop-icon.tsx               #   File-style desktop shortcut (README / LICENSE / .url)
+        file-explorer.tsx              #   Finder-style explorer — toolbar, icon/list view, search,
+                                       #   sort, multi-action toolbar, status bar. Item-agnostic.
         system-clock.tsx               #   Live menu-bar clock (SSR-safe)
         + generator-grid, dialogs, primitives, validation-banner, …
       shell/                           # GeneratorShell, PreviewPanel, R3F infra
@@ -91,13 +98,35 @@ The studio is presented as a desktop environment, not a webpage. Anyone changing
 - **Layer order** (painting back→front): wallpaper (z=0) → app content (z=1, e.g. desktop icons or the generator window) → menu bar (z=10, sticky-translucent) → dock (z=1200, position: fixed). Tooltips and dialogs come above all of these via MUI defaults.
 - **Wallpaper lives in providers**, not inside any page. It persists across hub + generator routes so generator windows visibly float on top of it. The image is in `apps/studio/public/`.
 - **Menu bar = system chrome.** Brand on the left, active-app indicator + tagline center-right, status cluster on the far right (online dot + live `SystemClock`). Never embed page-specific actions here.
-- **Dock = apps only.** Home + per-generator tiles. External links and informational shortcuts (GitHub, sponsor, license, about) live as **desktop icons** in `apps/studio/app/page.tsx`, *not* in the dock.
+- **Dock = apps only.** Home + per-generator tiles. External links and informational shortcuts (GitHub, sponsor, license, about) live as **desktop icons** in `apps/studio/app/page.tsx`, *not* in the dock. System folders (Downloads, Presets) also live as desktop icons, conditionally rendered when their underlying storage is non-empty (see "Desktop folders + FileExplorer").
 - **Generators open as windows.** `apps/studio/app/generators/[generator]/generator-page-view.tsx` wraps `<GeneratorShell>` in `<AppWindow>`. The window has macOS-style traffic lights:
   - **Red (close)** — fade animation, then `router.push('/')`
   - **Yellow (minimize)** — "genie effect" scale toward the app's actual dock-tile rect, then home. Lookup uses `document.querySelector('nav[aria-label="App dock"] [aria-label="<app name>"]')`.
   - **Green (maximize / restore)** — toggle `mt + mx` to 0 (filling the work area while still respecting the dock via `mb`). **ESC** restores. Label and icon swap between Maximize / Restore.
   - Group-hover and `:focus-within` reveal the × / − / ⤢ glyphs on all three at once (macOS pattern).
 - **Animation feel.** Windows open with a 420ms `translateY + scale` ease-out. Wallpaper has cursor parallax (~22×16 px shift) and a fade-in. Dock tiles lift on hover. Don't add competing motion or break these.
+
+## Desktop folders + FileExplorer
+
+The desktop "earns" system folders as the user creates state:
+
+- **Downloads** — appears once the first export has been recorded by `recordDownload(...)` in `GeneratorShell.handleDownload`. We don't store the binary file; we keep just enough metadata (generator id, filename, format, config, timestamp) to rebuild it via `exportModel(generator, gen.decode(config), format)`.
+- **Presets** — appears once `savePreset(...)` has been called for any generator. Listing all presets across generators is `listAllPresets()`.
+
+Both folders open as routes (`/folders/downloads`, `/folders/presets`) wrapped in `<AppWindow>` so they get the same traffic-light chrome as generator windows. Close returns to the desktop.
+
+Inside each window, the **FileExplorer** (`packages/shared/src/ui/file-explorer.tsx`) renders a Finder-style UI: toolbar (view toggle icon ↔ list, sort dropdown name/date/kind + asc/desc, search input), an icon grid or table body, and a footer status bar. Hosts pass in an `items` array of `ExplorerItem`s (`id`, `name`, `kind`, `timestamp`, `icon`, `subtitle?`, `meta?`) plus `onOpen(item)` and an `actions` array of toolbar buttons that appear when an item is selected. Keep FileExplorer item-agnostic — generator-specific concerns (registry lookup, re-download, share-URL building) belong in the host window component.
+
+### Event-driven storage reactivity
+
+`download-storage.ts` and `preset-storage.ts` both dispatch a `CustomEvent` (`mintables:downloads-changed`, `mintables:presets-changed`) after any write. Listeners across the app react to it. The desktop hub uses a small `useStorageFlag(read, changeEvent)` hook to drive the conditional folder icons; folder windows use the same pattern to refresh their lists.
+
+When you add new persisted state that should reflect on the desktop or in a window, follow this pattern:
+
+1. Pick a storage key + a `CHANGE_EVENT` constant.
+2. Have every mutation function dispatch `window.dispatchEvent(new CustomEvent(CHANGE_EVENT))` after the write.
+3. Export the event name so consumers can subscribe.
+4. Components subscribe via `useEffect` to both the custom event AND the native `storage` event (latter covers cross-tab updates).
 
 ## Visual language
 

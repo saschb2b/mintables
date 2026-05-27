@@ -21,15 +21,28 @@ export { sortPrintTips } from "./print-tips";
 export type { Preset, UrlConfig } from "./preset-storage";
 export {
   CONFIG_SCHEMA_VERSION,
+  PRESETS_CHANGED_EVENT,
   encodeConfig,
   decodeConfig,
   buildShareUrl,
   readUrlConfig,
   syncUrl,
   listPresets,
+  listAllPresets,
+  hasAnyPresets,
   savePreset,
   deletePreset,
 } from "./preset-storage";
+
+export type { DownloadEntry, ExportFormat as DownloadFormat } from "./download-storage";
+export {
+  DOWNLOADS_CHANGED_EVENT,
+  listDownloads,
+  hasDownloads,
+  recordDownload,
+  deleteDownload,
+  getDownload,
+} from "./download-storage";
 
 export type {
   ValidationIssue,
