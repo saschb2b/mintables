@@ -1,6 +1,13 @@
 import { Link2 } from "lucide-react";
 import type { Generator, GeneratorBadge } from "@mintables/shared/lib";
-import { type AdapterConfig, DEFAULT_ADAPTER_CONFIG } from "./types";
+import {
+  type AdapterConfig,
+  DEFAULT_ADAPTER_CONFIG,
+  DEFAULT_RECTANGULAR_TUBE,
+  DEFAULT_ROUND_TUBE,
+  DEFAULT_SQUARE_TUBE,
+  type TubeSpec,
+} from "./types";
 import { validateAdapterConfig } from "./validation";
 import { generateAdapterTriangles } from "./geometry";
 import { getAdapterPrintTips } from "./print-tips";
@@ -28,9 +35,39 @@ function mergeWithDefaults<T>(defaults: T, incoming: unknown): T {
   return out as T;
 }
 
+/**
+ * `TubeSpec` is a discriminated union — the field set depends on `shape`.
+ * Pick the right default per shape so a round → square switch in an
+ * incoming preset actually picks up `outerSize` instead of leaving the
+ * round-only `outerDiameter` behind (which would crash the scene with
+ * NaN downstream).
+ */
+function decodeTubeSpec(data: unknown, fallback: TubeSpec): TubeSpec {
+  if (!isObj(data)) return fallback;
+  switch (data.shape) {
+    case "round":
+      return mergeWithDefaults(DEFAULT_ROUND_TUBE, data);
+    case "square":
+      return mergeWithDefaults(DEFAULT_SQUARE_TUBE, data);
+    case "rectangular":
+      return mergeWithDefaults(DEFAULT_RECTANGULAR_TUBE, data);
+    default:
+      return fallback;
+  }
+}
+
 function decodeAdapter(data: unknown): AdapterConfig | null {
   if (!isObj(data)) return null;
-  return mergeWithDefaults(DEFAULT_ADAPTER_CONFIG, data);
+  const merged = mergeWithDefaults(DEFAULT_ADAPTER_CONFIG, data);
+  // Re-decode endA / endB with shape-aware defaults so `mergeWithDefaults`
+  // doesn't drop fields that don't exist in the round-default key set.
+  // Fallback is the pristine config default — NOT `merged.endA`, which has
+  // already been corrupted by mergeWithDefaults walking the round-only keys.
+  return {
+    ...merged,
+    endA: decodeTubeSpec(data.endA, DEFAULT_ADAPTER_CONFIG.endA),
+    endB: decodeTubeSpec(data.endB, DEFAULT_ADAPTER_CONFIG.endB),
+  };
 }
 
 function describeAdapter(a: AdapterConfig): string {
