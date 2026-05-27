@@ -1,9 +1,10 @@
 import { notFound } from "next/navigation";
-import { bySlug, generators } from "@/lib/registry";
+import { bySlug } from "@/lib/registry";
+import { generatorSlugs } from "@/lib/generator-slugs";
 import { GeneratorPageView } from "./generator-page-view";
 
 export function generateStaticParams() {
-  return generators.map((g) => ({ generator: g.id }));
+  return generatorSlugs.map((generator) => ({ generator }));
 }
 
 interface GeneratorPageProps {

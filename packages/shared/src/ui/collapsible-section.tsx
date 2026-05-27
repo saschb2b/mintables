@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Accordion from "@mui/material/Accordion";
 import AccordionSummary from "@mui/material/AccordionSummary";
 import AccordionDetails from "@mui/material/AccordionDetails";
@@ -18,9 +18,17 @@ export function CollapsibleSection({
   children,
   defaultExpanded = false,
 }: CollapsibleSectionProps) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
+  // Allow callers to "pulse" defaultExpanded to true (e.g. when a related
+  // config field becomes non-zero) without flipping MUI's controlled/uncontrolled warning.
+  useEffect(() => {
+    if (defaultExpanded) setExpanded(true);
+  }, [defaultExpanded]);
+
   return (
     <Accordion
-      defaultExpanded={defaultExpanded}
+      expanded={expanded}
+      onChange={(_, next) => setExpanded(next)}
       disableGutters
       elevation={0}
       sx={{

@@ -107,9 +107,9 @@ export function WelcomeDialog({ open, onClose }: WelcomeDialogProps) {
           }}
         >
           TubeCraft is now Mintables. The same tube generator is here,
-          alongside a new Adapters generator and a desktop environment to host
-          the family as it grows. Everything still runs locally in your
-          browser. No accounts, no uploads.
+          inside a desktop environment built to host a growing family of
+          parametric tools. Everything still runs locally in your browser.
+          No accounts, no uploads.
         </Typography>
 
         {/* Tips — three quick orientations. */}

@@ -8,6 +8,7 @@ const nextConfig: NextConfig = {
     "@mintables/gen-adapters",
     "@mintables/gen-dividers",
   ],
+  devIndicators: false,
   experimental: {
     optimizePackageImports: ["three"],
   },

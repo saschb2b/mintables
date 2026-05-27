@@ -160,9 +160,13 @@ When you add new persisted state that should reflect on the desktop or in a wind
 - **The dock is `position: fixed`.** Windows respect it via `mb` (a buffer that keeps the bottom edge above the dock) — even when maximized. Don't set `mb: 0` on `AppWindow`.
 - **Narrow-width split: Controls/Preview tab.** Below the `md` breakpoint (~900px), `GeneratorShell` swaps the side-by-side layout for a segmented Controls/Preview tab at the top, mirroring the iPad-design-app pattern (Figma, Affinity). At md+ the layout is 320px controls + flex preview, which comfortably fits even half-screen on most desktops. Each pane is toggled via `display: none/flex` (kept mounted, so state survives switches). The shell dispatches a `window` resize event 30ms after switching to Preview so R3F's `<Canvas>` re-fits — some browsers don't notify ResizeObserver when an ancestor flips from `display: none`. Don't replace this with an unmount/remount.
 
+## Writing rules
+
+- **No em dashes (—) anywhere.** Not in user-facing copy, not in docs, not in comments. Use a hyphen, a colon, a period, or parentheses instead. This applies to README, dialog text, code comments, commit messages, PR descriptions, and any other prose Claude generates. Pre-existing em dashes in the codebase are not in scope for cleanup, but don't add new ones.
+
 ## Conventions
 
-- Use native MUI components — theme overrides live in `packages/shared/src/lib/theme.ts`
+- Use native MUI components. Theme overrides live in `packages/shared/src/lib/theme.ts`
 - Use `sx` for layout/spacing
 - Studio path alias: `@/*` → `apps/studio/*`
 - Preview and export run the same `generator.geometry(config)` — never duplicate mesh generation
