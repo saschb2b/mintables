@@ -2,15 +2,11 @@
 
 import NextLink from "next/link";
 import Box from "@mui/material/Box";
-import IconButton from "@mui/material/IconButton";
 import Stack from "@mui/material/Stack";
-import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
-import GitHubIcon from "@mui/icons-material/GitHub";
-import { Coffee, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import type { AnyGenerator } from "../lib/generator";
-import { SITE_LINKS } from "../lib/site-links";
-import { AppSwitcher } from "./app-switcher";
+import { SystemClock } from "./system-clock";
 
 interface AppHeaderProps {
   generators: AnyGenerator[];
@@ -18,99 +14,111 @@ interface AppHeaderProps {
   currentId?: string;
 }
 
+/**
+ * Menu bar — macOS-style strip across the very top of the screen.
+ *  · left: brand wordmark (system menu)
+ *  · center-left: active app name (only when an app is open)
+ *  · right: status cluster — online indicator + live clock
+ */
 export function AppHeader({ generators, currentId }: AppHeaderProps) {
   const current = generators.find((g) => g.id === currentId);
-  const CurrentIcon = current?.meta.icon ?? Sparkles;
-  const title = current?.meta.name ?? "Mintables";
-  const subtitle =
-    current?.meta.tagline ?? "3D printable generators for makers";
 
   return (
     <Box
       component="header"
       sx={{
-        position: "sticky",
-        top: 0,
+        flexShrink: 0,
         zIndex: 10,
         display: "flex",
         alignItems: "center",
-        gap: 1.5,
-        px: 2,
-        py: 1.5,
-        borderBottom: 1,
-        borderColor: "rgba(255, 255, 255, 0.06)",
-        bgcolor: "rgba(28, 28, 32, 0.55)",
-        backdropFilter: "blur(20px) saturate(140%)",
-        WebkitBackdropFilter: "blur(20px) saturate(140%)",
+        gap: 2,
+        px: 1.5,
+        height: 30,
+        borderBottom: "1px solid rgba(255, 255, 255, 0.06)",
+        bgcolor: "rgba(14, 16, 26, 0.65)",
+        backdropFilter: "blur(22px) saturate(160%)",
+        WebkitBackdropFilter: "blur(22px) saturate(160%)",
       }}
     >
-      <Stack direction="row" alignItems="center" spacing={1}>
-        <AppSwitcher generators={generators} currentId={currentId} />
-        <Box
-          component={NextLink}
-          href="/"
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 1.25,
-            textDecoration: "none",
-            color: "inherit",
-          }}
+      <Box
+        component={NextLink}
+        href="/"
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 0.75,
+          textDecoration: "none",
+          color: "inherit",
+        }}
+      >
+        <Sparkles size={13} style={{ color: "var(--mui-palette-primary-main)" }} />
+        <Typography
+          variant="caption"
+          fontWeight={700}
+          sx={{ fontSize: "0.78rem", letterSpacing: 0.1, lineHeight: 1 }}
         >
-          <Box
+          Mintables
+        </Typography>
+      </Box>
+
+      {current && (
+        <Stack direction="row" alignItems="center" spacing={0.75}>
+          <Typography
+            variant="caption"
             sx={{
-              display: "flex",
-              height: 32,
-              width: 32,
-              alignItems: "center",
-              justifyContent: "center",
-              borderRadius: 1.5,
-              bgcolor: current ? "primary.main" : "transparent",
-              border: current ? 0 : 1,
-              borderColor: "divider",
-              color: current ? "#fff" : "primary.main",
+              fontWeight: 600,
+              fontSize: "0.74rem",
+              color: "text.primary",
+              lineHeight: 1,
             }}
           >
-            <CurrentIcon size={18} />
-          </Box>
-          <Box sx={{ display: { xs: "none", sm: "block" } }}>
-            <Typography variant="subtitle2" fontWeight={600} lineHeight={1.2}>
-              {title}
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              {subtitle}
-            </Typography>
-          </Box>
-        </Box>
-      </Stack>
+            {current.meta.name}
+          </Typography>
+          <Typography
+            variant="caption"
+            sx={{
+              display: { xs: "none", md: "inline" },
+              color: "text.secondary",
+              fontSize: "0.72rem",
+              lineHeight: 1,
+            }}
+          >
+            · {current.meta.tagline}
+          </Typography>
+        </Stack>
+      )}
 
-      <Stack direction="row" spacing={0.5} alignItems="center" sx={{ ml: "auto" }}>
-        <Tooltip title="GitHub">
-          <IconButton
-            size="small"
-            component="a"
-            href={SITE_LINKS.github}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="GitHub"
-            sx={{ color: "text.secondary" }}
+      <Stack
+        direction="row"
+        spacing={1.5}
+        alignItems="center"
+        sx={{ ml: "auto" }}
+      >
+        <Stack direction="row" spacing={0.5} alignItems="center">
+          <Box
+            aria-hidden
+            sx={{
+              width: 6,
+              height: 6,
+              borderRadius: "50%",
+              bgcolor: "#22c55e",
+              boxShadow: "0 0 6px rgba(34, 197, 94, 0.6)",
+            }}
+          />
+          <Typography
+            variant="caption"
+            sx={{
+              display: { xs: "none", sm: "inline" },
+              color: "text.secondary",
+              fontSize: "0.7rem",
+              letterSpacing: 0.3,
+              textTransform: "uppercase",
+            }}
           >
-            <GitHubIcon sx={{ fontSize: 18 }} />
-          </IconButton>
-        </Tooltip>
-        <Tooltip title="Buy me a coffee">
-          <IconButton
-            size="small"
-            component="a"
-            href={SITE_LINKS.buyMeACoffee}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="Buy me a coffee"
-            sx={{ color: "text.secondary" }}
-          >
-            <Coffee size={16} />
-          </IconButton>
-        </Tooltip>
+            Local
+          </Typography>
+        </Stack>
+        <SystemClock />
       </Stack>
     </Box>
   );

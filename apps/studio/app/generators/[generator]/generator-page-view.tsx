@@ -1,6 +1,7 @@
 "use client";
 
 import { GeneratorShell } from "@mintables/shared/shell";
+import { AppWindow } from "@mintables/shared/ui";
 import { bySlug } from "@/lib/registry";
 
 /**
@@ -8,5 +9,15 @@ import { bySlug } from "@/lib/registry";
  * `bySlug[slug]` is guaranteed to resolve here.
  */
 export function GeneratorPageView({ slug }: { slug: string }) {
-  return <GeneratorShell generator={bySlug[slug]} />;
+  const generator = bySlug[slug];
+  return (
+    <AppWindow
+      icon={generator.meta.icon}
+      title={generator.meta.name}
+      subtitle={generator.meta.tagline}
+      accent={generator.meta.accent}
+    >
+      <GeneratorShell generator={generator} />
+    </AppWindow>
+  );
 }

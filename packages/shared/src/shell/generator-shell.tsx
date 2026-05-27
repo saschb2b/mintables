@@ -220,6 +220,10 @@ export function GeneratorShell<C>({ generator }: GeneratorShellProps<C>) {
         display: "flex",
         flex: 1,
         minHeight: 0,
+        // Same reason as `<main>` below — without this, an enlarged WebGL
+        // canvas anchors the row at its widest measured size and the shell
+        // overflows its window when the window restores from maximized.
+        minWidth: 0,
         flexDirection: { xs: "column", lg: "row" },
       }}
     >
@@ -413,6 +417,10 @@ export function GeneratorShell<C>({ generator }: GeneratorShellProps<C>) {
           display: "flex",
           flexDirection: "column",
           minHeight: { xs: "50vh", lg: 0 },
+          // Allow this flex item to shrink below the WebGL canvas's
+          // intrinsic min-width — otherwise once R3F grows the canvas
+          // (e.g. window maximize), it anchors `main` and can't shrink back.
+          minWidth: 0,
         }}
       >
         {/* Info Bar */}

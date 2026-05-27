@@ -3,8 +3,9 @@
 import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import Box from "@mui/material/Box";
-import { AppHeader, ThemeProvider } from "@mintables/shared/ui";
+import { AppDock, AppHeader, ThemeProvider } from "@mintables/shared/ui";
 import { generators } from "@/lib/registry";
+import { DesktopWallpaper } from "./desktop-wallpaper";
 
 function currentGeneratorId(pathname: string): string | undefined {
   // Match `/generators/<id>` — the namespace prevents collisions with future
@@ -18,20 +19,23 @@ function currentGeneratorId(pathname: string): string | undefined {
 export function Providers({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const currentId = currentGeneratorId(pathname);
-  const isHub = currentId === undefined;
 
   return (
     <ThemeProvider>
       <Box
         sx={{
-          minHeight: "100vh",
+          height: "100dvh",
+          width: "100vw",
           display: "flex",
           flexDirection: "column",
-          // Hub routes get the dark-blue base so the frosted header sits on the
-          // landing's color, not on the editor's muted grey.
-          bgcolor: isHub ? "#0f1322" : "background.default",
+          overflow: "hidden",
+          position: "relative",
+          // Fallback color under the wallpaper image (briefly visible while
+          // the photo is still decoding).
+          bgcolor: "#0a0c1a",
         }}
       >
+        <DesktopWallpaper />
         <AppHeader generators={generators} currentId={currentId} />
         <Box
           sx={{
@@ -39,10 +43,13 @@ export function Providers({ children }: { children: ReactNode }) {
             display: "flex",
             flexDirection: "column",
             minHeight: 0,
+            position: "relative",
+            zIndex: 1,
           }}
         >
           {children}
         </Box>
+        <AppDock generators={generators} currentId={currentId} />
       </Box>
     </ThemeProvider>
   );
