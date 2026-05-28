@@ -33,6 +33,18 @@ Every generator opens as a window with macOS-style traffic lights: close, minimi
 
 ---
 
+## Spotlight
+
+Press **Cmd-K** (or **Ctrl-K**) anywhere to open Spotlight: a global command palette that fuzzy-searches across generators, presets, and downloads in one ranked list. With no query, it doubles as a recent-history surface, showing every generator plus the five most recent presets and downloads.
+
+<p align="center">
+  <img src="docs/spotlight.png" alt="Spotlight command palette open over the desktop, listing matches across Generators, Presets, and Downloads with keyboard hints in the footer" width="820" />
+</p>
+
+Arrow keys to navigate, Enter to open the highlighted result, Escape to dismiss.
+
+---
+
 ## Folders earn their place
 
 The desktop stays empty until you create state. Export your first part and a **Downloads** folder appears on the right edge. Save your first preset and a **Presets** folder appears next to it. Open either and you get a Finder-style window with a view toggle, sort, search, multi-select (Shift / Cmd-click), F2 to rename, and a right-click context menu.
@@ -81,6 +93,14 @@ Flat printable slabs: thickness × width × height with optional rounded corners
 
 <p align="center">
   <img src="docs/dividers.png" alt="Dividers generator: parametric flat slab" width="820" />
+</p>
+
+### Leg Caps
+
+Slip-on floor caps for chair, table, and stool legs. Round / square / rectangular / oval cross-sections sized to a measured leg, with a separate fit clearance, an optional inner taper for a wedge fit, and an optional felt-pad recess in the bottom face.
+
+<p align="center">
+  <img src="docs/legcaps.png" alt="Leg Caps generator: round floor cap with controls sidebar and live 3D preview" width="820" />
 </p>
 
 ---
