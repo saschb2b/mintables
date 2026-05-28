@@ -7,6 +7,7 @@ const nextConfig: NextConfig = {
     "@mintables/gen-tubes",
     "@mintables/gen-adapters",
     "@mintables/gen-dividers",
+    "@mintables/gen-legcaps",
   ],
   devIndicators: false,
   experimental: {
