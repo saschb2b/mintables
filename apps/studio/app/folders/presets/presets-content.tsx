@@ -7,7 +7,7 @@ import {
   FileExplorer,
   type ExplorerAction,
   type ExplorerItem,
-} from "@mintables/shared/ui";
+} from "@react-ui-os/desktop";
 import {
   buildShareUrl,
   deletePreset,
@@ -18,6 +18,8 @@ import {
 } from "@mintables/shared/lib";
 import { Bookmark, FolderOpen, Trash2 } from "lucide-react";
 import { findGenerator } from "@/lib/registry";
+import { EdgeToEdge } from "@/lib/window-content";
+import { ExplorerEmptyState } from "../downloads/downloads-content";
 import { useExplorerSidebar } from "../use-explorer-sidebar";
 
 interface Item extends ExplorerItem {
@@ -25,8 +27,9 @@ interface Item extends ExplorerItem {
 }
 
 /**
- * The Presets folder's body — a FileExplorer over `listAllPresets()`. Does
- * NOT render any window chrome; the WindowLayer wraps this in an AppWindow.
+ * The Presets folder's body: a FileExplorer over `listAllPresets()`. Runs as
+ * the `presets` system window's content; the react-ui-os WindowLayer owns
+ * the chrome.
  */
 export function PresetsContent() {
   const router = useRouter();
@@ -58,9 +61,7 @@ export function PresetsContent() {
           timestamp: p.createdAt,
           subtitle: kind,
           meta: "PRESET",
-          icon: (
-            <PresetFileIcon accent={gen?.meta.accent ?? "#a855f7"} />
-          ),
+          icon: <PresetFileIcon accent={gen?.meta.accent ?? "#a855f7"} />,
           iconSmall: (
             <PresetFileIconSmall accent={gen?.meta.accent ?? "#a855f7"} />
           ),
@@ -92,7 +93,7 @@ export function PresetsContent() {
     {
       id: "open",
       label: "Open in app",
-      icon: FolderOpen,
+      icon: <FolderOpen size={13} />,
       onClick: (its) => {
         if (its[0]) handleOpen(its[0]);
       },
@@ -101,21 +102,29 @@ export function PresetsContent() {
     {
       id: "delete",
       label: "Delete",
-      icon: Trash2,
+      icon: <Trash2 size={13} />,
       onClick: handleDelete,
       danger: true,
+      shortcut: "⌫",
     },
   ];
 
   return (
-    <FileExplorer
-      items={items}
-      onOpen={handleOpen}
-      onRename={handleRename}
-      actions={actions}
-      sidebar={sidebar}
-      emptyState="Save a configuration from any generator's Presets menu and it'll appear here."
-    />
+    <EdgeToEdge>
+      <FileExplorer
+        items={items}
+        onOpen={handleOpen}
+        onRename={handleRename}
+        actions={actions}
+        sidebar={sidebar}
+        emptyState={
+          <ExplorerEmptyState>
+            Save a configuration from any generator&apos;s Presets menu and
+            it&apos;ll appear here.
+          </ExplorerEmptyState>
+        }
+      />
+    </EdgeToEdge>
   );
 }
 

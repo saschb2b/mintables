@@ -28,9 +28,11 @@ The runtime structure (routes, contracts, etc.) lives in `CLAUDE.md`. This file 
 | `brand.pink` | `#ec4899` | Tertiary brand pop |
 | `brand.blue` | `#3b82f6` | System-folder accent (Downloads) |
 
-The **Mintables brand gradient** (`#5cb6b9 → #7c66f5 → #ec4899` at 140–155°) is used **only** on the hub Home dock tile, the Welcome dialog hero icon, and the desktop brand title. Don't sprinkle gradients elsewhere — they read as web marketing, not OS.
+The **Mintables brand gradient** (`#5cb6b9 → #7c66f5 → #ec4899` at 140–155°) is used **only** on the Welcome dialog hero icon and brand marks. Don't sprinkle gradients elsewhere — they read as web marketing, not OS.
 
 ### Surface tokens (the dark glass system)
+
+OS chrome surfaces (menu bar, dock, window paper, context menus) are now painted by react-ui-os from the theme in `apps/studio/lib/os-theme.ts`; the recipes below remain the reference for MUI surfaces inside windows and dialogs.
 
 | Surface | Spec |
 | --- | --- |
@@ -136,65 +138,31 @@ Squircle (`%` radius) is reserved for dock tiles and large brand-icon hero. Ever
 
 ## Components
 
-### AppWindow (`packages/shared/src/ui/app-window.tsx`)
+> **Library-owned chrome.** Since the react-ui-os migration, the window chrome, dock, menu bar, desktop icons, Spotlight, and FileExplorer are library components (`@react-ui-os/desktop`, sibling repo `../react-ui-os`). Their look is driven by the theme object in `apps/studio/lib/os-theme.ts` (a `createMacosTheme` derivative: forced dark, mountain wallpaper, teal accent). Restyle by editing theme tokens or by changing the library upstream; do not fork chrome components into this repo. The notes below describe what Mintables contributes on top.
 
-The window chrome that wraps generator routes.
+### Windows, dock, menu bar, desktop icons (react-ui-os)
 
-- Floats on the desktop with substantial margins (`mx: 24–48px`, `mt: 12px`, `mb: 88–104px` to clear the dock)
-- Top edge: 2px gradient accent line (color = app accent)
-- Title bar (34px): traffic lights left, centered icon + title + subtitle
-- Traffic lights are **functional**: red = close → `/`, yellow = minimize-to-dock-tile (genie animation), green = maximize / restore (ESC restores)
-- Hover any light to reveal × / − / ⤢ glyphs on **all three** at once (macOS group-hover)
-- Open animation: `420ms cubic-bezier(0.2, 0.85, 0.25, 1)`, `translateY(8px) scale(0.985) → 0,1`
+- Windows: traffic lights, accent top edge, drag/resize/snap, genie minimize. Mintables supplies per-app `accent` and window `defaultBounds`.
+- Dock tiles: accent-gradient squircles; each app ships its own `iconArt` SVG (a real subject illustration, not a generic line icon).
+- Menu bar: brand button ("Mintables"), per-app menus, workspace switcher, status cluster. Mintables adds the green "runs locally" status dot via `registerStatusItem`.
+- Desktop icons: Downloads/Presets use the library's folder visual; README.md ships a custom document-page SVG (`os-system-windows.tsx`). Custom desktop icons should read as files, not apps.
 
 ### DialogWindow (`packages/shared/src/ui/dialog-window.tsx`)
 
-The OS-window-styled modal. Use this instead of a bare MUI Dialog for any dialog the user is going to see.
+Still local: the OS-window-styled MUI modal, used for Welcome / save-preset / share dialogs inside the MUI layer.
 
-- Same chrome as AppWindow: title bar, traffic lights, accent edge, frosted paper, layered shadow
+- Title bar, traffic lights, accent edge, frosted paper, layered shadow
 - Only the red traffic light is functional. Yellow and green are dimmed (`opacity: 0.55`) — mirrors "About This Mac"
 - The paper's `outline` is explicitly suppressed so the autofocus doesn't surface a focus ring around the whole dialog
-- Open animation: `360ms cubic-bezier(0.2, 0.85, 0.25, 1)`, gentler than AppWindow
+- Open animation: `360ms cubic-bezier(0.2, 0.85, 0.25, 1)`
 
-### Dock + dock tiles (`packages/shared/src/ui/app-dock.tsx`)
+### FileExplorer hosts (`apps/studio/app/folders/*`)
 
-- Apps only — Home + generators. External links / info live as desktop icons.
-- Tile is a squircle (`borderRadius: 22%`), filled with the app's accent gradient (lightened top → accent → darkened bottom).
-- Top sheen + bottom inner shadow pseudo-elements give the tile depth.
-- Custom `iconArt` SVG per app (a real subject illustration, not a generic line icon).
-- Active running indicator: small white dot (`5×5`) under the tile.
-- Hover: lift `-6px` + scale `1.08` + colored glow.
+The explorer itself is `@react-ui-os/desktop`'s FileExplorer. Mintables' job is the content:
 
-### Desktop icons (`packages/shared/src/ui/desktop-icon.tsx`)
-
-- Intentionally a **different visual species** from dock tiles — small frosted dark "document" tile with the icon drawn on it. Don't blur the line.
-- Used for static links (README.md, LICENSE.txt, GitHub.url, Sponsor.url).
-- External links get a small "shortcut arrow" badge overlay in the bottom-right corner.
-- Strong layered text shadow on the label so it reads on any wallpaper region.
-
-### Desktop folders (`packages/shared/src/ui/desktop-folder.tsx`)
-
-- Real folder shape drawn as inline SVG (back sheet + tabbed front sheet, top sheen).
-- Accent-tinted (blue for Downloads, purple for Presets).
-- Distinctly *not* the same visual as a desktop icon, so files and folders read as different file-system citizens.
-
-### Menu bar (`packages/shared/src/ui/app-header.tsx`)
-
-- 30px slim strip at the top.
-- Brand wordmark left, active-app indicator center-left, status cluster (green "Local" dot + live clock) right.
-- Never embed page-specific actions here.
-
-### FileExplorer (`packages/shared/src/ui/file-explorer.tsx`)
-
-See `CLAUDE.md` § "FileExplorer interaction model" for the behavior contract. Visually:
-
-- Toolbar is 46px tall with a subtle frosted-strip bg (`rgba(255,255,255,0.025)`) — chunky enough to feel like Finder's unified toolbar, not a webapp filter row.
-- Optional sidebar uses a darker frosted bg (`rgba(0,0,0,0.22)`), 172px wide, hidden below `sm`. Section labels are uppercase 0.62rem, items are 0.78rem with 26px row height and the standard selection highlight when active.
-- Status bar is 28px with content centered (Finder pattern, not left-aligned).
-- Icon grid: 64×64 icon tile, 0.76rem label with 2-line clamp + ellipsis.
-- List rows: 30px tall, 14×16 file glyph in the name column, click column headers to sort with an arrow indicator, subtle alternating row tint, 1px column dividers in the header.
-- Selected items show the selection highlight (`rgba(120, 160, 220, 0.22)`); context menu uses the higher-opacity frosted material (`rgba(28, 30, 42, 0.96)`).
+- File icons: 44×52 "page" tiles with the generator's accent strip along the top and a format glyph; presets use a bookmark on the same page shape.
 - Hosts that ship a large grid icon should also ship a matching `iconSmall` (14×16) so the list view stays crisp instead of falling back to a CSS-scaled grid icon.
+- Empty states are one short sentence, centered, `text.secondary`.
 
 ---
 

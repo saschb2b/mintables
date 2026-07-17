@@ -1,1 +1,6 @@
-export const generatorSlugs = ["tubes", "adapters", "dividers"] as const;
+export const generatorSlugs = [
+  "tubes",
+  "adapters",
+  "dividers",
+  "legcaps",
+] as const;

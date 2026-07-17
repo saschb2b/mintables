@@ -1,17 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
-import { useWindowManager } from "@mintables/shared/lib";
+import { OpenFolderWindow } from "../open-folder-window";
 
-/**
- * Route shim for `/folders/presets`. The Presets window itself is rendered
- * by `<WindowLayer>` over the desktop; this just asks the WM to open /
- * focus it.
- */
+/** Route shim for `/folders/presets`. */
 export function PresetsWindow() {
-  const { openWindow } = useWindowManager();
-  useEffect(() => {
-    openWindow({ kind: "folder", folderId: "presets" });
-  }, [openWindow]);
-  return null;
+  return <OpenFolderWindow folderId="presets" />;
 }

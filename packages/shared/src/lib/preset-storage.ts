@@ -88,13 +88,16 @@ export function readUrlConfig(): UrlConfig {
 }
 
 /**
- * Replace the current URL's query string with ?config=<encoded>, preserving
- * the pathname (so the generator route stays intact).
+ * Mirror the focused generator's config into the address bar. Writes the
+ * generator's canonical path rather than `location.pathname`: the router's
+ * own transition to `/generators/<id>` can still be in flight when the
+ * debounced sync fires, and reading the current pathname would clobber the
+ * address bar back to the pre-navigation URL.
  */
-export function syncUrl(config: unknown): void {
+export function syncUrl(generatorId: string, config: unknown): void {
   if (typeof window === "undefined") return;
   const encoded = encodeConfig(config);
-  const next = `${window.location.pathname}?config=${encoded}`;
+  const next = `/generators/${generatorId}?config=${encoded}`;
   window.history.replaceState(null, "", next);
 }
 

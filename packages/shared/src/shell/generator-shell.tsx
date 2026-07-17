@@ -30,7 +30,6 @@ import {
 } from "lucide-react";
 import type { Generator } from "../lib/generator";
 import { useDebouncedValue } from "../hooks/use-debounced-value";
-import { useWindowManager } from "../lib/window-manager";
 import {
   buildShareUrl,
   deletePreset,
@@ -54,20 +53,24 @@ const EXPORT_FORMAT_STORAGE_KEY = "mintables.exportFormat";
 
 interface GeneratorShellProps<C> {
   generator: Generator<C>;
+  /**
+   * True when this shell's window is the focused one. Multiple shells can
+   * coexist in the window layer (each window keeps its own state); only the
+   * focused shell may write back to the URL or swallow undo/redo chords.
+   * Hosts without a window manager can omit it (defaults to true).
+   */
+  focused?: boolean;
 }
 
-export function GeneratorShell<C>({ generator }: GeneratorShellProps<C>) {
+export function GeneratorShell<C>({
+  generator,
+  focused = true,
+}: GeneratorShellProps<C>) {
   const { config, setConfig, resetConfig, undo, redo, canUndo, canRedo } =
     useUndoableConfig<C>(generator.defaults);
   const [hydrated, setHydrated] = useState(false);
 
-  // Multiple GeneratorShells coexist in the window layer (each window keeps
-  // its own state). Only the currently focused generator-window may write
-  // back to the URL — otherwise N shells fight over `?` constantly.
-  const { focusedWindow } = useWindowManager();
-  const isFocused =
-    focusedWindow?.payload.kind === "generator" &&
-    focusedWindow.payload.generatorId === generator.id;
+  const isFocused = focused;
 
   const debouncedConfig = useDebouncedValue(config, 500);
 
@@ -110,8 +113,8 @@ export function GeneratorShell<C>({ generator }: GeneratorShellProps<C>) {
 
   useEffect(() => {
     if (!hydrated || !isFocused) return;
-    syncUrl(debouncedConfig);
-  }, [hydrated, isFocused, debouncedConfig]);
+    syncUrl(generator.id, debouncedConfig);
+  }, [hydrated, isFocused, generator.id, debouncedConfig]);
 
   // Cmd/Ctrl+Z / Cmd/Ctrl+Shift+Z / Cmd/Ctrl+Y for undo/redo. Gated by
   // `isFocused` so two open generator windows don't both swallow the chord.
@@ -333,7 +336,13 @@ export function GeneratorShell<C>({ generator }: GeneratorShellProps<C>) {
         flexDirection: "column",
       }}
     >
-      {stacked && <PaneToggle pane={pane} onChange={setPane} accent={generator.meta.accent} />}
+      {stacked && (
+        <PaneToggle
+          pane={pane}
+          onChange={setPane}
+          accent={generator.meta.accent}
+        />
+      )}
       <Box
         sx={{
           display: "flex",
@@ -343,349 +352,354 @@ export function GeneratorShell<C>({ generator }: GeneratorShellProps<C>) {
           flexDirection: { xs: "column", md: "row" },
         }}
       >
-      {/* Sidebar Controls */}
-      <Box
-        component="aside"
-        sx={{
-          width: { xs: "100%", md: 320, xl: 384 },
-          flexShrink: 0,
-          borderRight: { md: 1 },
-          borderColor: "divider",
-          bgcolor: "background.paper",
-          display: stacked && pane !== "controls" ? "none" : "flex",
-          flexDirection: "column",
-          minHeight: 0,
-        }}
-      >
-        <Box sx={{ flex: 1, overflow: "auto", p: 2 }}>
-          <Stack spacing={2}>
-            {Summary && <Summary config={config} />}
-            <Controls
-              config={config}
-              onChange={setConfig}
-              validation={validation}
-            />
-          </Stack>
-        </Box>
+        {/* Sidebar Controls */}
+        <Box
+          component="aside"
+          sx={{
+            width: { xs: "100%", md: 320, xl: 384 },
+            flexShrink: 0,
+            borderRight: { md: 1 },
+            borderColor: "divider",
+            bgcolor: "background.paper",
+            display: stacked && pane !== "controls" ? "none" : "flex",
+            flexDirection: "column",
+            minHeight: 0,
+          }}
+        >
+          <Box sx={{ flex: 1, overflow: "auto", p: 2 }}>
+            <Stack spacing={2}>
+              {Summary && <Summary config={config} />}
+              <Controls
+                config={config}
+                onChange={setConfig}
+                validation={validation}
+              />
+            </Stack>
+          </Box>
 
-        <Box sx={{ borderTop: 1, borderColor: "divider", p: 2 }}>
-          <Stack spacing={1}>
-            <ButtonGroup
-              ref={setDownloadAnchor}
-              variant="contained"
-              color="primary"
-              fullWidth
-              aria-label="Download model"
-            >
-              <Button
-                onClick={handleDownload}
-                size="large"
-                disabled={exportBlocked || exporting}
-                startIcon={<Download size={16} />}
-                sx={{
-                  flexGrow: 1,
-                  flexShrink: 1,
-                  whiteSpace: "nowrap",
-                  px: 1.5,
-                }}
+          <Box sx={{ borderTop: 1, borderColor: "divider", p: 2 }}>
+            <Stack spacing={1}>
+              <ButtonGroup
+                ref={setDownloadAnchor}
+                variant="contained"
+                color="primary"
+                fullWidth
+                aria-label="Download model"
               >
-                {exporting
-                  ? "Exporting…"
-                  : exportBlocked
-                    ? "Fix errors to export"
-                    : `Download ${exportFormat.toUpperCase()}`}
-              </Button>
-              <Button
-                size="large"
-                onClick={() => setFormatMenuOpen(true)}
-                aria-label="Choose export format"
-                sx={{
-                  flexGrow: 0,
-                  flexShrink: 0,
-                  flexBasis: 40,
-                  minWidth: 40,
-                  px: 0,
-                }}
-              >
-                <ChevronDown size={16} />
-              </Button>
-            </ButtonGroup>
-            <Menu
-              anchorEl={downloadAnchor}
-              open={formatMenuOpen}
-              onClose={() => setFormatMenuOpen(false)}
-              anchorOrigin={{ vertical: "top", horizontal: "right" }}
-              transformOrigin={{ vertical: "bottom", horizontal: "right" }}
-              slotProps={{
-                paper: { sx: { minWidth: downloadAnchor?.offsetWidth } },
-              }}
-            >
-              <MenuItem
-                selected={exportFormat === "stl"}
-                onClick={() => {
-                  setExportFormatPersisted("stl");
-                  setFormatMenuOpen(false);
-                }}
-              >
-                <ListItemText primary="STL" secondary="Universal, no units" />
-              </MenuItem>
-              <MenuItem
-                selected={exportFormat === "3mf"}
-                onClick={() => {
-                  setExportFormatPersisted("3mf");
-                  setFormatMenuOpen(false);
-                }}
-              >
-                <ListItemText
-                  primary="3MF"
-                  secondary="Modern, preserves mm units"
-                />
-              </MenuItem>
-            </Menu>
-            <Stack direction="row" spacing={1}>
-              <Tooltip title="Get a link to this exact configuration">
                 <Button
-                  onClick={handleOpenShare}
+                  onClick={handleDownload}
+                  size="large"
+                  disabled={exportBlocked || exporting}
+                  startIcon={<Download size={16} />}
+                  sx={{
+                    flexGrow: 1,
+                    flexShrink: 1,
+                    whiteSpace: "nowrap",
+                    px: 1.5,
+                  }}
+                >
+                  {exporting
+                    ? "Exporting…"
+                    : exportBlocked
+                      ? "Fix errors to export"
+                      : `Download ${exportFormat.toUpperCase()}`}
+                </Button>
+                <Button
+                  size="large"
+                  onClick={() => setFormatMenuOpen(true)}
+                  aria-label="Choose export format"
+                  sx={{
+                    flexGrow: 0,
+                    flexShrink: 0,
+                    flexBasis: 40,
+                    minWidth: 40,
+                    px: 0,
+                  }}
+                >
+                  <ChevronDown size={16} />
+                </Button>
+              </ButtonGroup>
+              <Menu
+                anchorEl={downloadAnchor}
+                open={formatMenuOpen}
+                onClose={() => setFormatMenuOpen(false)}
+                anchorOrigin={{ vertical: "top", horizontal: "right" }}
+                transformOrigin={{ vertical: "bottom", horizontal: "right" }}
+                slotProps={{
+                  paper: { sx: { minWidth: downloadAnchor?.offsetWidth } },
+                }}
+              >
+                <MenuItem
+                  selected={exportFormat === "stl"}
+                  onClick={() => {
+                    setExportFormatPersisted("stl");
+                    setFormatMenuOpen(false);
+                  }}
+                >
+                  <ListItemText primary="STL" secondary="Universal, no units" />
+                </MenuItem>
+                <MenuItem
+                  selected={exportFormat === "3mf"}
+                  onClick={() => {
+                    setExportFormatPersisted("3mf");
+                    setFormatMenuOpen(false);
+                  }}
+                >
+                  <ListItemText
+                    primary="3MF"
+                    secondary="Modern, preserves mm units"
+                  />
+                </MenuItem>
+              </Menu>
+              <Stack direction="row" spacing={1}>
+                <Tooltip title="Get a link to this exact configuration">
+                  <Button
+                    onClick={handleOpenShare}
+                    variant="outlined"
+                    size="small"
+                    fullWidth
+                    startIcon={<Share2 size={14} />}
+                  >
+                    Share
+                  </Button>
+                </Tooltip>
+                <Button
+                  onClick={(e) => setPresetsAnchor(e.currentTarget)}
                   variant="outlined"
                   size="small"
                   fullWidth
-                  startIcon={<Share2 size={14} />}
+                  startIcon={<Bookmark size={14} />}
+                  endIcon={<ChevronDown size={12} />}
                 >
-                  Share
+                  Presets
                 </Button>
-              </Tooltip>
-              <Button
-                onClick={(e) => setPresetsAnchor(e.currentTarget)}
-                variant="outlined"
-                size="small"
-                fullWidth
-                startIcon={<Bookmark size={14} />}
-                endIcon={<ChevronDown size={12} />}
+              </Stack>
+              <Menu
+                anchorEl={presetsAnchor}
+                open={Boolean(presetsAnchor)}
+                onClose={() => setPresetsAnchor(null)}
+                anchorOrigin={{ vertical: "top", horizontal: "right" }}
+                transformOrigin={{ vertical: "bottom", horizontal: "right" }}
+                slotProps={{ paper: { sx: { minWidth: 260, maxWidth: 360 } } }}
               >
-                Presets
-              </Button>
-            </Stack>
-            <Menu
-              anchorEl={presetsAnchor}
-              open={Boolean(presetsAnchor)}
-              onClose={() => setPresetsAnchor(null)}
-              anchorOrigin={{ vertical: "top", horizontal: "right" }}
-              transformOrigin={{ vertical: "bottom", horizontal: "right" }}
-              slotProps={{ paper: { sx: { minWidth: 260, maxWidth: 360 } } }}
-            >
-              <MenuItem onClick={handleOpenSaveDialog}>
-                <ListItemText
-                  primary="Save current as preset…"
-                  secondary={`Saves the active ${generator.meta.name.toLowerCase()}`}
-                />
-              </MenuItem>
-              {presets.length > 0 && <Divider />}
-              {presets.length === 0 ? (
-                <MenuItem disabled>
+                <MenuItem onClick={handleOpenSaveDialog}>
                   <ListItemText
-                    secondary="No presets saved yet"
-                    slotProps={{ secondary: { sx: { fontStyle: "italic" } } }}
+                    primary="Save current as preset…"
+                    secondary={`Saves the active ${generator.meta.name.toLowerCase()}`}
                   />
                 </MenuItem>
-              ) : (
-                presets.map((p) => (
-                  <MenuItem
-                    key={p.id}
-                    onClick={() => handleLoadPreset(p)}
-                    sx={{ pr: 1 }}
-                  >
-                    <ListItemText primary={p.name} />
-                    <IconButton
-                      size="small"
-                      edge="end"
-                      aria-label={`Delete preset ${p.name}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeletePreset(p);
-                      }}
-                      sx={{ ml: 1 }}
-                    >
-                      <Trash2 size={14} />
-                    </IconButton>
+                {presets.length > 0 && <Divider />}
+                {presets.length === 0 ? (
+                  <MenuItem disabled>
+                    <ListItemText
+                      secondary="No presets saved yet"
+                      slotProps={{ secondary: { sx: { fontStyle: "italic" } } }}
+                    />
                   </MenuItem>
-                ))
-              )}
-            </Menu>
-            <Stack direction="row" spacing={0.5} sx={{
-              alignItems: "center"
-            }}>
-              <Tooltip title="Undo (Ctrl+Z)">
-                <span>
-                  <IconButton
-                    onClick={undo}
-                    disabled={!canUndo}
-                    size="small"
-                    aria-label="Undo"
-                  >
-                    <Undo2 size={14} />
-                  </IconButton>
-                </span>
-              </Tooltip>
-              <Tooltip title="Redo (Ctrl+Shift+Z)">
-                <span>
-                  <IconButton
-                    onClick={redo}
-                    disabled={!canRedo}
-                    size="small"
-                    aria-label="Redo"
-                  >
-                    <Redo2 size={14} />
-                  </IconButton>
-                </span>
-              </Tooltip>
-              <Button
-                onClick={handleReset}
-                variant="text"
-                size="small"
-                fullWidth
-                startIcon={<RotateCcw size={14} />}
-                sx={{ color: "#d9d9d9" }}
+                ) : (
+                  presets.map((p) => (
+                    <MenuItem
+                      key={p.id}
+                      onClick={() => handleLoadPreset(p)}
+                      sx={{ pr: 1 }}
+                    >
+                      <ListItemText primary={p.name} />
+                      <IconButton
+                        size="small"
+                        edge="end"
+                        aria-label={`Delete preset ${p.name}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeletePreset(p);
+                        }}
+                        sx={{ ml: 1 }}
+                      >
+                        <Trash2 size={14} />
+                      </IconButton>
+                    </MenuItem>
+                  ))
+                )}
+              </Menu>
+              <Stack
+                direction="row"
+                spacing={0.5}
+                sx={{
+                  alignItems: "center",
+                }}
               >
-                Reset to Default
-              </Button>
+                <Tooltip title="Undo (Ctrl+Z)">
+                  <span>
+                    <IconButton
+                      onClick={undo}
+                      disabled={!canUndo}
+                      size="small"
+                      aria-label="Undo"
+                    >
+                      <Undo2 size={14} />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+                <Tooltip title="Redo (Ctrl+Shift+Z)">
+                  <span>
+                    <IconButton
+                      onClick={redo}
+                      disabled={!canRedo}
+                      size="small"
+                      aria-label="Redo"
+                    >
+                      <Redo2 size={14} />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+                <Button
+                  onClick={handleReset}
+                  variant="text"
+                  size="small"
+                  fullWidth
+                  startIcon={<RotateCcw size={14} />}
+                  sx={{ color: "#d9d9d9" }}
+                >
+                  Reset to Default
+                </Button>
+              </Stack>
             </Stack>
-          </Stack>
+          </Box>
         </Box>
-      </Box>
 
-      {/* Preview area. The info bar's view-preset buttons reach the
+        {/* Preview area. The info bar's view-preset buttons reach the
         PreviewSceneRig (inside drei's <View>) through a window event
         tagged with this generator's id - cross-portal React context
         doesn't bridge in drei View, events do. */}
-      <Box
-        component="main"
-        sx={{
-          flex: 1,
-          display: stacked && pane !== "preview" ? "none" : "flex",
-          flexDirection: "column",
-          minHeight: { md: 0 },
-          // Allow this flex item to shrink below the WebGL canvas's
-          // intrinsic min-width, otherwise once R3F grows the canvas
-          // (e.g. window maximize), it anchors `main` and can't shrink back.
-          minWidth: 0,
-        }}
-      >
-        {/* Info Bar */}
         <Box
+          component="main"
           sx={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            borderBottom: 1,
-            borderColor: "divider",
-            bgcolor: "rgba(53, 53, 53, 0.5)",
-            px: 2,
-            py: 1,
+            flex: 1,
+            display: stacked && pane !== "preview" ? "none" : "flex",
+            flexDirection: "column",
+            minHeight: { md: 0 },
+            // Allow this flex item to shrink below the WebGL canvas's
+            // intrinsic min-width, otherwise once R3F grows the canvas
+            // (e.g. window maximize), it anchors `main` and can't shrink back.
+            minWidth: 0,
           }}
         >
-          <Stack
-            direction="row"
-            spacing={1.5}
-            useFlexGap
+          {/* Info Bar */}
+          <Box
             sx={{
+              display: "flex",
               alignItems: "center",
-              flexWrap: "wrap"
-            }}>
-            <Chip
-              label={exportFormat.toUpperCase()}
-              size="small"
+              justifyContent: "space-between",
+              borderBottom: 1,
+              borderColor: "divider",
+              bgcolor: "rgba(53, 53, 53, 0.5)",
+              px: 2,
+              py: 1,
+            }}
+          >
+            <Stack
+              direction="row"
+              spacing={1.5}
+              useFlexGap
               sx={{
-                bgcolor: "rgba(90, 154, 157, 0.15)",
-                color: "primary.main",
-                fontWeight: 600,
-                height: 24,
+                alignItems: "center",
+                flexWrap: "wrap",
               }}
-            />
-            {exportBlocked ? (
+            >
               <Chip
-                label="Fix errors to export"
+                label={exportFormat.toUpperCase()}
                 size="small"
                 sx={{
-                  bgcolor: "rgba(239, 68, 68, 0.15)",
-                  color: "#ef4444",
+                  bgcolor: "rgba(90, 154, 157, 0.15)",
+                  color: "primary.main",
                   fontWeight: 600,
                   height: 24,
                 }}
               />
-            ) : (
-              <Chip
-                label="Ready to export"
-                size="small"
-                sx={{
-                  bgcolor: "rgba(34, 197, 94, 0.15)",
-                  color: "#22c55e",
-                  fontWeight: 600,
-                  height: 24,
-                }}
-              />
-            )}
-            {activePreset && (
-              <Tooltip
-                title={
-                  presetModified
-                    ? `You've changed values since loading "${activePreset.name}". Save as a new preset to keep these changes.`
-                    : `Currently editing the preset "${activePreset.name}".`
-                }
-              >
+              {exportBlocked ? (
                 <Chip
-                  icon={<Bookmark size={12} />}
-                  label={
-                    presetModified
-                      ? `${activePreset.name} • modified`
-                      : activePreset.name
-                  }
+                  label="Fix errors to export"
                   size="small"
-                  onDelete={handleClearActivePreset}
                   sx={{
-                    bgcolor: presetModified
-                      ? "rgba(245, 158, 11, 0.15)"
-                      : "rgba(34, 197, 94, 0.15)",
-                    color: presetModified ? "#f59e0b" : "#22c55e",
-                    fontSize: "0.75rem",
+                    bgcolor: "rgba(239, 68, 68, 0.15)",
+                    color: "#ef4444",
+                    fontWeight: 600,
                     height: 24,
-                    "& .MuiChip-icon": {
-                      color: "inherit",
-                      marginLeft: "6px",
-                    },
-                    "& .MuiChip-deleteIcon": {
-                      color: "inherit",
-                      opacity: 0.7,
-                      "&:hover": { opacity: 1, color: "inherit" },
-                    },
                   }}
                 />
-              </Tooltip>
-            )}
-            {badges.map((badge, i) => (
-              <Chip
-                key={`${badge.label}-${String(i)}`}
-                label={badge.label}
-                size="small"
-                sx={{
-                  bgcolor: `${badge.color}1a`,
-                  color: badge.color,
-                  fontSize: "0.75rem",
-                  height: 24,
-                }}
-              />
-            ))}
-          </Stack>
-          <ViewPresetButtons generatorId={generator.id} />
+              ) : (
+                <Chip
+                  label="Ready to export"
+                  size="small"
+                  sx={{
+                    bgcolor: "rgba(34, 197, 94, 0.15)",
+                    color: "#22c55e",
+                    fontWeight: 600,
+                    height: 24,
+                  }}
+                />
+              )}
+              {activePreset && (
+                <Tooltip
+                  title={
+                    presetModified
+                      ? `You've changed values since loading "${activePreset.name}". Save as a new preset to keep these changes.`
+                      : `Currently editing the preset "${activePreset.name}".`
+                  }
+                >
+                  <Chip
+                    icon={<Bookmark size={12} />}
+                    label={
+                      presetModified
+                        ? `${activePreset.name} • modified`
+                        : activePreset.name
+                    }
+                    size="small"
+                    onDelete={handleClearActivePreset}
+                    sx={{
+                      bgcolor: presetModified
+                        ? "rgba(245, 158, 11, 0.15)"
+                        : "rgba(34, 197, 94, 0.15)",
+                      color: presetModified ? "#f59e0b" : "#22c55e",
+                      fontSize: "0.75rem",
+                      height: 24,
+                      "& .MuiChip-icon": {
+                        color: "inherit",
+                        marginLeft: "6px",
+                      },
+                      "& .MuiChip-deleteIcon": {
+                        color: "inherit",
+                        opacity: 0.7,
+                        "&:hover": { opacity: 1, color: "inherit" },
+                      },
+                    }}
+                  />
+                </Tooltip>
+              )}
+              {badges.map((badge, i) => (
+                <Chip
+                  key={`${badge.label}-${String(i)}`}
+                  label={badge.label}
+                  size="small"
+                  sx={{
+                    bgcolor: `${badge.color}1a`,
+                    color: badge.color,
+                    fontSize: "0.75rem",
+                    height: 24,
+                  }}
+                />
+              ))}
+            </Stack>
+            <ViewPresetButtons generatorId={generator.id} />
+          </Box>
+
+          <ValidationBanner result={validation} />
+
+          <PreviewPanel
+            generator={generator}
+            config={debouncedConfig}
+            active={isFocused}
+          />
         </Box>
-
-        <ValidationBanner result={validation} />
-
-        <PreviewPanel
-          generator={generator}
-          config={debouncedConfig}
-          active={isFocused}
-        />
-      </Box>
       </Box>
       <ThankYouDrawer
         open={showThankYou}
@@ -749,8 +763,9 @@ function PaneToggle({
         borderBottom: "1px solid rgba(255,255,255,0.06)",
         bgcolor: "rgba(255,255,255,0.025)",
         backdropFilter: "blur(8px)",
-        WebkitBackdropFilter: "blur(8px)"
-      }}>
+        WebkitBackdropFilter: "blur(8px)",
+      }}
+    >
       <Stack
         direction="row"
         role="tablist"
@@ -866,9 +881,7 @@ function useUndoableConfig<C>(initial: C): {
   const setConfig = useCallback((next: C | ((prev: C) => C)) => {
     setState((s) => {
       const resolved =
-        typeof next === "function"
-          ? (next as (prev: C) => C)(s.present)
-          : next;
+        typeof next === "function" ? (next as (prev: C) => C)(s.present) : next;
       if (JSON.stringify(resolved) === JSON.stringify(s.present)) {
         return s;
       }

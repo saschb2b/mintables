@@ -7,7 +7,7 @@ import {
   FileExplorer,
   type ExplorerAction,
   type ExplorerItem,
-} from "@mintables/shared/ui";
+} from "@react-ui-os/desktop";
 import {
   buildShareUrl,
   type DownloadEntry,
@@ -19,6 +19,7 @@ import {
 import { exportModel, ExportError } from "@mintables/shared/lib/export";
 import { Download, FileText, FolderOpen, Trash2 } from "lucide-react";
 import { findGenerator } from "@/lib/registry";
+import { EdgeToEdge } from "@/lib/window-content";
 import { useExplorerSidebar } from "../use-explorer-sidebar";
 
 interface Item extends ExplorerItem {
@@ -26,9 +27,9 @@ interface Item extends ExplorerItem {
 }
 
 /**
- * The Downloads folder's body — a FileExplorer over `listDownloads()`. Does
- * NOT render any window chrome; the WindowLayer is responsible for wrapping
- * this in an AppWindow.
+ * The Downloads folder's body: a FileExplorer over `listDownloads()`. Runs as
+ * the `downloads` system window's content; the react-ui-os WindowLayer owns
+ * the chrome.
  */
 export function DownloadsContent() {
   const router = useRouter();
@@ -117,7 +118,7 @@ export function DownloadsContent() {
     {
       id: "open",
       label: "Open in app",
-      icon: FolderOpen,
+      icon: <FolderOpen size={13} />,
       onClick: (its) => {
         if (its[0]) handleOpen(its[0]);
       },
@@ -126,27 +127,60 @@ export function DownloadsContent() {
     {
       id: "re-download",
       label: "Re-download",
-      icon: Download,
+      icon: <Download size={13} />,
       onClick: handleReDownload,
     },
     {
       id: "delete",
       label: "Delete",
-      icon: Trash2,
+      icon: <Trash2 size={13} />,
       onClick: handleDelete,
       danger: true,
+      shortcut: "⌫",
     },
   ];
 
   return (
-    <FileExplorer
-      items={items}
-      onOpen={handleOpen}
-      onRename={handleRename}
-      actions={actions}
-      sidebar={sidebar}
-      emptyState="Your exported STL and 3MF files will show up here. Download anything from a generator to fill the folder."
-    />
+    <EdgeToEdge>
+      <FileExplorer
+        items={items}
+        onOpen={handleOpen}
+        onRename={handleRename}
+        actions={actions}
+        sidebar={sidebar}
+        emptyState={
+          <ExplorerEmptyState>
+            Your exported STL and 3MF files will show up here. Download anything
+            from a generator to fill the folder.
+          </ExplorerEmptyState>
+        }
+      />
+    </EdgeToEdge>
+  );
+}
+
+/** Centered muted paragraph for the explorer's empty state. */
+export function ExplorerEmptyState({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <Box
+      sx={{
+        p: "40px 24px",
+        display: "flex",
+        justifyContent: "center",
+        textAlign: "center",
+        color: "text.secondary",
+        fontSize: "0.78rem",
+        maxWidth: 420,
+        mx: "auto",
+        lineHeight: 1.6,
+      }}
+    >
+      {children}
+    </Box>
   );
 }
 

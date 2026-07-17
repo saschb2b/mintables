@@ -42,9 +42,13 @@ export function WelcomeDialog({ open, onClose }: WelcomeDialogProps) {
     >
       <Stack spacing={2.75} sx={{ p: 3 }}>
         {/* Hero — small icon + headline, like a doc title (not a marketing banner). */}
-        <Stack direction="row" spacing={2} sx={{
-          alignItems: "center"
-        }}>
+        <Stack
+          direction="row"
+          spacing={2}
+          sx={{
+            alignItems: "center",
+          }}
+        >
           <Box
             sx={{
               flexShrink: 0,
@@ -108,21 +112,17 @@ export function WelcomeDialog({ open, onClose }: WelcomeDialogProps) {
             fontSize: "0.83rem",
           }}
         >
-          TubeCraft is now Mintables. The same tube generator is here,
-          inside a desktop environment built to host a growing family of
-          parametric tools. Everything still runs locally in your browser.
-          No accounts, no uploads.
+          TubeCraft is now Mintables. The same tube generator is here, inside a
+          desktop environment built to host a growing family of parametric
+          tools. Everything still runs locally in your browser. No accounts, no
+          uploads.
         </Typography>
 
         {/* Tips — three quick orientations. */}
         <Stack spacing={1.25}>
-          <Tip
-            icon={Squircle}
-            color="#5a9a9d"
-            title="The dock launches apps"
-          >
-            Generators live in the dock at the bottom. Click one to open it as
-            a window.
+          <Tip icon={Squircle} color="#5a9a9d" title="The dock launches apps">
+            Generators live in the dock at the bottom. Click one to open it as a
+            window.
           </Tip>
           <Tip icon={Folder} color="#3b82f6" title="Folders hold your stuff">
             After your first export or saved preset, a Downloads or Presets
@@ -143,8 +143,9 @@ export function WelcomeDialog({ open, onClose }: WelcomeDialogProps) {
           direction="row"
           sx={{
             justifyContent: "flex-end",
-            pt: 0.5
-          }}>
+            pt: 0.5,
+          }}
+        >
           <Button
             onClick={onClose}
             variant="contained"
@@ -183,9 +184,13 @@ function Tip({
   children: ReactNode;
 }) {
   return (
-    <Stack direction="row" spacing={1.5} sx={{
-      alignItems: "flex-start"
-    }}>
+    <Stack
+      direction="row"
+      spacing={1.5}
+      sx={{
+        alignItems: "flex-start",
+      }}
+    >
       <Box
         sx={{
           flexShrink: 0,
