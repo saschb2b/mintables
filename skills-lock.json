@@ -1,6 +1,48 @@
 {
   "version": 1,
   "skills": {
+    "agent-browser": {
+      "source": "vercel-labs/agent-browser",
+      "sourceType": "github",
+      "skillPath": "skills/agent-browser/SKILL.md",
+      "computedHash": "ecc7641aea05f85ca3b11e7759d32aaf52fe05946ab4b63739c7bf78a41237a2"
+    },
+    "autopilot": {
+      "source": "saschb2b/skills",
+      "sourceType": "github",
+      "skillPath": "skills/productivity/autopilot/SKILL.md",
+      "computedHash": "44ced484aa97feed93b28abf640a67d7c62b4beb2ce315aeff57bdacd12f1afd"
+    },
+    "okf": {
+      "source": "saschb2b/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/okf/SKILL.md",
+      "computedHash": "0fdbbce556dd74b4a1a7f9f6aa9489fdc27751a700f6285bbf8606c62cbd91f9"
+    },
+    "react-compiler": {
+      "source": "saschb2b/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/react-compiler/SKILL.md",
+      "computedHash": "3b88319ed3518e77e61ced136b97ab6d3bb2bfed1ed550e2e3a4e57355744f70"
+    },
+    "react-stinky": {
+      "source": "saschb2b/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/react-stinky/SKILL.md",
+      "computedHash": "1baa8801b5832b897059db57a2fb0ca5ef514633b7ace2e54d7e931843eda066"
+    },
+    "test-stinky": {
+      "source": "saschb2b/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/test-stinky/SKILL.md",
+      "computedHash": "883d1979671b69be30c89533c49dc234e84d79913a8390c319ada91b29d096df"
+    },
+    "theme-colors": {
+      "source": "saschb2b/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/theme-colors/SKILL.md",
+      "computedHash": "b8bce8dda457227d17205c53531f4fa7403185f10e362cce62170537481b200f"
+    },
     "ui-ux-pro-max": {
       "source": "nextlevelbuilder/ui-ux-pro-max-skill",
       "sourceType": "github",
