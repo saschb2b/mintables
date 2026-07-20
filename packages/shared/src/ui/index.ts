@@ -1,5 +1,6 @@
 export { ThemeProvider } from "./theme-provider";
 export { DialogWindow } from "./dialog-window";
+export { DockIconImage } from "./dock-icon-image";
 export { GeneratorGrid } from "./generator-grid";
 export { GeneratorHero } from "./generator-hero";
 export { MiniPreview } from "./mini-preview";
