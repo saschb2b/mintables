@@ -1,5 +1,9 @@
 import { ShapeUtils, Vector2 } from "three";
 import { addTriangle } from "@mintables/shared/lib/geometry/mesh-utils";
+import {
+  CUSTOM_TEXTURE_RESOLUTION,
+  decodeCustomTextureSamples,
+} from "./custom-height-map";
 import { calculateHexTileLayout } from "./layout";
 import type { HexTileConfig } from "./types";
 
@@ -18,9 +22,16 @@ interface SideFrame {
   length: number;
 }
 
+interface TextureGroove {
+  outline: Point2[];
+  depthScale: number;
+}
+
 const CURVE_SEGMENTS = 64;
 const WELL_RINGS = 6;
 const BOWL_CURVE_WIDTH = 12;
+const TEXTURE_EDGE_MARGIN = 0.45;
+const TEXTURE_FEATURE_MARGIN = 0.75;
 
 function regularHex(acrossFlats: number): Point2[] {
   const radius = acrossFlats / Math.sqrt(3);
@@ -49,6 +60,371 @@ function ellipseOutline(
       y: centerY + x * sin + y * cos,
     };
   });
+}
+
+function pointInPolygon(point: Point2, polygon: Point2[]): boolean {
+  let inside = false;
+  for (
+    let current = 0, previous = polygon.length - 1;
+    current < polygon.length;
+    previous = current++
+  ) {
+    const a = polygon[current];
+    const b = polygon[previous];
+    const crosses =
+      a.y > point.y !== b.y > point.y &&
+      point.x < ((b.x - a.x) * (point.y - a.y)) / (b.y - a.y) + a.x;
+    if (crosses) inside = !inside;
+  }
+  return inside;
+}
+
+function distanceToSegment(point: Point2, a: Point2, b: Point2): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const lengthSquared = dx * dx + dy * dy;
+  if (lengthSquared === 0) return Math.hypot(point.x - a.x, point.y - a.y);
+  const progress = Math.max(
+    0,
+    Math.min(1, ((point.x - a.x) * dx + (point.y - a.y) * dy) / lengthSquared),
+  );
+  return Math.hypot(
+    point.x - (a.x + progress * dx),
+    point.y - (a.y + progress * dy),
+  );
+}
+
+function distanceToOutline(point: Point2, outline: Point2[]): number {
+  let distance = Number.POSITIVE_INFINITY;
+  for (let index = 0; index < outline.length; index++) {
+    distance = Math.min(
+      distance,
+      distanceToSegment(
+        point,
+        outline[index],
+        outline[(index + 1) % outline.length],
+      ),
+    );
+  }
+  return distance;
+}
+
+function segmentsIntersect(
+  a: Point2,
+  b: Point2,
+  c: Point2,
+  d: Point2,
+): boolean {
+  const epsilon = 1e-9;
+  const cross2d = (origin: Point2, first: Point2, second: Point2) =>
+    (first.x - origin.x) * (second.y - origin.y) -
+    (first.y - origin.y) * (second.x - origin.x);
+  const onSegment = (point: Point2, start: Point2, end: Point2) =>
+    point.x >= Math.min(start.x, end.x) - epsilon &&
+    point.x <= Math.max(start.x, end.x) + epsilon &&
+    point.y >= Math.min(start.y, end.y) - epsilon &&
+    point.y <= Math.max(start.y, end.y) + epsilon;
+  const abC = cross2d(a, b, c);
+  const abD = cross2d(a, b, d);
+  const cdA = cross2d(c, d, a);
+  const cdB = cross2d(c, d, b);
+  if (
+    ((abC > epsilon && abD < -epsilon) || (abC < -epsilon && abD > epsilon)) &&
+    ((cdA > epsilon && cdB < -epsilon) || (cdA < -epsilon && cdB > epsilon))
+  ) {
+    return true;
+  }
+  return (
+    (Math.abs(abC) <= epsilon && onSegment(c, a, b)) ||
+    (Math.abs(abD) <= epsilon && onSegment(d, a, b)) ||
+    (Math.abs(cdA) <= epsilon && onSegment(a, c, d)) ||
+    (Math.abs(cdB) <= epsilon && onSegment(b, c, d))
+  );
+}
+
+function distanceBetweenOutlines(a: Point2[], b: Point2[]): number {
+  let distance = Number.POSITIVE_INFINITY;
+  for (let aIndex = 0; aIndex < a.length; aIndex++) {
+    const aStart = a[aIndex];
+    const aEnd = a[(aIndex + 1) % a.length];
+    for (let bIndex = 0; bIndex < b.length; bIndex++) {
+      const bStart = b[bIndex];
+      const bEnd = b[(bIndex + 1) % b.length];
+      if (segmentsIntersect(aStart, aEnd, bStart, bEnd)) return 0;
+      distance = Math.min(
+        distance,
+        distanceToSegment(aStart, bStart, bEnd),
+        distanceToSegment(aEnd, bStart, bEnd),
+        distanceToSegment(bStart, aStart, aEnd),
+        distanceToSegment(bEnd, aStart, aEnd),
+      );
+    }
+  }
+  return distance;
+}
+
+function textureCandidateFits(
+  candidate: Point2[],
+  outer: Point2[],
+  blocked: Point2[][],
+): boolean {
+  const samples = [...candidate, centroid(candidate)];
+  const insideOuter = samples.every(
+    (point) =>
+      pointInPolygon(point, outer) &&
+      distanceToOutline(point, outer) >= TEXTURE_EDGE_MARGIN,
+  );
+  return (
+    insideOuter &&
+    blocked.every(
+      (outline) =>
+        samples.every((point) => !pointInPolygon(point, outline)) &&
+        !outline.some((blockedPoint) =>
+          pointInPolygon(blockedPoint, candidate),
+        ) &&
+        distanceBetweenOutlines(candidate, outline) >= TEXTURE_FEATURE_MARGIN,
+    )
+  );
+}
+
+function patternHash(x: number, y: number, seed: number): number {
+  const value = Math.sin(x * 12.9898 + y * 78.233 + seed * 37.719);
+  return value * 43758.5453 - Math.floor(value * 43758.5453);
+}
+
+function patternBounds(outline: Point2[]): {
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+} {
+  return {
+    minX: Math.min(...outline.map((point) => point.x)),
+    maxX: Math.max(...outline.map((point) => point.x)),
+    minY: Math.min(...outline.map((point) => point.y)),
+    maxY: Math.max(...outline.map((point) => point.y)),
+  };
+}
+
+function woodGrainCandidates(outer: Point2[]): Point2[][] {
+  const bounds = patternBounds(outer);
+  const candidates: Point2[][] = [];
+  let row = 0;
+  for (let y = bounds.minY + 2; y <= bounds.maxY - 2; y += 3.5) {
+    let column = 0;
+    for (
+      let x = bounds.minX + 3 + (row % 2) * 5.2;
+      x <= bounds.maxX - 2;
+      x += 10.4
+    ) {
+      const variation = patternHash(column, row, 1);
+      candidates.push(
+        ellipseOutline(
+          4.2 + variation * 0.7,
+          0.24 + variation * 0.07,
+          x,
+          y + Math.sin(x * 0.09) * 0.45,
+          (variation - 0.5) * 0.16,
+          16,
+        ),
+      );
+      column++;
+    }
+    row++;
+  }
+  return candidates;
+}
+
+function cobblestoneCandidates(outer: Point2[]): Point2[][] {
+  const bounds = patternBounds(outer);
+  const candidates: Point2[][] = [];
+  const stoneWidth = 7.2;
+  const stoneHeight = 5.6;
+  let row = 0;
+  for (let y = bounds.minY + 2; y <= bounds.maxY - 2; y += stoneHeight) {
+    let column = 0;
+    for (
+      let x = bounds.minX + 2 + (row % 2) * (stoneWidth / 2);
+      x <= bounds.maxX - 2;
+      x += stoneWidth
+    ) {
+      const variation = patternHash(column, row, 2);
+      candidates.push(
+        ellipseOutline(
+          stoneWidth / 2 - 0.75,
+          0.3 + variation * 0.07,
+          x,
+          y + (variation - 0.5) * 0.25,
+          (variation - 0.5) * 0.05,
+          16,
+        ),
+      );
+      column++;
+    }
+    row++;
+  }
+
+  row = 0;
+  for (
+    let y = bounds.minY + 2 + stoneHeight / 2;
+    y <= bounds.maxY - 2;
+    y += stoneHeight
+  ) {
+    let column = 0;
+    for (
+      let x = bounds.minX + 2 + (row % 2) * (stoneWidth / 2);
+      x <= bounds.maxX - 2;
+      x += stoneWidth
+    ) {
+      const variation = patternHash(column, row, 3);
+      candidates.push(
+        ellipseOutline(
+          0.28 + variation * 0.05,
+          stoneHeight / 2 - 0.65,
+          x + stoneWidth / 2 + (variation - 0.5) * 0.2,
+          y,
+          (variation - 0.5) * 0.06,
+          16,
+        ),
+      );
+      column++;
+    }
+    row++;
+  }
+  return candidates;
+}
+
+function hammeredStoneCandidates(outer: Point2[]): Point2[][] {
+  const bounds = patternBounds(outer);
+  const candidates: Point2[][] = [];
+  let row = 0;
+  for (let y = bounds.minY + 1.5; y <= bounds.maxY - 1.5; y += 4.1) {
+    let column = 0;
+    for (
+      let x = bounds.minX + 1.5 + (row % 2) * 2;
+      x <= bounds.maxX - 1.5;
+      x += 4.1
+    ) {
+      const variation = patternHash(column, row, 4);
+      candidates.push(
+        ellipseOutline(
+          0.55 + variation * 0.35,
+          0.48 + patternHash(column, row, 5) * 0.3,
+          x + (variation - 0.5) * 0.7,
+          y + (patternHash(column, row, 6) - 0.5) * 0.7,
+          variation * Math.PI,
+          14,
+        ),
+      );
+      column++;
+    }
+    row++;
+  }
+  return candidates;
+}
+
+function sciFiPanelCandidates(outer: Point2[]): Point2[][] {
+  const bounds = patternBounds(outer);
+  const candidates: Point2[][] = [];
+  let row = 0;
+  for (let y = bounds.minY + 3; y <= bounds.maxY - 3; y += 9) {
+    let column = 0;
+    for (
+      let x = bounds.minX + 3 + (row % 2) * 4.5;
+      x <= bounds.maxX - 3;
+      x += 9
+    ) {
+      const rotation = ((column + row) % 3) * (Math.PI / 3);
+      candidates.push(ellipseOutline(2.8, 0.32, x, y - 1.15, rotation, 16));
+      const offsetAngle = rotation + Math.PI / 2;
+      candidates.push(
+        ellipseOutline(
+          0.62,
+          0.62,
+          x + Math.cos(offsetAngle) * 2.1,
+          y - 1.15 + Math.sin(offsetAngle) * 2.1,
+          0,
+          14,
+        ),
+      );
+      column++;
+    }
+    row++;
+  }
+  return candidates;
+}
+
+function customHeightMapCandidates(
+  config: HexTileConfig,
+  outer: Point2[],
+): TextureGroove[] {
+  const samples = decodeCustomTextureSamples(config.customTextureData);
+  if (!samples) return [];
+  const bounds = patternBounds(outer);
+  const cellWidth = (bounds.maxX - bounds.minX) / CUSTOM_TEXTURE_RESOLUTION;
+  const cellHeight = (bounds.maxY - bounds.minY) / CUSTOM_TEXTURE_RESOLUTION;
+  const grooves: TextureGroove[] = [];
+
+  for (let row = 0; row < CUSTOM_TEXTURE_RESOLUTION; row++) {
+    for (let column = 0; column < CUSTOM_TEXTURE_RESOLUTION; column++) {
+      const sample = samples[row * CUSTOM_TEXTURE_RESOLUTION + column] / 255;
+      const recess = config.isCustomTextureInverted ? sample : 1 - sample;
+      if (recess < 0.08) continue;
+      grooves.push({
+        outline: ellipseOutline(
+          cellWidth * 0.39,
+          cellHeight * 0.39,
+          bounds.minX + (column + 0.5) * cellWidth,
+          bounds.maxY - (row + 0.5) * cellHeight,
+          0,
+          8,
+        ),
+        depthScale: Math.max(0.2, recess),
+      });
+    }
+  }
+  return grooves;
+}
+
+function surfaceTextureGrooves(
+  config: HexTileConfig,
+  outer: Point2[],
+  blocked: Point2[][],
+): TextureGroove[] {
+  if (!config.isSurfaceTextureEnabled) return [];
+  let candidates: TextureGroove[];
+  switch (config.surfaceTexture) {
+    case "wood-grain":
+      candidates = woodGrainCandidates(outer).map((outline) => ({
+        outline,
+        depthScale: 1,
+      }));
+      break;
+    case "cobblestone":
+      candidates = cobblestoneCandidates(outer).map((outline) => ({
+        outline,
+        depthScale: 1,
+      }));
+      break;
+    case "hammered-stone":
+      candidates = hammeredStoneCandidates(outer).map((outline) => ({
+        outline,
+        depthScale: 1,
+      }));
+      break;
+    case "sci-fi-panels":
+      candidates = sciFiPanelCandidates(outer).map((outline) => ({
+        outline,
+        depthScale: 1,
+      }));
+      break;
+    case "custom":
+      candidates = customHeightMapCandidates(config, outer);
+      break;
+  }
+  return candidates.filter((candidate) =>
+    textureCandidateFits(candidate.outline, outer, blocked),
+  );
 }
 
 function roundedRectangle(
@@ -255,10 +631,12 @@ function buildTopFace(
   topZ: number,
 ): void {
   const marker = northMarkerOutline(config);
+  const blocked = marker ? [...featureHoles, marker] : featureHoles;
+  const textureGrooves = surfaceTextureGrooves(config, outer, blocked);
   triangulateHorizontalFace(
     triangles,
     outer,
-    marker ? [...featureHoles, marker] : featureHoles,
+    [...blocked, ...textureGrooves.map((groove) => groove.outline)],
     topZ,
     "up",
   );
@@ -267,6 +645,52 @@ function buildTopFace(
     const markerFloorZ = topZ - layout.northMarkerDepth;
     buildContourWall(triangles, marker, marker, markerFloorZ, topZ, "inward");
     buildFanFace(triangles, marker, markerFloorZ, "up");
+  }
+  for (const groove of textureGrooves) {
+    const textureFloorZ = topZ - config.surfaceTextureDepth * groove.depthScale;
+    buildContourWall(
+      triangles,
+      groove.outline,
+      groove.outline,
+      textureFloorZ,
+      topZ,
+      "inward",
+    );
+    buildFanFace(triangles, groove.outline, textureFloorZ, "up");
+  }
+}
+
+function buildTexturedAnnularFace(
+  triangles: number[][],
+  config: HexTileConfig,
+  outer: Point2[],
+  inner: Point2[],
+  z: number,
+): void {
+  if (!config.isSurfaceTextureEnabled) {
+    buildAnnularFace(triangles, outer, inner, z, "up");
+    return;
+  }
+
+  const textureGrooves = surfaceTextureGrooves(config, outer, [inner]);
+  triangulateHorizontalFace(
+    triangles,
+    outer,
+    [inner, ...textureGrooves.map((groove) => groove.outline)],
+    z,
+    "up",
+  );
+  for (const groove of textureGrooves) {
+    const textureFloorZ = z - config.surfaceTextureDepth * groove.depthScale;
+    buildContourWall(
+      triangles,
+      groove.outline,
+      groove.outline,
+      textureFloorZ,
+      z,
+      "inward",
+    );
+    buildFanFace(triangles, groove.outline, textureFloorZ, "up");
   }
 }
 
@@ -604,7 +1028,13 @@ function buildDiceOrbitInterior(
     islandTopZ,
     "outward",
   );
-  buildAnnularFace(triangles, islandTop, centerOpening, islandTopZ, "up");
+  buildTexturedAnnularFace(
+    triangles,
+    config,
+    islandTop,
+    centerOpening,
+    islandTopZ,
+  );
   buildSmoothCavity(
     triangles,
     centerOpening,

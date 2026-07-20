@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useLayoutEffect, useMemo } from "react";
+import { useThree } from "@react-three/fiber";
 import { Edges } from "@react-three/drei";
 import * as THREE from "three";
 import {
@@ -30,6 +31,7 @@ export function ModelMesh<T>({
   axis = "z-up",
   appearance = "model",
 }: ModelMeshProps<T>) {
+  const invalidate = useThree((state) => state.invalidate);
   const serialized = configKey(config);
 
   const geometry = useMemo(() => {
@@ -42,7 +44,14 @@ export function ModelMesh<T>({
     return projectedGeometry;
   }, [serialized, generate, axis, appearance]);
 
-  useEffect(() => () => geometry.dispose(), [geometry]);
+  useLayoutEffect(() => {
+    invalidate();
+    const nextFrame = window.requestAnimationFrame(() => invalidate());
+    return () => {
+      window.cancelAnimationFrame(nextFrame);
+      geometry.dispose();
+    };
+  }, [geometry, invalidate]);
 
   return (
     <mesh geometry={geometry} castShadow receiveShadow>

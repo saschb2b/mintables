@@ -16,6 +16,12 @@ describe("decodeHexTile", () => {
       orbitCenterDiameter: 40,
       orbitCenterRaise: 8,
       orbitCenterDepth: 5,
+      isSurfaceTextureEnabled: true,
+      surfaceTexture: "cobblestone",
+      surfaceTextureDepth: 0.55,
+      customTextureName: "my-stone.png",
+      customTextureData: "encoded-height-map",
+      isCustomTextureInverted: true,
     });
 
     expect(decoded).toMatchObject({
@@ -30,6 +36,12 @@ describe("decodeHexTile", () => {
       orbitCenterDiameter: 40,
       orbitCenterRaise: 8,
       orbitCenterDepth: 5,
+      isSurfaceTextureEnabled: true,
+      surfaceTexture: "cobblestone",
+      surfaceTextureDepth: 0.55,
+      customTextureName: "my-stone.png",
+      customTextureData: "encoded-height-map",
+      isCustomTextureInverted: true,
     });
   });
 
@@ -37,6 +49,7 @@ describe("decodeHexTile", () => {
     const decoded = decodeHexTile({
       purpose: "unknown",
       magnetMode: "glue-everything",
+      surfaceTexture: "lava",
       dividerAngle: 90,
       acrossFlats: 108,
     });
@@ -45,6 +58,7 @@ describe("decodeHexTile", () => {
       purpose: DEFAULT_HEX_TILE_CONFIG.purpose,
       magnetMode: DEFAULT_HEX_TILE_CONFIG.magnetMode,
       dividerAngle: DEFAULT_HEX_TILE_CONFIG.dividerAngle,
+      surfaceTexture: DEFAULT_HEX_TILE_CONFIG.surfaceTexture,
       acrossFlats: 108,
     });
   });

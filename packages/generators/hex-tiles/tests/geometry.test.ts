@@ -3,9 +3,21 @@ import {
   analyzeTriangles,
   isPrintableMesh,
 } from "@mintables/shared/lib/geometry/mesh-analysis";
+import {
+  CUSTOM_TEXTURE_SAMPLE_COUNT,
+  encodeCustomTextureSamples,
+} from "../src/custom-height-map";
 import { generateHexTileTriangles } from "../src/geometry";
 import { calculateHexTileLayout } from "../src/layout";
 import { DEFAULT_HEX_TILE_CONFIG } from "../src/types";
+import type { HexTileSurfaceTexture } from "../src/types";
+
+const SURFACE_TEXTURES: HexTileSurfaceTexture[] = [
+  "wood-grain",
+  "cobblestone",
+  "hammered-stone",
+  "sci-fi-panels",
+];
 
 function vertexKey(x: number, y: number, z: number): string {
   return `${x.toFixed(6)},${y.toFixed(6)},${z.toFixed(6)}`;
@@ -214,5 +226,127 @@ describe("generateHexTileTriangles", () => {
     expect(analysis.bounds.maxZ).toBe(DEFAULT_HEX_TILE_CONFIG.bodyHeight + 8);
     expect(raisedLayout.magnetCenterZ).toBe(baseLayout.magnetCenterZ);
     expect(raisedLayout.magnetRoofZ).toBe(baseLayout.magnetRoofZ);
+  });
+
+  it.each(SURFACE_TEXTURES)(
+    "engraves a closed %s relief without increasing finished height",
+    (surfaceTexture) => {
+      const config = {
+        ...DEFAULT_HEX_TILE_CONFIG,
+        isSurfaceTextureEnabled: true,
+        surfaceTexture,
+      };
+      const triangles = generateHexTileTriangles(config);
+      const analysis = analyzeTriangles(triangles);
+      const textureFloorZ = config.bodyHeight - config.surfaceTextureDepth;
+
+      expect(isPrintableMesh(triangles)).toBe(true);
+      expect(analysis.bounds.maxZ).toBe(config.bodyHeight);
+      expect(
+        uniqueHeights(triangles).some(
+          (height) => Math.abs(height - textureFloorZ) < 1e-5,
+        ),
+      ).toBe(true);
+      expect(edgeUseCounts(triangles).every((count) => count === 2)).toBe(true);
+    },
+  );
+
+  it("keeps bowl relief outside the carved opening", () => {
+    const config = {
+      ...DEFAULT_HEX_TILE_CONFIG,
+      isSurfaceTextureEnabled: true,
+      surfaceTexture: "hammered-stone" as const,
+    };
+    const layout = calculateHexTileLayout(config);
+    const textureFloorZ = layout.topHeight - config.surfaceTextureDepth;
+    const textureVertices = generateHexTileTriangles(config)
+      .flatMap((triangle) => [
+        [triangle[0], triangle[1], triangle[2]],
+        [triangle[3], triangle[4], triangle[5]],
+        [triangle[6], triangle[7], triangle[8]],
+      ])
+      .filter(([, , z]) => Math.abs(z - textureFloorZ) < 1e-6);
+
+    expect(textureVertices.length).toBeGreaterThan(0);
+    expect(
+      textureVertices.every(
+        ([x, y]) => Math.hypot(x, y) >= layout.innerAcrossFlats / 2 + 0.7,
+      ),
+    ).toBe(true);
+  });
+
+  it("keeps card-display relief clear of every slot", () => {
+    const config = {
+      ...DEFAULT_HEX_TILE_CONFIG,
+      purpose: "cards" as const,
+      isSurfaceTextureEnabled: true,
+      surfaceTexture: "cobblestone" as const,
+    };
+    const layout = calculateHexTileLayout(config);
+    const textureFloorZ = layout.topHeight - config.surfaceTextureDepth;
+    const centerOffset =
+      ((config.cardSlotCount - 1) * config.cardSlotSpacing) / 2;
+    const slotCenters = Array.from(
+      { length: config.cardSlotCount },
+      (_, index) => index * config.cardSlotSpacing - centerOffset,
+    );
+    const slotRadius = config.cardSlotWidth / 2;
+    const slotStraightHalfLength = (config.cardSlotLength - slotRadius * 2) / 2;
+    const textureVertices = generateHexTileTriangles(config)
+      .flatMap((triangle) => [
+        [triangle[0], triangle[1], triangle[2]],
+        [triangle[3], triangle[4], triangle[5]],
+        [triangle[6], triangle[7], triangle[8]],
+      ])
+      .filter(([, , z]) => Math.abs(z - textureFloorZ) < 1e-6);
+
+    expect(textureVertices.length).toBeGreaterThan(0);
+    expect(
+      textureVertices.every(([x, y]) =>
+        slotCenters.every((centerX) => {
+          const closestY = Math.max(
+            -slotStraightHalfLength,
+            Math.min(slotStraightHalfLength, y),
+          );
+          return Math.hypot(x - centerX, y - closestY) >= slotRadius + 0.7;
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it("turns a custom grayscale map into variable-depth printable relief", () => {
+    const samples = Uint8Array.from(
+      { length: CUSTOM_TEXTURE_SAMPLE_COUNT },
+      (_, index) => (index % 2 === 0 ? 0 : 128),
+    );
+    const config = {
+      ...DEFAULT_HEX_TILE_CONFIG,
+      purpose: "cards" as const,
+      isSurfaceTextureEnabled: true,
+      surfaceTexture: "custom" as const,
+      customTextureData: encodeCustomTextureSamples(samples),
+    };
+    const layout = calculateHexTileLayout(config);
+    const triangles = generateHexTileTriangles(config);
+    const heights = uniqueHeights(triangles);
+
+    expect(isPrintableMesh(triangles)).toBe(true);
+    expect(
+      heights.some(
+        (height) =>
+          Math.abs(height - (layout.topHeight - config.surfaceTextureDepth)) <
+          1e-5,
+      ),
+    ).toBe(true);
+    expect(
+      heights.some(
+        (height) =>
+          Math.abs(
+            height -
+              (layout.topHeight - config.surfaceTextureDepth * (1 - 128 / 255)),
+          ) < 1e-5,
+      ),
+    ).toBe(true);
+    expect(edgeUseCounts(triangles).every((count) => count === 2)).toBe(true);
   });
 });

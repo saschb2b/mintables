@@ -2,6 +2,7 @@ import type {
   ValidationIssue,
   ValidationResult,
 } from "@mintables/shared/lib/validation";
+import { decodeCustomTextureSamples } from "./custom-height-map";
 import { calculateHexTileLayout } from "./layout";
 import type { HexTileConfig } from "./types";
 
@@ -102,6 +103,42 @@ export function validateHexTileConfig(config: HexTileConfig): ValidationResult {
         "edgeBevel",
       ),
     );
+  }
+  if (!finiteInRange(config.surfaceTextureDepth, 0.2, 0.8)) {
+    errors.push(
+      issue(
+        "error",
+        "surface_texture_depth_range",
+        "Surface relief depth must be between 0.2 and 0.8 mm.",
+        "surfaceTextureDepth",
+      ),
+    );
+  }
+  if (config.isSurfaceTextureEnabled && config.surfaceTexture === "custom") {
+    const samples = decodeCustomTextureSamples(config.customTextureData);
+    if (!samples) {
+      errors.push(
+        issue(
+          "error",
+          "custom_texture_missing",
+          "Upload a valid texture image before exporting the custom surface.",
+          "customTextureData",
+        ),
+      );
+    } else {
+      const minimum = Math.min(...samples);
+      const maximum = Math.max(...samples);
+      if (maximum - minimum < 16) {
+        warnings.push(
+          issue(
+            "warning",
+            "custom_texture_flat",
+            "The uploaded height map has very little contrast, so its printed relief may be hard to see.",
+            "customTextureData",
+          ),
+        );
+      }
+    }
   }
 
   if (config.purpose === "bowl") {

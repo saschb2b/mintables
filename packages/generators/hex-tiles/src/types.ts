@@ -4,6 +4,13 @@ export type HexTileMagnetMode = "none" | "single" | "paired";
 
 export type HexTileDividerAngle = 0 | 60 | 120;
 
+export type HexTileSurfaceTexture =
+  | "wood-grain"
+  | "cobblestone"
+  | "hammered-stone"
+  | "sci-fi-panels"
+  | "custom";
+
 export interface HexTileConfig {
   purpose: HexTilePurpose;
   /** Finished distance between opposite flat sides. */
@@ -15,6 +22,14 @@ export interface HexTileConfig {
   rimWidth: number;
   floorThickness: number;
   edgeBevel: number;
+
+  isSurfaceTextureEnabled: boolean;
+  surfaceTexture: HexTileSurfaceTexture;
+  /** Depth of the recessed top-surface relief. */
+  surfaceTextureDepth: number;
+  customTextureName: string;
+  customTextureData: string;
+  isCustomTextureInverted: boolean;
 
   magnetMode: HexTileMagnetMode;
   magnetDiameter: number;
@@ -45,6 +60,13 @@ export const DEFAULT_HEX_TILE_CONFIG: HexTileConfig = {
   rimWidth: 7,
   floorThickness: 3.2,
   edgeBevel: 1.2,
+
+  isSurfaceTextureEnabled: false,
+  surfaceTexture: "wood-grain",
+  surfaceTextureDepth: 0.4,
+  customTextureName: "",
+  customTextureData: "",
+  isCustomTextureInverted: false,
 
   magnetMode: "single",
   magnetDiameter: 8,

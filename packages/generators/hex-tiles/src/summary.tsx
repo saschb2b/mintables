@@ -7,6 +7,7 @@ import {
 } from "@mintables/shared/ui/spec-card";
 import { getHexTileSpec } from "./spec";
 import type { HexTileSpec } from "./spec";
+import { surfaceTextureLabel } from "./surface-textures";
 import type { HexTileConfig } from "./types";
 
 function purposeName(config: HexTileConfig): string {
@@ -51,6 +52,14 @@ export function HexTileSummary({ config }: { config: HexTileConfig }) {
         value={`${spec.usableInterior.toFixed(1)} mm across`}
       />
       <SpecRow label="Storage" value={spec.featureLabel} />
+      <SpecRow
+        label="Top texture"
+        value={
+          config.isSurfaceTextureEnabled
+            ? `${surfaceTextureLabel(config.surfaceTexture)}, ${config.surfaceTextureDepth.toFixed(2)} mm deep`
+            : "Smooth"
+        }
+      />
       {config.purpose === "bowl" ? (
         <SpecRow
           label="Dish depth"

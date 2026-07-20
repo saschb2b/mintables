@@ -7,12 +7,14 @@ import { calculateHexTileLayout } from "./layout";
 import { getHexTilePrintTips } from "./print-tips";
 import { HexTileScene } from "./scene";
 import { HexTileSummary } from "./summary";
+import { surfaceTextureLabel } from "./surface-textures";
 import {
   DEFAULT_HEX_TILE_CONFIG,
   type HexTileConfig,
   type HexTileDividerAngle,
   type HexTileMagnetMode,
   type HexTilePurpose,
+  type HexTileSurfaceTexture,
 } from "./types";
 import { validateHexTileConfig } from "./validation";
 
@@ -49,6 +51,19 @@ function dividerAngleValue(
   return value === 0 || value === 60 || value === 120 ? value : fallback;
 }
 
+function surfaceTextureValue(
+  value: unknown,
+  fallback: HexTileSurfaceTexture,
+): HexTileSurfaceTexture {
+  return value === "wood-grain" ||
+    value === "cobblestone" ||
+    value === "hammered-stone" ||
+    value === "sci-fi-panels" ||
+    value === "custom"
+    ? value
+    : fallback;
+}
+
 export function decodeHexTile(data: unknown): HexTileConfig | null {
   if (!isObject(data)) return null;
   const config = { ...DEFAULT_HEX_TILE_CONFIG };
@@ -59,6 +74,7 @@ export function decodeHexTile(data: unknown): HexTileConfig | null {
     "rimWidth",
     "floorThickness",
     "edgeBevel",
+    "surfaceTextureDepth",
     "magnetDiameter",
     "magnetDepth",
     "magnetClearance",
@@ -80,6 +96,22 @@ export function decodeHexTile(data: unknown): HexTileConfig | null {
     data.dividerAngle,
     config.dividerAngle,
   );
+  config.surfaceTexture = surfaceTextureValue(
+    data.surfaceTexture,
+    config.surfaceTexture,
+  );
+  if (typeof data.isSurfaceTextureEnabled === "boolean") {
+    config.isSurfaceTextureEnabled = data.isSurfaceTextureEnabled;
+  }
+  if (typeof data.customTextureName === "string") {
+    config.customTextureName = data.customTextureName.slice(0, 120);
+  }
+  if (typeof data.customTextureData === "string") {
+    config.customTextureData = data.customTextureData.slice(0, 2048);
+  }
+  if (typeof data.isCustomTextureInverted === "boolean") {
+    config.isCustomTextureInverted = data.isCustomTextureInverted;
+  }
   if (typeof data.bowlDivider === "boolean") {
     config.bowlDivider = data.bowlDivider;
   }
@@ -131,15 +163,18 @@ export const hexTileGenerator: Generator<HexTileConfig> = {
   geometry: generateHexTileTriangles,
   axis: "z-up",
   filename: (config) =>
-    `tabletop-hex-${purposeLabel(config)}-${String(config.acrossFlats)}mm`,
+    `tabletop-hex-${purposeLabel(config)}${config.isSurfaceTextureEnabled ? `-${config.surfaceTexture}` : ""}-${String(config.acrossFlats)}mm`,
   describe: (config) => {
     const layout = calculateHexTileLayout(config);
-    return `${String(config.acrossFlats)} mm magnetic hex ${purposeLabel(config)} tile with ${String(layout.magnetCount)} support-free magnet sockets`;
+    const texture = config.isSurfaceTextureEnabled
+      ? ` and ${surfaceTextureLabel(config.surfaceTexture).toLowerCase()} relief`
+      : "";
+    return `${String(config.acrossFlats)} mm magnetic hex ${purposeLabel(config)} tile with ${String(layout.magnetCount)} support-free magnet sockets${texture}`;
   },
   printTips: getHexTilePrintTips,
   badges: (config) => {
     const layout = calculateHexTileLayout(config);
-    return [
+    const badges = [
       {
         label: purposeBadge(config),
         color: "primary",
@@ -149,6 +184,13 @@ export const hexTileGenerator: Generator<HexTileConfig> = {
         color: "info",
       },
     ];
+    if (config.isSurfaceTextureEnabled) {
+      badges.push({
+        label: surfaceTextureLabel(config.surfaceTexture),
+        color: "secondary",
+      });
+    }
+    return badges;
   },
   Controls: HexTileControls,
   Scene: HexTileScene,

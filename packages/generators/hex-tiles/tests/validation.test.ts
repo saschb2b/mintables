@@ -1,4 +1,8 @@
 import { describe, expect, it } from "vitest";
+import {
+  CUSTOM_TEXTURE_SAMPLE_COUNT,
+  encodeCustomTextureSamples,
+} from "../src/custom-height-map";
 import { DEFAULT_HEX_TILE_CONFIG } from "../src/types";
 import { validateHexTileConfig } from "../src/validation";
 
@@ -68,6 +72,48 @@ describe("validateHexTileConfig", () => {
 
     expect(
       result.errors.some((error) => error.code === "center_cup_below_ring"),
+    ).toBe(true);
+  });
+
+  it("rejects surface relief deeper than the printable control range", () => {
+    const result = validateHexTileConfig({
+      ...DEFAULT_HEX_TILE_CONFIG,
+      isSurfaceTextureEnabled: true,
+      surfaceTextureDepth: 1.2,
+    });
+
+    expect(
+      result.errors.some(
+        (error) => error.code === "surface_texture_depth_range",
+      ),
+    ).toBe(true);
+  });
+
+  it("requires uploaded image data for a custom texture", () => {
+    const result = validateHexTileConfig({
+      ...DEFAULT_HEX_TILE_CONFIG,
+      isSurfaceTextureEnabled: true,
+      surfaceTexture: "custom",
+    });
+
+    expect(
+      result.errors.some((error) => error.code === "custom_texture_missing"),
+    ).toBe(true);
+  });
+
+  it("warns when a custom height map is too flat to print clearly", () => {
+    const result = validateHexTileConfig({
+      ...DEFAULT_HEX_TILE_CONFIG,
+      isSurfaceTextureEnabled: true,
+      surfaceTexture: "custom",
+      customTextureData: encodeCustomTextureSamples(
+        new Uint8Array(CUSTOM_TEXTURE_SAMPLE_COUNT).fill(128),
+      ),
+    });
+
+    expect(result.errors).toHaveLength(0);
+    expect(
+      result.warnings.some((warning) => warning.code === "custom_texture_flat"),
     ).toBe(true);
   });
 });

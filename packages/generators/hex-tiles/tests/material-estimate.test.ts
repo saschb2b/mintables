@@ -47,4 +47,21 @@ describe("estimatePrintMaterial", () => {
     expect(measures.solidVolumeMm3).toBeLessThan(boundingBoxVolume);
     expect(measures.surfaceAreaMm2).toBeGreaterThan(0);
   });
+
+  it("accounts for recessed top texture in the slicer-style estimate", () => {
+    const textured = estimatePrintMaterial({
+      ...DEFAULT_HEX_TILE_CONFIG,
+      purpose: "cards",
+      isSurfaceTextureEnabled: true,
+      surfaceTexture: "cobblestone",
+    });
+    const smoothCards = estimatePrintMaterial({
+      ...DEFAULT_HEX_TILE_CONFIG,
+      purpose: "cards",
+    });
+
+    expect(textured.solidVolumeMm3).toBeLessThan(smoothCards.solidVolumeMm3);
+    expect(textured.surfaceAreaMm2).toBeGreaterThan(smoothCards.surfaceAreaMm2);
+    expect(textured.materialVolumeMm3).not.toBe(smoothCards.materialVolumeMm3);
+  });
 });

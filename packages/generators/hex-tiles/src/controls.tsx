@@ -1,6 +1,8 @@
 "use client";
 
+import { useState, type ChangeEvent } from "react";
 import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
 import FormControl from "@mui/material/FormControl";
 import FormControlLabel from "@mui/material/FormControlLabel";
@@ -14,13 +16,28 @@ import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import type { ValidationResult } from "@mintables/shared/lib/validation";
 import { NumberField, SectionCard } from "@mintables/shared/ui";
-import { CircleDot, Dices, PanelsTopLeft, type LucideIcon } from "lucide-react";
+import {
+  CircleDot,
+  Dices,
+  ImageUp,
+  PanelsTopLeft,
+  type LucideIcon,
+} from "lucide-react";
+import {
+  CUSTOM_TEXTURE_RESOLUTION,
+  encodeCustomTextureSamples,
+} from "./custom-height-map";
 import { calculateHexTileLayout } from "./layout";
+import {
+  SURFACE_TEXTURE_OPTIONS,
+  type SurfaceTextureOption,
+} from "./surface-textures";
 import type {
   HexTileConfig,
   HexTileDividerAngle,
   HexTileMagnetMode,
   HexTilePurpose,
+  HexTileSurfaceTexture,
 } from "./types";
 
 interface HexTileControlsProps {
@@ -70,6 +87,8 @@ const MAGNET_MODES: { value: HexTileMagnetMode; label: string }[] = [
 ];
 
 const DIVIDER_ANGLES: HexTileDividerAngle[] = [0, 60, 120];
+const MAX_CUSTOM_TEXTURE_BYTES = 5 * 1024 * 1024;
+const CUSTOM_TEXTURE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const KEYED_POLES = [
   { side: 1, pole: "N", color: "primary" as const },
   { side: 2, pole: "S", color: "secondary" as const },
@@ -78,6 +97,71 @@ const KEYED_POLES = [
   { side: 5, pole: "N", color: "primary" as const },
   { side: 6, pole: "S", color: "secondary" as const },
 ];
+
+type TextureUploadState =
+  | { status: "idle" }
+  | { status: "uploading" }
+  | { status: "error"; message: string };
+
+async function imageFileToHeightMap(file: File): Promise<string> {
+  if (!CUSTOM_TEXTURE_TYPES.has(file.type)) {
+    throw new Error("Choose a PNG, JPEG, or WebP image.");
+  }
+  if (file.size > MAX_CUSTOM_TEXTURE_BYTES) {
+    throw new Error("Choose an image smaller than 5 MB.");
+  }
+
+  const bitmap = await createImageBitmap(file);
+  try {
+    if (bitmap.width < 8 || bitmap.height < 8) {
+      throw new Error("Choose an image at least 8 by 8 pixels.");
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = CUSTOM_TEXTURE_RESOLUTION;
+    canvas.height = CUSTOM_TEXTURE_RESOLUTION;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) throw new Error("This browser cannot process the image.");
+
+    const cropSize = Math.min(bitmap.width, bitmap.height);
+    const sourceX = (bitmap.width - cropSize) / 2;
+    const sourceY = (bitmap.height - cropSize) / 2;
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = "high";
+    context.drawImage(
+      bitmap,
+      sourceX,
+      sourceY,
+      cropSize,
+      cropSize,
+      0,
+      0,
+      CUSTOM_TEXTURE_RESOLUTION,
+      CUSTOM_TEXTURE_RESOLUTION,
+    );
+
+    const pixels = context.getImageData(
+      0,
+      0,
+      CUSTOM_TEXTURE_RESOLUTION,
+      CUSTOM_TEXTURE_RESOLUTION,
+    ).data;
+    const samples = new Uint8Array(
+      CUSTOM_TEXTURE_RESOLUTION * CUSTOM_TEXTURE_RESOLUTION,
+    );
+    for (let index = 0; index < samples.length; index++) {
+      const pixelOffset = index * 4;
+      const luminance =
+        pixels[pixelOffset] * 0.2126 +
+        pixels[pixelOffset + 1] * 0.7152 +
+        pixels[pixelOffset + 2] * 0.0722;
+      const alpha = pixels[pixelOffset + 3] / 255;
+      samples[index] = Math.round(luminance * alpha + 255 * (1 - alpha));
+    }
+    return encodeCustomTextureSamples(samples);
+  } finally {
+    bitmap.close();
+  }
+}
 
 function purposeOption(value: HexTilePurpose): PurposeOption {
   return PURPOSES.find((purpose) => purpose.value === value) ?? PURPOSES[0];
@@ -196,6 +280,84 @@ function PurposeSelector({
   );
 }
 
+function SurfaceTextureOptionContent({
+  option,
+}: {
+  option: SurfaceTextureOption;
+}) {
+  return (
+    <Box sx={{ minWidth: 0 }}>
+      <Typography
+        variant="body2"
+        sx={{ color: "text.primary", fontWeight: 600, lineHeight: 1.25 }}
+      >
+        {option.label}
+      </Typography>
+      <Typography
+        variant="caption"
+        sx={{ color: "text.secondary", display: "block", lineHeight: 1.35 }}
+      >
+        {option.description}
+      </Typography>
+    </Box>
+  );
+}
+
+function SurfaceTextureSelector({
+  value,
+  onChange,
+}: {
+  value: HexTileSurfaceTexture;
+  onChange: (surfaceTexture: HexTileSurfaceTexture) => void;
+}) {
+  const selectedOption =
+    SURFACE_TEXTURE_OPTIONS.find((option) => option.value === value) ??
+    SURFACE_TEXTURE_OPTIONS[0];
+
+  return (
+    <FormControl fullWidth size="small">
+      <InputLabel id="hex-tile-surface-texture-label">Texture</InputLabel>
+      <Select<HexTileSurfaceTexture>
+        id="hex-tile-surface-texture"
+        labelId="hex-tile-surface-texture-label"
+        label="Texture"
+        value={value}
+        onChange={(event: SelectChangeEvent<HexTileSurfaceTexture>) =>
+          onChange(event.target.value as HexTileSurfaceTexture)
+        }
+        renderValue={() => (
+          <SurfaceTextureOptionContent option={selectedOption} />
+        )}
+        MenuProps={{
+          slotProps: {
+            list: { "aria-label": "Top surface textures", sx: { py: 0.5 } },
+            paper: { sx: { mt: 0.75 } },
+          },
+        }}
+        sx={{
+          "& .MuiSelect-select": {
+            alignItems: "center",
+            display: "flex",
+            minHeight: "44px !important",
+            py: 1,
+            whiteSpace: "normal",
+          },
+        }}
+      >
+        {SURFACE_TEXTURE_OPTIONS.map((option) => (
+          <MenuItem
+            key={option.value}
+            value={option.value}
+            sx={{ px: 1.5, py: 1, whiteSpace: "normal" }}
+          >
+            <SurfaceTextureOptionContent option={option} />
+          </MenuItem>
+        ))}
+      </Select>
+    </FormControl>
+  );
+}
+
 function magnetModeDescription(config: HexTileConfig): string {
   switch (config.magnetMode) {
     case "single":
@@ -300,6 +462,146 @@ function TileBodyControls({ config, update, validation }: ControlSectionProps) {
           step={0.2}
         />
       </Box>
+    </SectionCard>
+  );
+}
+
+function SurfaceTextureControls({
+  config,
+  update,
+  validation,
+}: ControlSectionProps) {
+  const [uploadState, setUploadState] = useState<TextureUploadState>({
+    status: "idle",
+  });
+
+  const handleCustomTextureUpload = async (
+    event: ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setUploadState({ status: "uploading" });
+    try {
+      const customTextureData = await imageFileToHeightMap(file);
+      update({
+        customTextureData,
+        customTextureName: file.name.slice(0, 120),
+      });
+      setUploadState({ status: "idle" });
+    } catch (error: unknown) {
+      setUploadState({
+        status: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "The texture image could not be processed.",
+      });
+    }
+  };
+
+  return (
+    <SectionCard title="Surface finish">
+      <FormControlLabel
+        control={
+          <Switch
+            checked={config.isSurfaceTextureEnabled}
+            onChange={(event) =>
+              update({ isSurfaceTextureEnabled: event.target.checked })
+            }
+          />
+        }
+        label="Add printable top texture"
+      />
+      {config.isSurfaceTextureEnabled ? (
+        <>
+          <SurfaceTextureSelector
+            value={config.surfaceTexture}
+            onChange={(surfaceTexture) => update({ surfaceTexture })}
+          />
+          <NumberField
+            label="Relief depth"
+            value={config.surfaceTextureDepth}
+            onChange={(surfaceTextureDepth) => update({ surfaceTextureDepth })}
+            field="surfaceTextureDepth"
+            validation={validation}
+            min={0.2}
+            max={0.8}
+            step={0.05}
+          />
+          {config.surfaceTexture === "custom" ? (
+            <Stack spacing={1}>
+              <Button
+                component="label"
+                variant="outlined"
+                startIcon={<ImageUp aria-hidden size={18} />}
+                disabled={uploadState.status === "uploading"}
+              >
+                {uploadState.status === "uploading"
+                  ? "Processing image"
+                  : config.customTextureData
+                    ? "Replace height map"
+                    : "Upload height map"}
+                <input
+                  hidden
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  onChange={(event) => {
+                    void handleCustomTextureUpload(event);
+                  }}
+                />
+              </Button>
+              {config.customTextureName ? (
+                <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                  {config.customTextureName} was center-cropped to{" "}
+                  {String(CUSTOM_TEXTURE_RESOLUTION)} by{" "}
+                  {String(CUSTOM_TEXTURE_RESOLUTION)} grayscale samples.
+                </Typography>
+              ) : (
+                <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                  Use a seamless, high-contrast square image. Transparent areas
+                  remain smooth. Maximum file size: 5 MB.
+                </Typography>
+              )}
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={config.isCustomTextureInverted}
+                    onChange={(event) =>
+                      update({ isCustomTextureInverted: event.target.checked })
+                    }
+                  />
+                }
+                label="Invert height map"
+              />
+              <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                {config.isCustomTextureInverted
+                  ? "Light pixels carve deeper; dark pixels stay near the top."
+                  : "Dark pixels carve deeper; light pixels stay near the top."}
+              </Typography>
+              {uploadState.status === "error" ? (
+                <Typography
+                  role="alert"
+                  variant="caption"
+                  sx={{ color: "error.main" }}
+                >
+                  {uploadState.message}
+                </Typography>
+              ) : null}
+            </Stack>
+          ) : null}
+          <Typography variant="caption" sx={{ color: "text.secondary" }}>
+            Shallow recessed detail stays clear of storage areas, card slots,
+            the orientation dot, and functional edges. A 0.4 mm depth is a
+            reliable two-layer starting point at 0.2 mm layer height.
+          </Typography>
+        </>
+      ) : (
+        <Typography variant="caption" sx={{ color: "text.secondary" }}>
+          Leave the exposed top land smooth for the quickest print and easiest
+          cleanup.
+        </Typography>
+      )}
     </SectionCard>
   );
 }
@@ -569,6 +871,12 @@ export function HexTileControls({
       </SectionCard>
 
       <TileBodyControls
+        config={config}
+        update={update}
+        validation={validation}
+      />
+
+      <SurfaceTextureControls
         config={config}
         update={update}
         validation={validation}

@@ -65,5 +65,14 @@ export function getHexTilePrintTips(config: HexTileConfig): PrintTip[] {
     });
   }
 
+  if (config.isSurfaceTextureEnabled) {
+    tips.push({
+      icon: "layers",
+      title: "Keep the relief crisp",
+      body: `Use a 0.2 mm or finer layer height for the ${config.surfaceTextureDepth.toFixed(2)} mm recessed texture. Slow top-surface moves help small grooves remain distinct.`,
+      priority: 7,
+    });
+  }
+
   return sortPrintTips(tips);
 }
