@@ -2,6 +2,7 @@
 
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
+import { alpha, useTheme } from "@mui/material/styles";
 import { Eye } from "lucide-react";
 import { GizmoHelper, GizmoViewport, View } from "@react-three/drei";
 import type { Generator } from "../lib/generator";
@@ -36,8 +37,22 @@ interface PreviewPanelProps<C> {
 
 const PREVIEW_BG = "linear-gradient(180deg, #404040 0%, #2a2a2a 100%)";
 
-export function PreviewPanel<C>({ generator, config, active }: PreviewPanelProps<C>) {
+export function PreviewPanel<C>({
+  generator,
+  config,
+  active,
+}: PreviewPanelProps<C>) {
   const Scene = generator.Scene;
+  const theme = useTheme();
+  const previewUiPalette = {
+    surface: alpha(theme.palette.background.paper, 0.88),
+    inactive: alpha(theme.palette.background.paper, 0),
+    active: theme.palette.primary.main,
+    activeText: theme.palette.primary.contrastText,
+    text: theme.palette.text.primary,
+    border: alpha(theme.palette.text.primary, 0.16),
+    shadow: alpha(theme.palette.common.black, 0.28),
+  };
   return (
     <Box
       sx={{
@@ -66,7 +81,7 @@ export function PreviewPanel<C>({ generator, config, active }: PreviewPanelProps
             portal, but events can. */}
           <ViewportProvider generatorId={generator.id}>
             <StudioLights />
-            <Scene config={config} />
+            <Scene config={config} previewUiPalette={previewUiPalette} />
             <GizmoHelper alignment="bottom-right" margin={[80, 80]}>
               <GizmoViewport labelColor="white" axisHeadScale={1} />
             </GizmoHelper>

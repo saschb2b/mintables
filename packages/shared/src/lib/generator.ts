@@ -39,8 +39,19 @@ export interface ControlsProps<C> {
   validation: ValidationResult;
 }
 
+export interface PreviewUiPalette {
+  surface: string;
+  inactive: string;
+  active: string;
+  activeText: string;
+  text: string;
+  border: string;
+  shadow: string;
+}
+
 export interface SceneProps<C> {
   config: C;
+  previewUiPalette: PreviewUiPalette;
 }
 
 export interface SummaryProps<C> {

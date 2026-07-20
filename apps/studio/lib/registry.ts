@@ -4,6 +4,7 @@ import { adapterGenerator } from "@mintables/gen-adapters";
 import { dividerGenerator } from "@mintables/gen-dividers";
 import { legCapGenerator } from "@mintables/gen-legcaps";
 import { insertGenerator } from "@mintables/gen-inserts";
+import { hexTileGenerator } from "@mintables/gen-hex-tiles";
 
 export const generators: AnyGenerator[] = [
   tubeGenerator as AnyGenerator,
@@ -11,6 +12,7 @@ export const generators: AnyGenerator[] = [
   dividerGenerator as AnyGenerator,
   legCapGenerator as AnyGenerator,
   insertGenerator as AnyGenerator,
+  hexTileGenerator as AnyGenerator,
 ];
 
 export const bySlug: Record<string, AnyGenerator> = Object.fromEntries(

@@ -1,0 +1,73 @@
+"use client";
+
+import {
+  SpecCard,
+  SpecRow,
+  type SpecStatus,
+} from "@mintables/shared/ui/spec-card";
+import { getHexTileSpec } from "./spec";
+import type { HexTileSpec } from "./spec";
+import type { HexTileConfig } from "./types";
+
+function purposeName(config: HexTileConfig): string {
+  if (config.purpose === "cards") return "Card display";
+  if (config.purpose === "dice-orbit") return "Dice orbit";
+  return "Component bowl";
+}
+
+function summaryStatus(
+  config: HexTileConfig,
+  spec: HexTileSpec,
+): {
+  status: SpecStatus;
+  label: string;
+} {
+  if (spec.usableInterior < 30 || spec.magnetBackWall < 1.2) {
+    return { status: "error", label: "Check dimensions" };
+  }
+  if (config.magnetMode !== "none" && config.magnetClearance < 0.15) {
+    return { status: "warn", label: "Tight magnet fit" };
+  }
+  return { status: "ok", label: "Print ready" };
+}
+
+export function HexTileSummary({ config }: { config: HexTileConfig }) {
+  const spec = getHexTileSpec(config);
+  const status = summaryStatus(config, spec);
+
+  return (
+    <SpecCard title="Hex Tile" status={status}>
+      <SpecRow label="Purpose" value={purposeName(config)} />
+      <SpecRow
+        label="Footprint"
+        value={`${spec.pointToPoint.toFixed(1)} x ${spec.acrossFlats.toFixed(1)} mm`}
+      />
+      <SpecRow
+        label="Total height"
+        value={`${spec.totalHeight.toFixed(1)} mm`}
+      />
+      <SpecRow
+        label="Usable interior"
+        value={`${spec.usableInterior.toFixed(1)} mm across`}
+      />
+      <SpecRow label="Storage" value={spec.featureLabel} />
+      {config.purpose === "bowl" ? (
+        <SpecRow
+          label="Dish depth"
+          value={`${config.bowlDepth.toFixed(1)} mm`}
+        />
+      ) : null}
+      <SpecRow
+        label="Magnets"
+        value={spec.magnetCount === 0 ? "None" : String(spec.magnetCount)}
+      />
+      {config.magnetMode !== "none" ? (
+        <SpecRow label="Connection" value={spec.connectionLabel} />
+      ) : null}
+      <SpecRow
+        label={`Est. material (${String(spec.estimateInfillPercent)}%)`}
+        value={`~${spec.estimatedMaterialCm3.toFixed(1)} cm3 / ${spec.estimatedPlaGrams.toFixed(1)} g PLA`}
+      />
+    </SpecCard>
+  );
+}

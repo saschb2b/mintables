@@ -1,0 +1,33 @@
+{
+  "name": "@mintables/gen-hex-tiles",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "format:check": "prettier --check --ignore-path ../../../.prettierignore ."
+  },
+  "dependencies": {
+    "@mintables/shared": "workspace:*"
+  },
+  "peerDependencies": {
+    "@mui/icons-material": "^9.0.0",
+    "@mui/material": "^9.0.0",
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.5.0",
+    "lucide-react": "*",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "three": "^0.183.2"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.14",
+    "@types/three": "^0.183.1",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

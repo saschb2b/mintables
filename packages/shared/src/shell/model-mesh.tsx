@@ -8,6 +8,7 @@ import {
   type AxisConvention,
 } from "../lib/geometry/mesh-utils";
 import { configKey } from "../lib/config-key";
+import { addBoxProjectedUvs, WoodMaterial } from "./wood-material";
 
 const MATERIAL = {
   color: "#d4dce4",
@@ -20,27 +21,39 @@ interface ModelMeshProps<T> {
   config: T;
   generate: (config: T) => number[][];
   axis?: AxisConvention;
+  appearance?: "model" | "wood";
 }
 
 export function ModelMesh<T>({
   config,
   generate,
   axis = "z-up",
+  appearance = "model",
 }: ModelMeshProps<T>) {
   const serialized = configKey(config);
 
   const geometry = useMemo(() => {
     const parsed = JSON.parse(serialized) as T;
     const triangles = generate(parsed);
-    return trianglesToBufferGeometry(triangles, axis);
-  }, [serialized, generate, axis]);
+    const baseGeometry = trianglesToBufferGeometry(triangles, axis);
+    if (appearance === "model") return baseGeometry;
+    const projectedGeometry = addBoxProjectedUvs(baseGeometry, 52);
+    baseGeometry.dispose();
+    return projectedGeometry;
+  }, [serialized, generate, axis, appearance]);
 
   useEffect(() => () => geometry.dispose(), [geometry]);
 
   return (
     <mesh geometry={geometry} castShadow receiveShadow>
-      <meshStandardMaterial {...MATERIAL} />
-      <Edges threshold={15} color="#5c6570" />
+      {appearance === "wood" ? (
+        <WoodMaterial tone="honey" bumpScale={0.04} roughness={0.52} />
+      ) : (
+        <>
+          <meshStandardMaterial {...MATERIAL} />
+          <Edges threshold={15} color="#5c6570" />
+        </>
+      )}
     </mesh>
   );
 }

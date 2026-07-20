@@ -9,6 +9,7 @@ const nextConfig: NextConfig = {
     "@mintables/gen-dividers",
     "@mintables/gen-legcaps",
     "@mintables/gen-inserts",
+    "@mintables/gen-hex-tiles",
   ],
   devIndicators: false,
   experimental: {

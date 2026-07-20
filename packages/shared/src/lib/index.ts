@@ -3,6 +3,7 @@ export type {
   GeneratorMeta,
   GeneratorBadge,
   ControlsProps,
+  PreviewUiPalette,
   SceneProps,
   SummaryProps,
   TriangleMesh,
