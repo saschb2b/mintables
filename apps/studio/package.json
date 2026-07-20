@@ -18,6 +18,7 @@
     "@mintables/gen-adapters": "workspace:*",
     "@mintables/gen-dividers": "workspace:*",
     "@mintables/gen-legcaps": "workspace:*",
+    "@mintables/gen-inserts": "workspace:*",
     "@mintables/gen-tubes": "workspace:*",
     "@mintables/shared": "workspace:*",
     "@mui/icons-material": "^9.0.0",

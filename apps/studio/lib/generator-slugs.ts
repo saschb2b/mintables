@@ -3,4 +3,5 @@ export const generatorSlugs = [
   "adapters",
   "dividers",
   "legcaps",
+  "inserts",
 ] as const;

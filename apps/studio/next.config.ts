@@ -8,6 +8,7 @@ const nextConfig: NextConfig = {
     "@mintables/gen-adapters",
     "@mintables/gen-dividers",
     "@mintables/gen-legcaps",
+    "@mintables/gen-inserts",
   ],
   devIndicators: false,
   experimental: {
