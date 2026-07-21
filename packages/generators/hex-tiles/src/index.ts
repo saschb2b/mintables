@@ -39,7 +39,10 @@ function magnetModeValue(
   value: unknown,
   fallback: HexTileMagnetMode,
 ): HexTileMagnetMode {
-  return value === "none" || value === "single" || value === "paired"
+  return value === "none" ||
+    value === "single" ||
+    value === "captive" ||
+    value === "paired"
     ? value
     : fallback;
 }
@@ -75,6 +78,11 @@ export function decodeHexTile(data: unknown): HexTileConfig | null {
     "floorThickness",
     "edgeBevel",
     "surfaceTextureDepth",
+    "magnetRodDiameter",
+    "magnetRodLength",
+    "magnetRodClearance",
+    "magnetLipOpening",
+    "magnetLipDepth",
     "magnetDiameter",
     "magnetDepth",
     "magnetClearance",
@@ -139,6 +147,8 @@ function magnetBadge(config: HexTileConfig, magnetCount: number): string {
   switch (config.magnetMode) {
     case "single":
       return `${String(magnetCount)} keyed magnets`;
+    case "captive":
+      return `${String(magnetCount)} self-aligning rods`;
     case "paired":
       return `${String(magnetCount)} orientation-free magnets`;
     case "none":

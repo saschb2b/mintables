@@ -23,7 +23,10 @@ export function getHexTilePrintTips(config: HexTileConfig): PrintTip[] {
     tips.push({
       icon: "layers",
       title: "Test one magnet socket",
-      body: `The generated socket is ${layout.magnetSocketDiameter.toFixed(2)} mm wide by ${layout.magnetSocketDepth.toFixed(2)} mm deep. Print a small test or measure extrusion before committing all ${String(layout.magnetCount)} magnets.`,
+      body:
+        config.magnetMode === "captive"
+          ? `The generated vertical channel is ${layout.magnetSocketLength.toFixed(2)} mm tall with a ${layout.magnetSocketDiameter.toFixed(2)} mm rotating chamber and a ${layout.magnetThroatWidth.toFixed(2)} mm-wide opening. Print one test before committing all ${String(layout.magnetCount)} rods.`
+          : `The generated socket is ${layout.magnetSocketDiameter.toFixed(2)} mm wide by ${layout.magnetSocketDepth.toFixed(2)} mm deep. Print a small test or measure extrusion before committing all ${String(layout.magnetCount)} magnets.`,
       priority: 9,
     });
     if (config.magnetMode === "single") {
@@ -40,6 +43,14 @@ export function getHexTilePrintTips(config: HexTileConfig): PrintTip[] {
         priority: 8,
       });
     }
+    if (config.magnetMode === "captive") {
+      tips.push({
+        icon: "layers",
+        title: "Press in diametric rods",
+        body: "Use diametrically magnetized cylindrical rods, not axially magnetized rods. Press each rod sideways into the vertical channel through the shallow retaining throat. It should remain captive while rotating freely without adhesive.",
+        priority: 9,
+      });
+    }
     if (config.magnetMode === "paired") {
       tips.push({
         icon: "layers",
@@ -51,7 +62,10 @@ export function getHexTilePrintTips(config: HexTileConfig): PrintTip[] {
     tips.push({
       icon: "layers",
       title: "Handle magnets safely",
-      body: "Fix magnets with a small drop of adhesive and keep loose magnets away from children, pets, electronics, and medical devices.",
+      body:
+        config.magnetMode === "captive"
+          ? "Confirm every rod is securely retained. Keep loose magnets away from children, pets, electronics, and medical devices."
+          : "Fix magnets with a small drop of adhesive and keep loose magnets away from children, pets, electronics, and medical devices.",
       priority: 7,
     });
   }

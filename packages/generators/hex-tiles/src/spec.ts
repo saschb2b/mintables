@@ -20,6 +20,8 @@ function connectionLabel(config: HexTileConfig): string {
   switch (config.magnetMode) {
     case "single":
       return "Align north dots";
+    case "captive":
+      return "Self-aligning captive rods";
     case "paired":
       return "Any 60-degree rotation";
     case "none":

@@ -847,6 +847,102 @@ function buildMagnetSocket(
   }
 }
 
+function captiveRodOpening(
+  centerZ: number,
+  height: number,
+  width: number,
+): Point2[] {
+  const halfHeight = height / 2;
+  const halfWidth = width / 2;
+  return [
+    { x: -halfWidth, y: centerZ - halfHeight },
+    { x: halfWidth, y: centerZ - halfHeight },
+    { x: halfWidth, y: centerZ + halfHeight },
+    { x: -halfWidth, y: centerZ + halfHeight },
+  ];
+}
+
+function captiveRodCrossSection(config: HexTileConfig): Point2[] {
+  const layout = calculateHexTileLayout(config);
+  const radius = layout.magnetSocketDiameter / 2;
+  const halfOpening = Math.min(layout.magnetThroatWidth / 2, radius);
+  const intersectionOffset = Math.sqrt(
+    Math.max(0, radius ** 2 - halfOpening ** 2),
+  );
+  const centerDepth = config.magnetLipDepth + intersectionOffset;
+  const lowerAngle = Math.PI + Math.asin(halfOpening / radius);
+  const upperAngle = 3 * Math.PI - Math.asin(halfOpening / radius);
+  const arcSegments = 16;
+  const chamberArc = Array.from({ length: arcSegments + 1 }, (_, index) => {
+    const progress = index / arcSegments;
+    const angle = lowerAngle + (upperAngle - lowerAngle) * progress;
+    return {
+      x: centerDepth + radius * Math.cos(angle),
+      y: radius * Math.sin(angle),
+    };
+  });
+
+  return [{ x: 0, y: -halfOpening }, ...chamberArc, { x: 0, y: halfOpening }];
+}
+
+function buildCaptiveRodEndCap(
+  triangles: number[][],
+  frame: SideFrame,
+  z: number,
+  desiredZ: number,
+  crossSection: Point2[],
+): void {
+  const contour = crossSection.map((point) => new Vector2(point.x, point.y));
+  const desired: Point3 = [0, 0, desiredZ];
+  for (const face of ShapeUtils.triangulateShape(contour, [])) {
+    const a = crossSection[face[0]];
+    const b = crossSection[face[1]];
+    const c = crossSection[face[2]];
+    addOrientedTriangle(
+      triangles,
+      mapSidePoint(frame, a.y, a.x, z),
+      mapSidePoint(frame, b.y, b.x, z),
+      mapSidePoint(frame, c.y, c.x, z),
+      desired,
+    );
+  }
+}
+
+function buildCaptiveRodSocket(
+  triangles: number[][],
+  frame: SideFrame,
+  config: HexTileConfig,
+): void {
+  const layout = calculateHexTileLayout(config);
+  const halfLength = layout.magnetSocketLength / 2;
+  const zLow = layout.magnetCenterZ - halfLength;
+  const zHigh = layout.magnetCenterZ + halfLength;
+  const crossSection = captiveRodCrossSection(config);
+
+  for (let index = 0; index < crossSection.length - 1; index++) {
+    const a = crossSection[index];
+    const b = crossSection[index + 1];
+    const depthDelta = b.x - a.x;
+    const tangentDelta = b.y - a.y;
+    const desired: Point3 = [
+      frame.inward.x * -tangentDelta + frame.tangent.x * depthDelta,
+      frame.inward.y * -tangentDelta + frame.tangent.y * depthDelta,
+      0,
+    ];
+    addOrientedQuad(
+      triangles,
+      mapSidePoint(frame, a.y, a.x, zLow),
+      mapSidePoint(frame, b.y, b.x, zLow),
+      mapSidePoint(frame, b.y, b.x, zHigh),
+      mapSidePoint(frame, a.y, a.x, zHigh),
+      desired,
+    );
+  }
+
+  buildCaptiveRodEndCap(triangles, frame, zLow, 1, crossSection);
+  buildCaptiveRodEndCap(triangles, frame, zHigh, -1, crossSection);
+}
+
 function magnetOffsets(config: HexTileConfig): number[] {
   const layout = calculateHexTileLayout(config);
   if (config.magnetMode === "paired") {
@@ -876,16 +972,32 @@ function buildOuterBody(
     "outward",
   );
 
-  const socketRadius = layout.magnetSocketDiameter / 2;
   for (let index = 0; index < fullOutline.length; index++) {
     const next = (index + 1) % fullOutline.length;
     const frame = sideFrame(fullOutline[index], fullOutline[next]);
-    const profiles = magnetOffsets(config).map((offset) =>
-      supportFreeMagnetProfile(offset, layout.magnetCenterZ, socketRadius),
-    );
+    const profiles =
+      config.magnetMode === "captive"
+        ? [
+            captiveRodOpening(
+              layout.magnetCenterZ,
+              layout.magnetSocketLength,
+              layout.magnetThroatWidth,
+            ),
+          ]
+        : magnetOffsets(config).map((offset) =>
+            supportFreeMagnetProfile(
+              offset,
+              layout.magnetCenterZ,
+              layout.magnetSocketDiameter / 2,
+            ),
+          );
     triangulateSideFace(triangles, frame, zLowerSide, zUpperSide, profiles);
-    for (const profile of profiles) {
-      buildMagnetSocket(triangles, frame, profile, layout.magnetSocketDepth);
+    if (config.magnetMode === "captive") {
+      buildCaptiveRodSocket(triangles, frame, config);
+    } else {
+      for (const profile of profiles) {
+        buildMagnetSocket(triangles, frame, profile, layout.magnetSocketDepth);
+      }
     }
   }
 

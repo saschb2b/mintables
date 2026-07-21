@@ -82,6 +82,7 @@ const PURPOSES: PurposeOption[] = [
 
 const MAGNET_MODES: { value: HexTileMagnetMode; label: string }[] = [
   { value: "single", label: "Keyed single (6)" },
+  { value: "captive", label: "Self-aligning rods (6)" },
   { value: "paired", label: "Any orientation (12)" },
   { value: "none", label: "No magnets" },
 ];
@@ -362,6 +363,8 @@ function magnetModeDescription(config: HexTileConfig): string {
   switch (config.magnetMode) {
     case "single":
       return "Align the recessed north dots on connected tiles. Begin at the marked side and install the outward poles clockwise.";
+    case "captive":
+      return "Vertical, diametrically magnetized rods rotate freely inside the chamber and align their own polarity when tiles meet.";
     case "paired":
       return "Each side uses a mirrored polarity pair, allowing tiles to connect at every 60-degree rotation.";
     case "none":
@@ -628,44 +631,124 @@ function MagnetControls({ config, update, validation }: ControlSectionProps) {
       </TextField>
       {config.magnetMode !== "none" ? (
         <>
-          <Box
-            sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1.5 }}
-          >
-            <NumberField
-              label="Diameter"
-              value={config.magnetDiameter}
-              onChange={(magnetDiameter) => update({ magnetDiameter })}
-              field="magnetDiameter"
-              validation={validation}
-              min={3}
-              max={10}
-              step={0.5}
-            />
-            <NumberField
-              label="Depth"
-              value={config.magnetDepth}
-              onChange={(magnetDepth) => update({ magnetDepth })}
-              field="magnetDepth"
-              validation={validation}
-              min={1}
-              max={5}
-              step={0.5}
-            />
-            <NumberField
-              label="Clearance"
-              value={config.magnetClearance}
-              onChange={(magnetClearance) => update({ magnetClearance })}
-              field="magnetClearance"
-              validation={validation}
-              min={0.05}
-              max={0.8}
-              step={0.05}
-            />
-          </Box>
-          <Typography variant="caption" sx={{ color: "text.secondary" }}>
-            {String(layout.magnetCount)} glue-in sockets. Compact octagonal
-            roofs use 45-degree shoulders and a short printable bridge.
-          </Typography>
+          {config.magnetMode === "captive" ? (
+            <>
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: 1.5,
+                }}
+              >
+                <NumberField
+                  label="Rod diameter"
+                  value={config.magnetRodDiameter}
+                  onChange={(magnetRodDiameter) =>
+                    update({ magnetRodDiameter })
+                  }
+                  field="magnetRodDiameter"
+                  validation={validation}
+                  min={2}
+                  max={6}
+                  step={0.1}
+                />
+                <NumberField
+                  label="Rod length"
+                  value={config.magnetRodLength}
+                  onChange={(magnetRodLength) => update({ magnetRodLength })}
+                  field="magnetRodLength"
+                  validation={validation}
+                  min={5}
+                  max={20}
+                  step={0.5}
+                />
+                <NumberField
+                  label="Rotation clearance"
+                  value={config.magnetRodClearance}
+                  onChange={(magnetRodClearance) =>
+                    update({ magnetRodClearance })
+                  }
+                  field="magnetRodClearance"
+                  validation={validation}
+                  min={0.05}
+                  max={0.8}
+                  step={0.05}
+                />
+                <NumberField
+                  label="Lip opening"
+                  value={config.magnetLipOpening}
+                  onChange={(magnetLipOpening) => update({ magnetLipOpening })}
+                  field="magnetLipOpening"
+                  validation={validation}
+                  min={1}
+                  max={5.8}
+                  step={0.1}
+                />
+                <NumberField
+                  label="Lip depth"
+                  value={config.magnetLipDepth}
+                  onChange={(magnetLipDepth) => update({ magnetLipDepth })}
+                  field="magnetLipDepth"
+                  validation={validation}
+                  min={0.4}
+                  max={1.5}
+                  step={0.05}
+                />
+              </Box>
+              <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                {String(layout.magnetCount)} captive channels. The{" "}
+                {layout.magnetThroatWidth.toFixed(2)} mm-wide throat flexes
+                around the rod, then the{" "}
+                {layout.magnetSocketDiameter.toFixed(2)} mm chamber lets it
+                rotate without glue.
+              </Typography>
+            </>
+          ) : (
+            <>
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: 1.5,
+                }}
+              >
+                <NumberField
+                  label="Disc diameter"
+                  value={config.magnetDiameter}
+                  onChange={(magnetDiameter) => update({ magnetDiameter })}
+                  field="magnetDiameter"
+                  validation={validation}
+                  min={3}
+                  max={10}
+                  step={0.5}
+                />
+                <NumberField
+                  label="Disc thickness"
+                  value={config.magnetDepth}
+                  onChange={(magnetDepth) => update({ magnetDepth })}
+                  field="magnetDepth"
+                  validation={validation}
+                  min={1}
+                  max={5}
+                  step={0.5}
+                />
+                <NumberField
+                  label="Clearance"
+                  value={config.magnetClearance}
+                  onChange={(magnetClearance) => update({ magnetClearance })}
+                  field="magnetClearance"
+                  validation={validation}
+                  min={0.05}
+                  max={0.8}
+                  step={0.05}
+                />
+              </Box>
+              <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                {String(layout.magnetCount)} glue-in sockets. Compact octagonal
+                roofs use 45-degree shoulders and a short printable bridge.
+              </Typography>
+            </>
+          )}
           <Typography variant="caption" sx={{ color: "text.secondary" }}>
             {magnetModeDescription(config)}
           </Typography>

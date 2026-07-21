@@ -1,6 +1,6 @@
 export type HexTilePurpose = "bowl" | "cards" | "dice-orbit";
 
-export type HexTileMagnetMode = "none" | "single" | "paired";
+export type HexTileMagnetMode = "none" | "single" | "captive" | "paired";
 
 export type HexTileDividerAngle = 0 | 60 | 120;
 
@@ -32,7 +32,19 @@ export interface HexTileConfig {
   isCustomTextureInverted: boolean;
 
   magnetMode: HexTileMagnetMode;
+  /** Diameter of a freely rotating, diametrically magnetized rod. */
+  magnetRodDiameter: number;
+  /** Length of a freely rotating, diametrically magnetized rod. */
+  magnetRodLength: number;
+  /** Additional room around the rod inside its rotating chamber. */
+  magnetRodClearance: number;
+  /** Width of the undersized side opening that retains the vertical rod. */
+  magnetLipOpening: number;
+  /** Distance from the side wall to the full rotating chamber. */
+  magnetLipDepth: number;
+  /** Diameter of each glue-in disc used by single and paired modes. */
   magnetDiameter: number;
+  /** Thickness of each glue-in disc used by single and paired modes. */
   magnetDepth: number;
   magnetClearance: number;
 
@@ -69,6 +81,11 @@ export const DEFAULT_HEX_TILE_CONFIG: HexTileConfig = {
   isCustomTextureInverted: false,
 
   magnetMode: "single",
+  magnetRodDiameter: 3,
+  magnetRodLength: 10,
+  magnetRodClearance: 0.25,
+  magnetLipOpening: 2.5,
+  magnetLipDepth: 0.75,
   magnetDiameter: 8,
   magnetDepth: 3,
   magnetClearance: 0.25,

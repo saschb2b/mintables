@@ -90,6 +90,39 @@ describe("generateHexTileTriangles", () => {
     expect(layout.magnetCount).toBe(6);
   });
 
+  it("builds closed vertical rod channels with an undersized retaining lip", () => {
+    const config = {
+      ...DEFAULT_HEX_TILE_CONFIG,
+      magnetMode: "captive" as const,
+    };
+    const layout = calculateHexTileLayout(config);
+    const triangles = generateHexTileTriangles(config);
+
+    expect(isPrintableMesh(triangles)).toBe(true);
+    expect(edgeUseCounts(triangles).every((count) => count === 2)).toBe(true);
+    expect(layout.magnetCount).toBe(6);
+    expect(layout.magnetSocketLength).toBeCloseTo(10.25, 6);
+    expect(layout.magnetSocketDiameter).toBeCloseTo(3.25, 6);
+    expect(layout.magnetThroatWidth).toBeCloseTo(2.5, 6);
+    expect(layout.magnetThroatWidth).toBeLessThan(config.magnetRodDiameter);
+    expect(layout.magnetRoofZ - layout.magnetCenterZ).toBeCloseTo(
+      layout.magnetSocketLength / 2,
+      6,
+    );
+    const heights = uniqueHeights(triangles);
+    expect(
+      heights.some(
+        (height) =>
+          Math.abs(
+            height - (layout.magnetCenterZ - layout.magnetSocketLength / 2),
+          ) < 1e-6,
+      ),
+    ).toBe(true);
+    expect(
+      heights.some((height) => Math.abs(height - layout.magnetRoofZ) < 1e-6),
+    ).toBe(true);
+  });
+
   it("adds a shallow north marker only to keyed tiles", () => {
     const keyedLayout = calculateHexTileLayout(DEFAULT_HEX_TILE_CONFIG);
     const keyedHeights = uniqueHeights(
@@ -101,6 +134,12 @@ describe("generateHexTileTriangles", () => {
         magnetMode: "paired",
       }),
     );
+    const captiveHeights = uniqueHeights(
+      generateHexTileTriangles({
+        ...DEFAULT_HEX_TILE_CONFIG,
+        magnetMode: "captive",
+      }),
+    );
     const markerFloorZ = keyedLayout.topHeight - keyedLayout.northMarkerDepth;
 
     expect(
@@ -108,6 +147,9 @@ describe("generateHexTileTriangles", () => {
     ).toBe(true);
     expect(
       pairedHeights.some((height) => Math.abs(height - markerFloorZ) < 1e-5),
+    ).toBe(false);
+    expect(
+      captiveHeights.some((height) => Math.abs(height - markerFloorZ) < 1e-5),
     ).toBe(false);
   });
 

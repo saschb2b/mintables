@@ -23,4 +23,18 @@ describe("getHexTilePrintTips", () => {
     );
     expect(tips.some((tip) => tip.body.includes("every 60-degree"))).toBe(true);
   });
+
+  it("explains captive rod insertion without adhesive", () => {
+    const tips = getHexTilePrintTips({
+      ...DEFAULT_HEX_TILE_CONFIG,
+      magnetMode: "captive",
+    });
+
+    expect(tips.some((tip) => tip.title === "Press in diametric rods")).toBe(
+      true,
+    );
+    expect(tips.some((tip) => tip.body.includes("without adhesive"))).toBe(
+      true,
+    );
+  });
 });

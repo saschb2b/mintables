@@ -26,7 +26,11 @@ function summaryStatus(
   if (spec.usableInterior < 30 || spec.magnetBackWall < 1.2) {
     return { status: "error", label: "Check dimensions" };
   }
-  if (config.magnetMode !== "none" && config.magnetClearance < 0.15) {
+  const magnetClearance =
+    config.magnetMode === "captive"
+      ? config.magnetRodClearance
+      : config.magnetClearance;
+  if (config.magnetMode !== "none" && magnetClearance < 0.15) {
     return { status: "warn", label: "Tight magnet fit" };
   }
   return { status: "ok", label: "Print ready" };

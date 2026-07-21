@@ -13,6 +13,27 @@ describe("validateHexTileConfig", () => {
     expect(result.errors).toHaveLength(0);
   });
 
+  it("accepts the default captive 3 by 10 mm rod channel", () => {
+    const result = validateHexTileConfig({
+      ...DEFAULT_HEX_TILE_CONFIG,
+      magnetMode: "captive",
+    });
+
+    expect(result.errors).toHaveLength(0);
+  });
+
+  it("rejects a captive opening that cannot retain the rod", () => {
+    const result = validateHexTileConfig({
+      ...DEFAULT_HEX_TILE_CONFIG,
+      magnetMode: "captive",
+      magnetLipOpening: 3,
+    });
+
+    expect(
+      result.errors.some((error) => error.code === "magnet_lip_not_retaining"),
+    ).toBe(true);
+  });
+
   it("rejects sockets that break through the bowl rim", () => {
     const result = validateHexTileConfig({
       ...DEFAULT_HEX_TILE_CONFIG,

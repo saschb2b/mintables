@@ -8,6 +8,8 @@ export interface HexTileLayout {
   magnetCount: number;
   magnetSocketDiameter: number;
   magnetSocketDepth: number;
+  magnetSocketLength: number;
+  magnetThroatWidth: number;
   magnetCenterZ: number;
   magnetRoofZ: number;
   magnetBridgeWidth: number;
@@ -20,14 +22,27 @@ export interface HexTileLayout {
 export function calculateHexTileLayout(config: HexTileConfig): HexTileLayout {
   const pointToPoint = (2 * config.acrossFlats) / Math.sqrt(3);
   const sideLength = pointToPoint / 2;
-  const magnetSocketDiameter = config.magnetDiameter + config.magnetClearance;
+  const usesCaptiveRods = config.magnetMode === "captive";
+  const magnetSocketDiameter = usesCaptiveRods
+    ? config.magnetRodDiameter + config.magnetRodClearance
+    : config.magnetDiameter + config.magnetClearance;
   const socketRadius = magnetSocketDiameter / 2;
-  const magnetCenterZ = config.edgeBevel + 1.2 + socketRadius;
+  const magnetSocketLength = usesCaptiveRods
+    ? config.magnetRodLength + config.magnetRodClearance
+    : magnetSocketDiameter;
+  const magnetCenterZ =
+    config.edgeBevel +
+    1.2 +
+    (usesCaptiveRods ? magnetSocketLength / 2 : socketRadius);
   const rimBandWidth = config.rimWidth - config.edgeBevel;
+  const openingHalfHeight = Math.min(config.magnetLipOpening / 2, socketRadius);
+  const chamberIntersectionDepth = Math.sqrt(
+    Math.max(0, socketRadius ** 2 - openingHalfHeight ** 2),
+  );
   const magnetCount =
     config.magnetMode === "paired"
       ? 12
-      : config.magnetMode === "single"
+      : config.magnetMode === "single" || config.magnetMode === "captive"
         ? 6
         : 0;
 
@@ -38,9 +53,16 @@ export function calculateHexTileLayout(config: HexTileConfig): HexTileLayout {
     innerAcrossFlats: config.acrossFlats - 2 * config.rimWidth,
     magnetCount,
     magnetSocketDiameter,
-    magnetSocketDepth: config.magnetDepth + config.magnetClearance,
+    magnetSocketDepth: usesCaptiveRods
+      ? config.magnetLipDepth + chamberIntersectionDepth + socketRadius
+      : config.magnetDepth + config.magnetClearance,
+    magnetSocketLength,
+    magnetThroatWidth: usesCaptiveRods
+      ? config.magnetLipOpening
+      : magnetSocketDiameter,
     magnetCenterZ,
-    magnetRoofZ: magnetCenterZ + socketRadius,
+    magnetRoofZ:
+      magnetCenterZ + (usesCaptiveRods ? magnetSocketLength / 2 : socketRadius),
     magnetBridgeWidth: magnetSocketDiameter * (Math.SQRT2 - 1),
     pairedMagnetOffset: Math.min(12, sideLength * 0.2),
     northMarkerCenterY:

@@ -164,35 +164,126 @@ export function validateHexTileConfig(config: HexTileConfig): ValidationResult {
   }
 
   if (config.magnetMode !== "none") {
-    if (!finiteInRange(config.magnetDiameter, 3, 10)) {
-      errors.push(
-        issue(
-          "error",
-          "magnet_diameter_range",
-          "Magnet diameter must be between 3 and 10 mm.",
-          "magnetDiameter",
-        ),
-      );
-    }
-    if (!finiteInRange(config.magnetDepth, 1, 5)) {
-      errors.push(
-        issue(
-          "error",
-          "magnet_depth_range",
-          "Magnet depth must be between 1 and 5 mm.",
-          "magnetDepth",
-        ),
-      );
-    }
-    if (!finiteInRange(config.magnetClearance, 0.05, 0.8)) {
-      errors.push(
-        issue(
-          "error",
-          "magnet_clearance_range",
-          "Magnet clearance must be between 0.05 and 0.8 mm.",
-          "magnetClearance",
-        ),
-      );
+    if (config.magnetMode === "captive") {
+      if (!finiteInRange(config.magnetRodDiameter, 2, 6)) {
+        errors.push(
+          issue(
+            "error",
+            "magnet_rod_diameter_range",
+            "Rod diameter must be between 2 and 6 mm.",
+            "magnetRodDiameter",
+          ),
+        );
+      }
+      if (!finiteInRange(config.magnetRodLength, 5, 20)) {
+        errors.push(
+          issue(
+            "error",
+            "magnet_rod_length_range",
+            "Rod length must be between 5 and 20 mm.",
+            "magnetRodLength",
+          ),
+        );
+      }
+      if (!finiteInRange(config.magnetRodClearance, 0.05, 0.8)) {
+        errors.push(
+          issue(
+            "error",
+            "magnet_rod_clearance_range",
+            "Rod clearance must be between 0.05 and 0.8 mm.",
+            "magnetRodClearance",
+          ),
+        );
+      }
+      if (!finiteInRange(config.magnetLipOpening, 1, 5.8)) {
+        errors.push(
+          issue(
+            "error",
+            "magnet_lip_opening_range",
+            "Lip opening must be between 1 and 5.8 mm.",
+            "magnetLipOpening",
+          ),
+        );
+      } else if (config.magnetLipOpening >= config.magnetRodDiameter) {
+        errors.push(
+          issue(
+            "error",
+            "magnet_lip_not_retaining",
+            "The lip opening must be smaller than the rod diameter so the magnet cannot fall out.",
+            "magnetLipOpening",
+          ),
+        );
+      } else if (config.magnetRodDiameter - config.magnetLipOpening > 1) {
+        warnings.push(
+          issue(
+            "warning",
+            "magnet_lip_tight",
+            "More than 1 mm of lip interference may make the rod difficult to press in.",
+            "magnetLipOpening",
+          ),
+        );
+      }
+      if (!finiteInRange(config.magnetLipDepth, 0.4, 1.5)) {
+        errors.push(
+          issue(
+            "error",
+            "magnet_lip_depth_range",
+            "Lip depth must be between 0.4 and 1.5 mm.",
+            "magnetLipDepth",
+          ),
+        );
+      }
+      if (config.magnetRodClearance < 0.15) {
+        warnings.push(
+          issue(
+            "warning",
+            "magnet_rotation_tight",
+            "Rod clearance below 0.15 mm may prevent free rotation on some printers.",
+            "magnetRodClearance",
+          ),
+        );
+      }
+    } else {
+      if (!finiteInRange(config.magnetDiameter, 3, 10)) {
+        errors.push(
+          issue(
+            "error",
+            "magnet_diameter_range",
+            "Magnet diameter must be between 3 and 10 mm.",
+            "magnetDiameter",
+          ),
+        );
+      }
+      if (!finiteInRange(config.magnetDepth, 1, 5)) {
+        errors.push(
+          issue(
+            "error",
+            "magnet_depth_range",
+            "Magnet depth must be between 1 and 5 mm.",
+            "magnetDepth",
+          ),
+        );
+      }
+      if (!finiteInRange(config.magnetClearance, 0.05, 0.8)) {
+        errors.push(
+          issue(
+            "error",
+            "magnet_clearance_range",
+            "Magnet clearance must be between 0.05 and 0.8 mm.",
+            "magnetClearance",
+          ),
+        );
+      }
+      if (config.magnetClearance < 0.15) {
+        warnings.push(
+          issue(
+            "warning",
+            "magnet_fit_tight",
+            "Clearance below 0.15 mm may need drilling or sanding on some printers.",
+            "magnetClearance",
+          ),
+        );
+      }
     }
     if (layout.magnetRoofZ > config.bodyHeight - config.edgeBevel) {
       errors.push(
@@ -200,7 +291,9 @@ export function validateHexTileConfig(config: HexTileConfig): ValidationResult {
           "error",
           "magnet_roof_high",
           "The support-free magnet roof does not fit below the top bevel. Increase body height or use smaller magnets.",
-          "magnetDiameter",
+          config.magnetMode === "captive"
+            ? "magnetRodDiameter"
+            : "magnetDiameter",
         ),
       );
     }
@@ -209,31 +302,25 @@ export function validateHexTileConfig(config: HexTileConfig): ValidationResult {
         issue(
           "error",
           "magnet_back_wall_thin",
-          "Leave at least 1.2 mm behind each magnet socket. Increase rim width or reduce magnet depth.",
-          "magnetDepth",
+          "Leave at least 1.2 mm behind each magnet socket. Increase rim width or reduce the socket depth.",
+          config.magnetMode === "captive" ? "magnetLipDepth" : "magnetDepth",
         ),
       );
     }
     const outermostSocket =
-      (config.magnetMode === "paired" ? layout.pairedMagnetOffset : 0) +
-      layout.magnetSocketDiameter / 2;
+      config.magnetMode === "captive"
+        ? layout.magnetSocketDiameter / 2
+        : (config.magnetMode === "paired" ? layout.pairedMagnetOffset : 0) +
+          layout.magnetSocketDiameter / 2;
     if (outermostSocket > layout.sideLength / 2 - 4) {
       errors.push(
         issue(
           "error",
           "magnet_pair_crowded",
           "The magnet sockets are too close to the hex corners for this tile size.",
-          "magnetDiameter",
-        ),
-      );
-    }
-    if (config.magnetClearance < 0.15) {
-      warnings.push(
-        issue(
-          "warning",
-          "magnet_fit_tight",
-          "Clearance below 0.15 mm may need drilling or sanding on some printers.",
-          "magnetClearance",
+          config.magnetMode === "captive"
+            ? "magnetRodLength"
+            : "magnetDiameter",
         ),
       );
     }

@@ -63,6 +63,26 @@ describe("decodeHexTile", () => {
     });
   });
 
+  it("hydrates the captive rod mode and its socket dimensions", () => {
+    const decoded = decodeHexTile({
+      magnetMode: "captive",
+      magnetRodDiameter: 3.2,
+      magnetRodLength: 12,
+      magnetRodClearance: 0.3,
+      magnetLipOpening: 2.6,
+      magnetLipDepth: 0.8,
+    });
+
+    expect(decoded).toMatchObject({
+      magnetMode: "captive",
+      magnetRodDiameter: 3.2,
+      magnetRodLength: 12,
+      magnetRodClearance: 0.3,
+      magnetLipOpening: 2.6,
+      magnetLipDepth: 0.8,
+    });
+  });
+
   it("rejects non-object preset data", () => {
     expect(decodeHexTile(null)).toBeNull();
     expect(decodeHexTile(["bowl"])).toBeNull();
