@@ -21,7 +21,7 @@ function connectionLabel(config: HexTileConfig): string {
     case "single":
       return "Align north dots";
     case "captive":
-      return "Self-aligning captive rods";
+      return "Align north dots";
     case "paired":
       return "Any 60-degree rotation";
     case "none":

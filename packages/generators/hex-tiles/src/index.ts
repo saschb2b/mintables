@@ -148,7 +148,7 @@ function magnetBadge(config: HexTileConfig, magnetCount: number): string {
     case "single":
       return `${String(magnetCount)} keyed magnets`;
     case "captive":
-      return `${String(magnetCount)} self-aligning rods`;
+      return `${String(magnetCount)} keyed captive rods`;
     case "paired":
       return `${String(magnetCount)} orientation-free magnets`;
     case "none":

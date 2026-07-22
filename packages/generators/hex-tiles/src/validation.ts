@@ -237,8 +237,8 @@ export function validateHexTileConfig(config: HexTileConfig): ValidationResult {
         warnings.push(
           issue(
             "warning",
-            "magnet_rotation_tight",
-            "Rod clearance below 0.15 mm may prevent free rotation on some printers.",
+            "magnet_rod_chamber_tight",
+            "Rod clearance below 0.15 mm may pinch the magnet inside the channel on some printers.",
             "magnetRodClearance",
           ),
         );

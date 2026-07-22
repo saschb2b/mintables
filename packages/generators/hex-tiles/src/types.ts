@@ -32,15 +32,15 @@ export interface HexTileConfig {
   isCustomTextureInverted: boolean;
 
   magnetMode: HexTileMagnetMode;
-  /** Diameter of a freely rotating, diametrically magnetized rod. */
+  /** Diameter of a captive, axially magnetized rod. */
   magnetRodDiameter: number;
-  /** Length of a freely rotating, diametrically magnetized rod. */
+  /** Length of a captive, axially magnetized rod. */
   magnetRodLength: number;
-  /** Additional room around the rod inside its rotating chamber. */
+  /** Additional room around the rod inside its captive chamber. */
   magnetRodClearance: number;
   /** Width of the undersized side opening that retains the vertical rod. */
   magnetLipOpening: number;
-  /** Distance from the side wall to the full rotating chamber. */
+  /** Distance from the side wall to the full captive chamber. */
   magnetLipDepth: number;
   /** Diameter of each glue-in disc used by single and paired modes. */
   magnetDiameter: number;

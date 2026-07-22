@@ -24,16 +24,18 @@ describe("getHexTilePrintTips", () => {
     expect(tips.some((tip) => tip.body.includes("every 60-degree"))).toBe(true);
   });
 
-  it("explains captive rod insertion without adhesive", () => {
+  it("explains the keyed top-pole sequence for captive rods", () => {
     const tips = getHexTilePrintTips({
       ...DEFAULT_HEX_TILE_CONFIG,
       magnetMode: "captive",
     });
 
-    expect(tips.some((tip) => tip.title === "Press in diametric rods")).toBe(
+    expect(tips.some((tip) => tip.title === "Follow the north dot")).toBe(true);
+    expect(tips.some((tip) => tip.body.includes("axially magnetized"))).toBe(
       true,
     );
-    expect(tips.some((tip) => tip.body.includes("without adhesive"))).toBe(
+    expect(tips.some((tip) => tip.body.includes("north end up"))).toBe(true);
+    expect(tips.some((tip) => tip.body.includes("N / S / N / S / N / S"))).toBe(
       true,
     );
   });

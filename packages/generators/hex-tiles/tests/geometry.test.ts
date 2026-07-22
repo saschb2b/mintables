@@ -123,7 +123,7 @@ describe("generateHexTileTriangles", () => {
     ).toBe(true);
   });
 
-  it("adds a shallow north marker only to keyed tiles", () => {
+  it("adds a shallow north marker to both keyed magnet modes", () => {
     const keyedLayout = calculateHexTileLayout(DEFAULT_HEX_TILE_CONFIG);
     const keyedHeights = uniqueHeights(
       generateHexTileTriangles(DEFAULT_HEX_TILE_CONFIG),
@@ -150,7 +150,7 @@ describe("generateHexTileTriangles", () => {
     ).toBe(false);
     expect(
       captiveHeights.some((height) => Math.abs(height - markerFloorZ) < 1e-5),
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("uses a circular opening and floor for the basic bowl", () => {

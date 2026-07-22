@@ -82,7 +82,7 @@ const PURPOSES: PurposeOption[] = [
 
 const MAGNET_MODES: { value: HexTileMagnetMode; label: string }[] = [
   { value: "single", label: "Keyed single (6)" },
-  { value: "captive", label: "Self-aligning rods (6)" },
+  { value: "captive", label: "Keyed captive rods (6)" },
   { value: "paired", label: "Any orientation (12)" },
   { value: "none", label: "No magnets" },
 ];
@@ -364,7 +364,7 @@ function magnetModeDescription(config: HexTileConfig): string {
     case "single":
       return "Align the recessed north dots on connected tiles. Begin at the marked side and install the outward poles clockwise.";
     case "captive":
-      return "Vertical, diametrically magnetized rods rotate freely inside the chamber and align their own polarity when tiles meet.";
+      return "Start below the recessed north dot with the rod's north end up, then continue clockwise with top poles N / S / N / S / N / S.";
     case "paired":
       return "Each side uses a mirrored polarity pair, allowing tiles to connect at every 60-degree rotation.";
     case "none":
@@ -372,11 +372,16 @@ function magnetModeDescription(config: HexTileConfig): string {
   }
 }
 
-function PolarityGuide() {
+function PolarityGuide({ mode }: { mode: "single" | "captive" }) {
+  const isCaptive = mode === "captive";
   return (
     <Box
       component="ol"
-      aria-label="Clockwise outward magnet polarity"
+      aria-label={
+        isCaptive
+          ? "Clockwise upper rod polarity"
+          : "Clockwise outward magnet polarity"
+      }
       sx={{
         display: "flex",
         gap: 0.75,
@@ -388,7 +393,7 @@ function PolarityGuide() {
       {KEYED_POLES.map(({ side, pole, color }) => (
         <Box component="li" key={side} sx={{ flex: 1, minWidth: 0 }}>
           <Chip
-            label={`${String(side)}:${pole}`}
+            label={`${String(side)}:${pole}${isCaptive ? "↑" : ""}`}
             color={color}
             variant="outlined"
             size="small"
@@ -663,7 +668,7 @@ function MagnetControls({ config, update, validation }: ControlSectionProps) {
                   step={0.5}
                 />
                 <NumberField
-                  label="Rotation clearance"
+                  label="Chamber clearance"
                   value={config.magnetRodClearance}
                   onChange={(magnetRodClearance) =>
                     update({ magnetRodClearance })
@@ -699,8 +704,8 @@ function MagnetControls({ config, update, validation }: ControlSectionProps) {
                 {String(layout.magnetCount)} captive channels. The{" "}
                 {layout.magnetThroatWidth.toFixed(2)} mm-wide throat flexes
                 around the rod, then the{" "}
-                {layout.magnetSocketDiameter.toFixed(2)} mm chamber lets it
-                rotate without glue.
+                {layout.magnetSocketDiameter.toFixed(2)} mm chamber avoids a
+                tight friction fit while the lip retains it without glue.
               </Typography>
             </>
           ) : (
@@ -752,7 +757,9 @@ function MagnetControls({ config, update, validation }: ControlSectionProps) {
           <Typography variant="caption" sx={{ color: "text.secondary" }}>
             {magnetModeDescription(config)}
           </Typography>
-          {config.magnetMode === "single" ? <PolarityGuide /> : null}
+          {config.magnetMode === "single" || config.magnetMode === "captive" ? (
+            <PolarityGuide mode={config.magnetMode} />
+          ) : null}
         </>
       ) : null}
     </SectionCard>

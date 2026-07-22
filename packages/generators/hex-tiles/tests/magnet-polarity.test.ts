@@ -13,7 +13,7 @@ describe("keyed magnet polarity", () => {
     [3, "south"],
     [4, "north"],
     [5, "south"],
-  ])("assigns side %i an outward %s pole", (side, pole) => {
+  ])("assigns side %i a keyed %s reference pole", (side, pole) => {
     expect(keyedPoleForSide(side)).toBe(pole);
   });
 

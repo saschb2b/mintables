@@ -611,7 +611,9 @@ function triangulateHorizontalFace(
 }
 
 function northMarkerOutline(config: HexTileConfig): Point2[] | null {
-  if (config.magnetMode !== "single") return null;
+  if (config.magnetMode !== "single" && config.magnetMode !== "captive") {
+    return null;
+  }
   const layout = calculateHexTileLayout(config);
   return ellipseOutline(
     layout.northMarkerRadius,
