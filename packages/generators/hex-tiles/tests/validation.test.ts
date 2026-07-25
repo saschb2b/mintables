@@ -154,8 +154,8 @@ describe("validateHexTileConfig", () => {
   it("rejects more bowl wells than the tile can hold", () => {
     const result = validateHexTileConfig({
       ...DEFAULT_HEX_TILE_CONFIG,
-      acrossFlats: 70,
-      rimWidth: 8,
+      acrossFlats: 60,
+      rimWidth: 12,
       bowlWellCount: 3,
     });
 

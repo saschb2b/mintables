@@ -790,11 +790,18 @@ function roundPolygonCorners(
   return points;
 }
 
-/** Lines the top face is cut along, one per ridge between neighbouring wells. */
-interface FaceCuts {
+/** Half of the plane: everything at or beyond `offset` along `normal`. */
+interface FaceHalfPlane {
   normal: Point2;
-  offsets: number[];
+  offset: number;
 }
+
+/**
+ * One well's share of the tile, as the half-planes that carve it out. Their
+ * boundaries are the ridge lines, so the same cells describe where the wells
+ * sit and where every face crossing a ridge has to be cut.
+ */
+type FaceCells = FaceHalfPlane[][];
 
 /**
  * The top face broken into the lands left over between through channels, then
@@ -806,7 +813,7 @@ interface FaceCuts {
 function topFaceRegions(
   outer: Point2[],
   channels: CardChannel[],
-  cuts?: FaceCuts,
+  cells?: FaceCells,
 ): Point2[][] {
   const spans: { left: number | null; right: number | null }[] = [];
   if (channels.length === 0) {
@@ -826,11 +833,16 @@ function topFaceRegions(
     return region;
   });
 
-  for (const offset of cuts?.offsets ?? []) {
-    regions = regions.flatMap((region) => [
-      clipHalfPlane(region, cuts?.normal ?? { x: 0, y: 1 }, offset, "below"),
-      clipHalfPlane(region, cuts?.normal ?? { x: 0, y: 1 }, offset, "above"),
-    ]);
+  if (cells && cells.length > 1) {
+    regions = regions.flatMap((region) =>
+      cells.map((cell) =>
+        cell.reduce(
+          (piece, half) =>
+            clipHalfPlane(piece, half.normal, half.offset, "above"),
+          region,
+        ),
+      ),
+    );
   }
   return regions.filter(
     (region) => region.length >= 3 && polygonArea(region) > 1e-6,
@@ -845,28 +857,49 @@ function topFaceRegions(
 function sideCutParams(
   outline: Point2[],
   index: number,
-  cuts?: FaceCuts,
+  cells?: FaceCells,
 ): number[] {
-  if (!cuts || cuts.offsets.length === 0) return [];
+  if (!cells || cells.length < 2) return [];
   const frame = sideFrame(
     outline[index],
     outline[(index + 1) % outline.length],
   );
   const halfLength = frame.length / 2;
-  const denominator =
-    frame.tangent.x * cuts.normal.x + frame.tangent.y * cuts.normal.y;
-  if (Math.abs(denominator) < 1e-9) return [];
-  const base =
-    frame.midpoint.x * cuts.normal.x + frame.midpoint.y * cuts.normal.y;
-  return cuts.offsets
-    .map((offset) => (offset - base) / denominator)
-    .filter((param) => param > -halfLength + 1e-9 && param < halfLength - 1e-9)
-    .sort((first, second) => first - second);
+  const pointAt = (param: number): Point2 => ({
+    x: frame.midpoint.x + frame.tangent.x * param,
+    y: frame.midpoint.y + frame.tangent.y * param,
+  });
+  const params: number[] = [];
+
+  for (const cell of cells) {
+    for (const half of cell) {
+      const denominator =
+        frame.tangent.x * half.normal.x + frame.tangent.y * half.normal.y;
+      if (Math.abs(denominator) < 1e-9) continue;
+      const base =
+        frame.midpoint.x * half.normal.x + frame.midpoint.y * half.normal.y;
+      const param = (half.offset - base) / denominator;
+      if (param <= -halfLength + 1e-9 || param >= halfLength - 1e-9) continue;
+      // A ridge may stop short of this side, in which case the crossing is not
+      // a real corner and inserting it would only split an edge in half.
+      const point = pointAt(param);
+      const bounds = cell.every(
+        (other) =>
+          other === half ||
+          point.x * other.normal.x + point.y * other.normal.y >=
+            other.offset - 1e-6,
+      );
+      if (bounds && !params.some((seen) => Math.abs(seen - param) < 1e-9)) {
+        params.push(param);
+      }
+    }
+  }
+  return params.sort((first, second) => first - second);
 }
 
 /** The same outline with a vertex added wherever a ridge cut crosses it. */
-function insertCutPoints(outline: Point2[], cuts?: FaceCuts): Point2[] {
-  if (!cuts || cuts.offsets.length === 0) return outline;
+function insertCutPoints(outline: Point2[], cells?: FaceCells): Point2[] {
+  if (!cells || cells.length < 2) return outline;
   const augmented: Point2[] = [];
   for (let index = 0; index < outline.length; index++) {
     augmented.push(outline[index]);
@@ -874,7 +907,7 @@ function insertCutPoints(outline: Point2[], cuts?: FaceCuts): Point2[] {
       outline[index],
       outline[(index + 1) % outline.length],
     );
-    for (const param of sideCutParams(outline, index, cuts)) {
+    for (const param of sideCutParams(outline, index, cells)) {
       augmented.push({
         x: frame.midpoint.x + frame.tangent.x * param,
         y: frame.midpoint.y + frame.tangent.y * param,
@@ -884,17 +917,13 @@ function insertCutPoints(outline: Point2[], cuts?: FaceCuts): Point2[] {
   return augmented;
 }
 
-/** A hairline strip along a cut line, so texture relief never straddles it. */
-function cutFootprint(
-  config: HexTileConfig,
-  cuts: FaceCuts,
-  offset: number,
-): Point2[] {
+/** A hairline strip along a ridge line, so relief never straddles a cut. */
+function cutFootprint(config: HexTileConfig, half: FaceHalfPlane): Point2[] {
   const reach = config.acrossFlats;
-  const along = { x: -cuts.normal.y, y: cuts.normal.x };
+  const along = { x: -half.normal.y, y: half.normal.x };
   const corner = (side: number, end: number): Point2 => ({
-    x: cuts.normal.x * (offset + side * 0.05) + along.x * reach * end,
-    y: cuts.normal.y * (offset + side * 0.05) + along.y * reach * end,
+    x: half.normal.x * (half.offset + side * 0.05) + along.x * reach * end,
+    y: half.normal.y * (half.offset + side * 0.05) + along.y * reach * end,
   });
   return [corner(-1, -1), corner(-1, 1), corner(1, 1), corner(1, -1)];
 }
@@ -1065,19 +1094,15 @@ function buildTopFace(
   featureHoles: Point2[][],
   topZ: number,
   channels: CardChannel[] = [],
-  cuts?: FaceCuts,
+  cells?: FaceCells,
 ): void {
   const marker = northMarkerOutline(config);
   const blocked = [
     ...featureHoles,
     ...(marker ? [marker] : []),
     ...channels.map((channel) => channelFootprint(config, channel)),
-    ...(cuts?.offsets ?? []).map((offset) =>
-      cutFootprint(
-        config,
-        cuts ?? { normal: { x: 0, y: 1 }, offsets: [] },
-        offset,
-      ),
+    ...(cells && cells.length > 1 ? cells : []).flatMap((cell) =>
+      cell.map((half) => cutFootprint(config, half)),
     ),
   ];
   const textureGrooves = surfaceTextureGrooves(config, outer, blocked);
@@ -1087,9 +1112,9 @@ function buildTopFace(
     ...textureGrooves.map((groove) => groove.outline),
   ];
   for (const region of topFaceRegions(
-    insertCutPoints(outer, cuts),
+    insertCutPoints(outer, cells),
     channels,
-    cuts,
+    cells,
   )) {
     triangulateHorizontalFace(
       triangles,
@@ -1520,7 +1545,7 @@ function buildBevelBand(
   plainZ: number,
   splits: number[],
   channels: CardChannel[],
-  cuts?: FaceCuts,
+  cells?: FaceCells,
 ): void {
   for (let index = 0; index < splitOutline.length; index++) {
     const next = (index + 1) % splitOutline.length;
@@ -1545,7 +1570,7 @@ function buildBevelBand(
               plainZ,
             ];
 
-    const plainCuts = sideCutParams(plainOutline, index, cuts);
+    const plainCuts = sideCutParams(plainOutline, index, cells);
     const notches = sideChannelNotches(frame, channels);
     for (const run of freeRuns(-halfLength, halfLength, notches)) {
       const inRun = (value: number) => value > run.min && value < run.max;
@@ -1721,7 +1746,7 @@ function buildOuterBody(
     layout.topHeight,
     splits,
     channels,
-    bowlFaceCuts(config),
+    bowlWellCells(config),
   );
   return topOutline;
 }
@@ -1732,32 +1757,46 @@ function buildOuterBody(
  * hexagon's own edges, and only its corners are rounded off. What is left
  * between two wells is the flat divider ridge.
  */
-/** The ridge lines between wells, which every face crossing them is cut on. */
-function bowlFaceCuts(config: HexTileConfig): FaceCuts | undefined {
+function unitVector(angle: number): Point2 {
+  return { x: Math.cos(angle), y: Math.sin(angle) };
+}
+
+/**
+ * How the tile interior is shared out. Two wells take a band each, split
+ * across the divider. Three take a third of the tile each, as sectors meeting
+ * at the middle, so every well hugs one corner of the hexagon.
+ */
+function bowlWellCells(config: HexTileConfig): FaceCells | undefined {
   const layout = calculateHexTileLayout(config);
   if (config.purpose !== "bowl" || layout.bowlWellCount < 2) return undefined;
   const splitAngle = (config.dividerAngle * Math.PI) / 180;
-  const band = layout.innerAcrossFlats / layout.bowlWellCount;
-  return {
-    normal: {
-      x: Math.cos(splitAngle + Math.PI / 2),
-      y: Math.sin(splitAngle + Math.PI / 2),
-    },
-    offsets: Array.from(
-      { length: layout.bowlWellCount - 1 },
-      (_, ridge) => -layout.innerAcrossFlats / 2 + (ridge + 1) * band,
-    ),
-  };
+
+  if (layout.bowlWellCount === 2) {
+    const normal = unitVector(splitAngle + Math.PI / 2);
+    return [
+      [{ normal: { x: -normal.x, y: -normal.y }, offset: 0 }],
+      [{ normal, offset: 0 }],
+    ];
+  }
+
+  return Array.from({ length: 3 }, (_, sector) => {
+    const ridge = splitAngle + (sector * 2 * Math.PI) / 3;
+    return [
+      { normal: unitVector(ridge + Math.PI / 2), offset: 0 },
+      { normal: unitVector(ridge + Math.PI / 6), offset: 0 },
+    ];
+  });
 }
 
 function bowlWells(config: HexTileConfig): {
   openings: Point2[][];
   floors: Point2[][];
-  cuts?: FaceCuts;
+  cells?: FaceCells;
 } {
   const layout = calculateHexTileLayout(config);
   const openingRadius = layout.innerAcrossFlats / 2;
-  if (layout.bowlWellCount === 1) {
+  const cells = bowlWellCells(config);
+  if (!cells) {
     const floorRadius = Math.max(6, openingRadius - BOWL_CURVE_WIDTH);
     return {
       openings: [ellipseOutline(openingRadius, openingRadius)],
@@ -1765,32 +1804,27 @@ function bowlWells(config: HexTileConfig): {
     };
   }
 
-  const splitAngle = (config.dividerAngle * Math.PI) / 180;
-  const normal = {
-    x: Math.cos(splitAngle + Math.PI / 2),
-    y: Math.sin(splitAngle + Math.PI / 2),
-  };
   const interior = regularHex(layout.innerAcrossFlats);
-  const band = layout.innerAcrossFlats / layout.bowlWellCount;
-  const cornerRadius = Math.min(14, Math.max(3, band * 0.35));
+  const cornerRadius = Math.min(
+    14,
+    Math.max(3, layout.bowlWellBandWidth * 0.35),
+  );
   const openings: Point2[][] = [];
   const floors: Point2[][] = [];
 
-  for (let well = 0; well < layout.bowlWellCount; well++) {
-    const isFirst = well === 0;
-    const isLast = well === layout.bowlWellCount - 1;
-    const low =
-      -openingRadius + well * band + (isFirst ? 0 : layout.bowlDividerWall / 2);
-    const high =
-      -openingRadius +
-      (well + 1) * band -
-      (isLast ? 0 : layout.bowlDividerWall / 2);
+  for (const cell of cells) {
+    // Pulling every shared boundary back by half the ridge leaves the ridge
+    // itself standing between neighbouring wells.
     const slab = cleanPolygon(
-      clipHalfPlane(
-        clipHalfPlane(interior, normal, high, "below"),
-        normal,
-        low,
-        "above",
+      cell.reduce(
+        (piece, half) =>
+          clipHalfPlane(
+            piece,
+            half.normal,
+            half.offset + layout.bowlDividerWall / 2,
+            "above",
+          ),
+        interior,
       ),
     );
     if (!isConvexRing(slab)) continue;
@@ -1807,7 +1841,7 @@ function bowlWells(config: HexTileConfig): {
       ),
     );
   }
-  return { openings, floors, cuts: bowlFaceCuts(config) };
+  return { openings, floors, cells };
 }
 
 function buildBowlInterior(
@@ -1824,7 +1858,7 @@ function buildBowlInterior(
     wells.openings,
     layout.topHeight,
     [],
-    wells.cuts,
+    wells.cells,
   );
   const minimumFloorZ = config.floorThickness + config.raiseHeight;
   const floorZ = Math.max(minimumFloorZ, layout.topHeight - config.bowlDepth);

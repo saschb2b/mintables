@@ -841,9 +841,11 @@ function BowlControls({ config, update, validation }: ControlSectionProps) {
       />
       {layout.bowlWellCount > 1 ? (
         <Typography variant="caption" sx={{ color: "text.secondary" }}>
-          Each well follows the tile outline and is{" "}
-          {layout.bowlWellBandWidth.toFixed(1)} mm across, separated by a{" "}
-          {layout.bowlDividerWall.toFixed(1)} mm ridge.
+          {layout.bowlWellCount === 3
+            ? "Three sectors meet in the middle, each taking a third of the tile and one of its corners."
+            : "Each well spans the tile and follows its outline."}{" "}
+          Every well holds a {layout.bowlWellBandWidth.toFixed(1)} mm circle,
+          with a {layout.bowlDividerWall.toFixed(1)} mm ridge between them.
         </Typography>
       ) : null}
       <Typography variant="caption" sx={{ color: "text.secondary" }}>

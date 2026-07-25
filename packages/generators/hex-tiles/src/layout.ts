@@ -24,7 +24,7 @@ export interface HexTileLayout {
   bowlWellCount: number;
   /** Flat ridge left between neighbouring bowl wells. */
   bowlDividerWall: number;
-  /** Width of one well across the split direction, walls already taken out. */
+  /** Widest circle one well holds, walls already taken out. */
   bowlWellBandWidth: number;
   rollFloorZ: number;
   /** Across-flats size of the flat rolling floor, once draft and fillet are cut. */
@@ -172,9 +172,14 @@ export function calculateHexTileLayout(config: HexTileConfig): HexTileLayout {
     cardSlotFloorZ: topHeight - config.cardSlotDepth,
     bowlWellCount,
     bowlDividerWall,
+    // Two wells take a band each, so the band height is the limit. Three take a
+    // 120-degree sector each, where the widest circle that fits an apothem-deep
+    // wedge is 0.464 of the interior.
     bowlWellBandWidth:
-      innerAcrossFlats / bowlWellCount -
-      ((bowlWellCount - 1) / bowlWellCount) * bowlDividerWall,
+      bowlWellCount === 3
+        ? innerAcrossFlats * 0.464 - bowlDividerWall
+        : innerAcrossFlats / bowlWellCount -
+          ((bowlWellCount - 1) / bowlWellCount) * bowlDividerWall,
     rollFloorZ: topHeight - config.rollDepth,
     rollFloorAcrossFlats: innerAcrossFlats - 2 * rollFloorInset,
     rollFloorInset,
