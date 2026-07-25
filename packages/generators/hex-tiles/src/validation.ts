@@ -27,6 +27,9 @@ function finiteInRange(value: number, min: number, max: number): boolean {
 
 const CHANNEL_CLEARANCE = 0.6;
 
+/** A sleeved standard card, the long edge a deck stands on. */
+const STANDARD_CARD_LENGTH = 92;
+
 /** Sideways spans of the magnet sockets sitting in the two channelled flats. */
 function magnetSpansOnChannelledFlats(
   config: HexTileConfig,
@@ -789,9 +792,10 @@ export function validateHexTileConfig(config: HexTileConfig): ValidationResult {
         ),
       );
     }
+    // The channel floor steps up over the magnet sockets. That shelf is part of
+    // the design and stays quiet: it only earns a word once it reaches further
+    // in than the cards standing on it.
     if (layout.channelLedgeReach > 0) {
-      // The channel floor steps up over the magnet sockets. That shelf is only
-      // in the way once it reaches further in than the card it carries.
       if (layout.channelEdgeFloorZ > layout.topHeight - 2) {
         errors.push(
           issue(
@@ -801,12 +805,12 @@ export function validateHexTileConfig(config: HexTileConfig): ValidationResult {
             spanField,
           ),
         );
-      } else {
+      } else if (isDeck && layout.channelClearSpan < STANDARD_CARD_LENGTH) {
         warnings.push(
           issue(
             "warning",
             "through_channel_shelf",
-            `The floor steps up ${layout.channelLedgeReach.toFixed(1)} mm in from each edge to clear a magnet socket, leaving ${layout.channelClearSpan.toFixed(1)} mm at full depth. Anything longer than that rests on the shelf.`,
+            `Only ${layout.channelClearSpan.toFixed(1)} mm of the cradle is at full depth, short of the ${String(STANDARD_CARD_LENGTH)} mm a sleeved card needs, so decks rest on the shelf over the magnet sockets. Thinner magnets, a wider tile, or a raised base give it back.`,
             spanField,
           ),
         );

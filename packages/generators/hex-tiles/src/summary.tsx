@@ -78,6 +78,18 @@ export function HexTileSummary({ config }: { config: HexTileConfig }) {
           value={`${config.rollDepth.toFixed(1)} mm`}
         />
       ) : null}
+      {config.purpose === "deck" ? (
+        <>
+          <SpecRow
+            label="Cradle"
+            value={`${spec.deckSlotWidth.toFixed(1)} mm wide, ${config.deckSlotDepth.toFixed(1)} mm deep`}
+          />
+          <SpecRow
+            label="Full-depth span"
+            value={`${spec.deckClearSpan.toFixed(1)} mm${spec.deckClearSpan >= 92 ? "" : " (under a card)"}`}
+          />
+        </>
+      ) : null}
       <SpecRow
         label="Magnets"
         value={spec.magnetCount === 0 ? "None" : String(spec.magnetCount)}

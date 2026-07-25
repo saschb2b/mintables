@@ -1032,6 +1032,16 @@ function DeckControls({ config, update, validation }: ControlSectionProps) {
         {layout.deckStandProud.toFixed(0)} mm. That overhang is what you pinch
         to lift the deck out.
       </Typography>
+      {layout.channelLedgeReach > 0 ? (
+        <Typography variant="caption" sx={{ color: "text.secondary" }}>
+          The floor steps up {layout.channelLedgeReach.toFixed(1)} mm in from
+          each edge to pass over a magnet socket, leaving{" "}
+          {layout.channelClearSpan.toFixed(1)} mm at full depth
+          {layout.channelClearSpan >= 92
+            ? ", enough for a 92 mm sleeved card."
+            : ", short of the 92 mm a sleeved card needs."}
+        </Typography>
+      ) : null}
     </SectionCard>
   );
 }

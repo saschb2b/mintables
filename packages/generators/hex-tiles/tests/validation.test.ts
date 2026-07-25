@@ -3,6 +3,7 @@ import {
   CUSTOM_TEXTURE_SAMPLE_COUNT,
   encodeCustomTextureSamples,
 } from "../src/custom-height-map";
+import { calculateHexTileLayout } from "../src/layout";
 import { DEFAULT_HEX_TILE_CONFIG } from "../src/types";
 import { validateHexTileConfig } from "../src/validation";
 
@@ -108,19 +109,17 @@ describe("validateHexTileConfig", () => {
   });
 
   it("steps a through channel over a magnet socket rather than cutting it", () => {
-    const result = validateHexTileConfig({
+    const config = {
       ...DEFAULT_HEX_TILE_CONFIG,
-      purpose: "cards",
-      magnetMode: "paired",
+      purpose: "cards" as const,
+      magnetMode: "paired" as const,
       cardSlotThroughCount: 2,
-    });
+    };
+    const result = validateHexTileConfig(config);
 
+    expect(calculateHexTileLayout(config).channelLedgeReach).toBeGreaterThan(0);
     expect(result.errors).toHaveLength(0);
-    expect(
-      result.warnings.some(
-        (warning) => warning.code === "through_channel_shelf",
-      ),
-    ).toBe(true);
+    expect(result.warnings).toHaveLength(0);
   });
 
   it("warns when a through-channel count cannot be met symmetrically", () => {
@@ -165,10 +164,23 @@ describe("validateHexTileConfig", () => {
     ).toBe(true);
   });
 
-  it("accepts the default deck cradle and flags its magnet shelf", () => {
+  it("accepts the default deck cradle without a word about its shelf", () => {
     const result = validateHexTileConfig({
       ...DEFAULT_HEX_TILE_CONFIG,
       purpose: "deck",
+    });
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.warnings).toHaveLength(0);
+  });
+
+  it("warns when the magnet shelf eats into the card length", () => {
+    const result = validateHexTileConfig({
+      ...DEFAULT_HEX_TILE_CONFIG,
+      purpose: "deck",
+      magnetDiameter: 10,
+      magnetDepth: 5,
+      rimWidth: 8,
     });
 
     expect(result.errors).toHaveLength(0);

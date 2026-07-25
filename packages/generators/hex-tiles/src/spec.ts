@@ -11,6 +11,8 @@ export interface HexTileSpec {
   magnetBackWall: number;
   connectionLabel: string;
   featureLabel: string;
+  deckSlotWidth: number;
+  deckClearSpan: number;
   estimatedMaterialCm3: number;
   estimatedPlaGrams: number;
   estimateInfillPercent: number;
@@ -65,6 +67,8 @@ export function getHexTileSpec(config: HexTileConfig): HexTileSpec {
     magnetBackWall: config.rimWidth - layout.magnetSocketDepth,
     connectionLabel: connectionLabel(config),
     featureLabel: featureLabel(config),
+    deckSlotWidth: layout.deckSlotWidth,
+    deckClearSpan: layout.channelClearSpan,
     estimatedMaterialCm3: material.materialVolumeMm3 / 1000,
     estimatedPlaGrams: material.plaGrams,
     estimateInfillPercent: material.infillPercent,
