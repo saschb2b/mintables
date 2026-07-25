@@ -875,47 +875,101 @@ function mapSidePoint(
   ];
 }
 
+/**
+ * Outline of one slice of a side face: a rectangle whose top edge drops to the
+ * channel floor wherever a through channel crosses it.
+ */
+function sideFaceContour(
+  uMin: number,
+  uMax: number,
+  zLow: number,
+  zHigh: number,
+  notches: CardChannel[],
+  notchFloorZ: number,
+): Point2[] {
+  const runs: { min: number; max: number; z: number }[] = [];
+  let cursor = uMin;
+  for (const notch of [...notches].sort((a, b) => a.min - b.min)) {
+    const min = Math.max(notch.min, cursor);
+    const max = Math.min(notch.max, uMax);
+    if (max - min <= 1e-9) continue;
+    if (min > cursor) runs.push({ min: cursor, max: min, z: zHigh });
+    runs.push({ min, max, z: notchFloorZ });
+    cursor = max;
+  }
+  if (cursor < uMax) runs.push({ min: cursor, max: uMax, z: zHigh });
+
+  const contour: Point2[] = [
+    { x: uMin, y: zLow },
+    { x: uMax, y: zLow },
+  ];
+  for (let index = runs.length - 1; index >= 0; index--) {
+    contour.push(
+      { x: runs[index].max, y: runs[index].z },
+      { x: runs[index].min, y: runs[index].z },
+    );
+  }
+  return contour;
+}
+
+/**
+ * Ear clipping merges outline segments that are exactly colinear. Two magnet
+ * sockets side by side share the height of their top and bottom edges, and the
+ * clipper bridges straight past one of those edges, dropping it from the face
+ * and leaving the mesh open. Splitting the face midway between the sockets
+ * keeps every call down to a single hole. The bevel bands and channel floors
+ * that meet these faces take the same splits so no edge is left unmatched.
+ */
+function magnetSplitOffsets(config: HexTileConfig): number[] {
+  return config.magnetMode === "paired" ? [0] : [];
+}
+
 function triangulateSideFace(
   triangles: number[][],
   frame: SideFrame,
   zLow: number,
   zHigh: number,
   holes: Point2[][],
+  splits: number[],
   notches: CardChannel[] = [],
   notchFloorZ = 0,
 ): void {
   const halfLength = frame.length / 2;
-  const outer: Point2[] = [
-    { x: -halfLength, y: zLow },
-    { x: halfLength, y: zLow },
-    { x: halfLength, y: zHigh },
-  ];
-  for (const notch of [...notches].sort((a, b) => b.max - a.max)) {
-    outer.push(
-      { x: notch.max, y: zHigh },
-      { x: notch.max, y: notchFloorZ },
-      { x: notch.min, y: notchFloorZ },
-      { x: notch.min, y: zHigh },
-    );
-  }
-  outer.push({ x: -halfLength, y: zHigh });
-  const contour = outer.map((point) => new Vector2(point.x, point.y));
-  const holeVectors = holes.map((hole) =>
-    hole.map((point) => new Vector2(point.x, point.y)),
+  const ordered = [...holes].sort(
+    (first, second) => centroid(first).x - centroid(second).x,
   );
-  const allPoints = [outer, ...holes].flat();
+  const bounds = [-halfLength, ...splits, halfLength];
   const desired: Point3 = [frame.outward.x, frame.outward.y, 0];
-  for (const face of ShapeUtils.triangulateShape(contour, holeVectors)) {
-    const a = allPoints[face[0]];
-    const b = allPoints[face[1]];
-    const c = allPoints[face[2]];
-    addOrientedTriangle(
-      triangles,
-      mapSidePoint(frame, a.x, 0, a.y),
-      mapSidePoint(frame, b.x, 0, b.y),
-      mapSidePoint(frame, c.x, 0, c.y),
-      desired,
+
+  for (let slice = 0; slice + 1 < bounds.length; slice++) {
+    const outer = sideFaceContour(
+      bounds[slice],
+      bounds[slice + 1],
+      zLow,
+      zHigh,
+      notches,
+      notchFloorZ,
     );
+    const sliceHoles = ordered[slice] ? [ordered[slice]] : [];
+    const allPoints = [outer, ...sliceHoles].flat();
+    const faces = ShapeUtils.triangulateShape(
+      outer.map((point) => new Vector2(point.x, point.y)),
+      sliceHoles.map((ring) =>
+        ring.map((point) => new Vector2(point.x, point.y)),
+      ),
+    );
+    for (const face of faces) {
+      const a = allPoints[face[0]];
+      const b = allPoints[face[1]];
+      const c = allPoints[face[2]];
+      addOrientedTriangle(
+        triangles,
+        mapSidePoint(frame, a.x, 0, a.y),
+        mapSidePoint(frame, b.x, 0, b.y),
+        mapSidePoint(frame, c.x, 0, c.y),
+        desired,
+      );
+    }
   }
 }
 
@@ -1079,51 +1133,88 @@ function sideChannelNotches(
   });
 }
 
+/** The spans of [min, max] left over once the removed spans are taken out. */
+function freeRuns(
+  min: number,
+  max: number,
+  removed: CardChannel[],
+): CardChannel[] {
+  const runs: CardChannel[] = [];
+  let cursor = min;
+  for (const span of [...removed].sort((a, b) => a.min - b.min)) {
+    const start = Math.max(span.min, cursor);
+    const end = Math.min(span.max, max);
+    if (end <= start) continue;
+    if (start > cursor) runs.push({ min: cursor, max: start });
+    cursor = end;
+  }
+  if (cursor < max) runs.push({ min: cursor, max });
+  return runs;
+}
+
 /**
- * The chamfer between the side walls and the top face, skipping the spans a
- * through channel carries away.
+ * A chamfer strip between two outlines, skipping the spans a through channel
+ * carries away. Only the edge that meets the side walls takes the socket
+ * splits; the opposite edge belongs to the bottom or top face, which are not
+ * split, so each run fans out from there.
  */
-function buildTopBevelBand(
+function buildBevelBand(
   triangles: number[][],
-  fullOutline: Point2[],
-  topOutline: Point2[],
-  zLower: number,
-  zUpper: number,
+  splitOutline: Point2[],
+  plainOutline: Point2[],
+  splitZ: number,
+  plainZ: number,
+  splits: number[],
   channels: CardChannel[],
 ): void {
-  for (let index = 0; index < fullOutline.length; index++) {
-    const next = (index + 1) % fullOutline.length;
-    const lowerStart = fullOutline[index];
-    const lowerEnd = fullOutline[next];
-    const upperStart = topOutline[index];
-    const upperEnd = topOutline[next];
-    const frame = sideFrame(lowerStart, lowerEnd);
+  for (let index = 0; index < splitOutline.length; index++) {
+    const next = (index + 1) % splitOutline.length;
+    const frame = sideFrame(splitOutline[index], splitOutline[next]);
+    const halfLength = frame.length / 2;
+    const plainMidpoint = {
+      x: (plainOutline[index].x + plainOutline[next].x) / 2,
+      y: (plainOutline[index].y + plainOutline[next].y) / 2,
+    };
     const desired: Point3 = [frame.outward.x, frame.outward.y, 0];
-    const cuts = Math.abs(frame.outward.y) < 0.99 ? [] : channels;
+    const splitPoint = (u: number): Point3 =>
+      u <= -halfLength
+        ? [splitOutline[index].x, splitOutline[index].y, splitZ]
+        : u >= halfLength
+          ? [splitOutline[next].x, splitOutline[next].y, splitZ]
+          : mapSidePoint(frame, u, 0, splitZ);
+    const plainPoint = (u: number): Point3 =>
+      u <= -halfLength
+        ? [plainOutline[index].x, plainOutline[index].y, plainZ]
+        : u >= halfLength
+          ? [plainOutline[next].x, plainOutline[next].y, plainZ]
+          : [
+              plainMidpoint.x + frame.tangent.x * u,
+              plainMidpoint.y + frame.tangent.y * u,
+              plainZ,
+            ];
 
-    const boundaries: { lowerX: number; upperX: number }[] = [
-      { lowerX: lowerStart.x, upperX: upperStart.x },
-    ];
-    const forward = lowerEnd.x > lowerStart.x;
-    for (const channel of forward ? cuts : [...cuts].reverse()) {
-      const first = forward ? channel.min : channel.max;
-      const second = forward ? channel.max : channel.min;
-      boundaries.push(
-        { lowerX: first, upperX: first },
-        { lowerX: second, upperX: second },
-      );
-    }
-    boundaries.push({ lowerX: lowerEnd.x, upperX: upperEnd.x });
-
-    for (let span = 0; span + 1 < boundaries.length; span += 2) {
-      const from = boundaries[span];
-      const to = boundaries[span + 1];
-      addOrientedQuad(
+    const notches = sideChannelNotches(frame, channels);
+    for (const run of freeRuns(-halfLength, halfLength, notches)) {
+      const chain = [
+        run.min,
+        ...splits.filter((split) => split > run.min && split < run.max),
+        run.max,
+      ];
+      const anchor = plainPoint(run.min);
+      for (let step = 0; step + 1 < chain.length; step++) {
+        addOrientedTriangle(
+          triangles,
+          anchor,
+          splitPoint(chain[step]),
+          splitPoint(chain[step + 1]),
+          desired,
+        );
+      }
+      addOrientedTriangle(
         triangles,
-        [from.lowerX, lowerStart.y, zLower],
-        [to.lowerX, lowerEnd.y, zLower],
-        [to.upperX, upperEnd.y, zUpper],
-        [from.upperX, upperStart.y, zUpper],
+        anchor,
+        splitPoint(run.max),
+        plainPoint(run.max),
         desired,
       );
     }
@@ -1142,14 +1233,24 @@ function buildThroughChannel(
   const zUpperSide = layout.topHeight - config.edgeBevel;
   const floorZ = layout.cardSlotFloorZ;
 
-  addOrientedQuad(
-    triangles,
-    [channel.min, -outerY, floorZ],
-    [channel.max, -outerY, floorZ],
-    [channel.max, outerY, floorZ],
-    [channel.min, outerY, floorZ],
-    [0, 0, 1],
-  );
+  // The floor meets the two open flats, so it carries the same socket splits
+  // as the side faces there. A split at u lands on x on one flat and -x on the
+  // other, and the socket layout is symmetric, so both are covered.
+  const floorSplits = magnetSplitOffsets(config)
+    .flatMap((split) => [split, -split])
+    .filter((split) => split > channel.min && split < channel.max)
+    .sort((first, second) => first - second);
+  const floorBounds = [channel.min, ...new Set(floorSplits), channel.max];
+  for (let span = 0; span + 1 < floorBounds.length; span++) {
+    addOrientedQuad(
+      triangles,
+      [floorBounds[span], -outerY, floorZ],
+      [floorBounds[span + 1], -outerY, floorZ],
+      [floorBounds[span + 1], outerY, floorZ],
+      [floorBounds[span], outerY, floorZ],
+      [0, 0, 1],
+    );
+  }
 
   // Wall outline in (y, z): straight out to the flats below the top bevel,
   // then drawn in to the trimmed top outline above it.
@@ -1194,15 +1295,17 @@ function buildOuterBody(
   const zLowerSide = config.edgeBevel;
   const zUpperSide = layout.topHeight - config.edgeBevel;
   const channels = cardChannels(config);
+  const splits = magnetSplitOffsets(config);
 
   buildFanFace(triangles, bottomOutline, 0, "down");
-  buildContourWall(
+  buildBevelBand(
     triangles,
-    bottomOutline,
     fullOutline,
-    0,
+    bottomOutline,
     zLowerSide,
-    "outward",
+    0,
+    splits,
+    [],
   );
 
   for (let index = 0; index < fullOutline.length; index++) {
@@ -1230,6 +1333,7 @@ function buildOuterBody(
       zLowerSide,
       zUpperSide,
       profiles,
+      splits,
       sideChannelNotches(frame, channels),
       layout.cardSlotFloorZ,
     );
@@ -1242,12 +1346,13 @@ function buildOuterBody(
     }
   }
 
-  buildTopBevelBand(
+  buildBevelBand(
     triangles,
     fullOutline,
     topOutline,
     zUpperSide,
     layout.topHeight,
+    splits,
     channels,
   );
   return topOutline;

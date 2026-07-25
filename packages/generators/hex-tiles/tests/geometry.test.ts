@@ -124,6 +124,34 @@ describe("generateHexTileTriangles", () => {
     ).toBe(true);
   });
 
+  it("closes the face around each socket of a magnet pair", () => {
+    const config = {
+      ...DEFAULT_HEX_TILE_CONFIG,
+      magnetMode: "paired" as const,
+    };
+    const triangles = generateHexTileTriangles(config);
+
+    expect(calculateHexTileLayout(config).magnetCount).toBe(12);
+    expect(isPrintableMesh(triangles)).toBe(true);
+    expect(edgeUseCounts(triangles).every((count) => count === 2)).toBe(true);
+  });
+
+  it("closes a through channel that runs between paired sockets", () => {
+    const config = {
+      ...DEFAULT_HEX_TILE_CONFIG,
+      purpose: "cards" as const,
+      magnetMode: "paired" as const,
+      cardSlotCount: 5,
+      cardSlotThroughCount: 1,
+    };
+    const triangles = generateHexTileTriangles(config);
+
+    expect(validateHexTileConfig(config).errors).toHaveLength(0);
+    expect(calculateHexTileLayout(config).cardChannelCount).toBe(1);
+    expect(isPrintableMesh(triangles)).toBe(true);
+    expect(edgeUseCounts(triangles).every((count) => count === 2)).toBe(true);
+  });
+
   it("adds a shallow north marker to both keyed magnet modes", () => {
     const keyedLayout = calculateHexTileLayout(DEFAULT_HEX_TILE_CONFIG);
     const keyedHeights = uniqueHeights(
