@@ -14,6 +14,7 @@ function purposeName(config: HexTileConfig): string {
   if (config.purpose === "cards") return "Card display";
   if (config.purpose === "dice-orbit") return "Dice orbit";
   if (config.purpose === "rolling") return "Rolling tray";
+  if (config.purpose === "deck") return "Deck cradle";
   return "Component bowl";
 }
 

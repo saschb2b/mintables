@@ -107,7 +107,7 @@ describe("validateHexTileConfig", () => {
     ).toBe(true);
   });
 
-  it("rejects a through channel that opens into a magnet socket", () => {
+  it("steps a through channel over a magnet socket rather than cutting it", () => {
     const result = validateHexTileConfig({
       ...DEFAULT_HEX_TILE_CONFIG,
       purpose: "cards",
@@ -115,9 +115,10 @@ describe("validateHexTileConfig", () => {
       cardSlotThroughCount: 2,
     });
 
+    expect(result.errors).toHaveLength(0);
     expect(
-      result.errors.some(
-        (error) => error.code === "through_channel_hits_magnet",
+      result.warnings.some(
+        (warning) => warning.code === "through_channel_shelf",
       ),
     ).toBe(true);
   });
@@ -161,6 +162,32 @@ describe("validateHexTileConfig", () => {
 
     expect(
       result.errors.some((error) => error.code === "bowl_wells_crowded"),
+    ).toBe(true);
+  });
+
+  it("accepts the default deck cradle and flags its magnet shelf", () => {
+    const result = validateHexTileConfig({
+      ...DEFAULT_HEX_TILE_CONFIG,
+      purpose: "deck",
+    });
+
+    expect(result.errors).toHaveLength(0);
+    expect(
+      result.warnings.some(
+        (warning) => warning.code === "through_channel_shelf",
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects a cradle wider than the tile's flat edges", () => {
+    const result = validateHexTileConfig({
+      ...DEFAULT_HEX_TILE_CONFIG,
+      purpose: "deck",
+      deckCapacity: 150,
+    });
+
+    expect(
+      result.errors.some((error) => error.code === "through_channel_off_flat"),
     ).toBe(true);
   });
 

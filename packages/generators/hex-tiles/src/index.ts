@@ -32,6 +32,7 @@ function purposeValue(
 ): HexTilePurpose {
   return value === "bowl" ||
     value === "cards" ||
+    value === "deck" ||
     value === "dice-orbit" ||
     value === "rolling"
     ? value
@@ -103,6 +104,10 @@ export function decodeHexTile(data: unknown): HexTileConfig | null {
     "rollCornerRadius",
     "rollFloorFillet",
     "rollWallDraft",
+    "deckCapacity",
+    "deckCardThickness",
+    "deckSlotCount",
+    "deckSlotDepth",
   ] as const) {
     config[key] = finiteNumber(data[key], config[key]);
   }
@@ -129,6 +134,9 @@ export function decodeHexTile(data: unknown): HexTileConfig | null {
     config.isCustomTextureInverted = data.isCustomTextureInverted;
   }
   config.bowlWellCount = wellCountValue(data, config.bowlWellCount);
+  if (typeof data.isDeckCounterWellEnabled === "boolean") {
+    config.isDeckCounterWellEnabled = data.isDeckCounterWellEnabled;
+  }
   return config;
 }
 
@@ -153,6 +161,7 @@ function wellName(count: number): string {
 
 function purposeLabel(config: HexTileConfig): string {
   if (config.purpose === "cards") return "card-rack";
+  if (config.purpose === "deck") return "deck-cradle";
   if (config.purpose === "dice-orbit") return "dice-orbit";
   if (config.purpose === "rolling") return "rolling-tray";
   return `${wellName(calculateHexTileLayout(config).bowlWellCount)}-bowl`;
@@ -162,6 +171,8 @@ function purposeBadge(config: HexTileConfig): string {
   switch (config.purpose) {
     case "cards":
       return "Card rack";
+    case "deck":
+      return `${String(config.deckSlotCount)}-deck cradle`;
     case "dice-orbit":
       return "Dice orbit";
     case "rolling":

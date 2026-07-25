@@ -1,4 +1,4 @@
-import { calculateHexTileLayout, cardChannels } from "./layout";
+import { calculateHexTileLayout, throughChannels } from "./layout";
 import { estimatePrintMaterial } from "./material-estimate";
 import type { HexTileConfig } from "./types";
 
@@ -31,8 +31,12 @@ function connectionLabel(config: HexTileConfig): string {
 
 function featureLabel(config: HexTileConfig): string {
   switch (config.purpose) {
+    case "deck": {
+      const wells = config.isDeckCounterWellEnabled ? " + corner wells" : "";
+      return `${String(config.deckSlotCount)} x ${String(config.deckCapacity)} cards${wells}`;
+    }
     case "cards": {
-      const throughCount = cardChannels(config).length;
+      const throughCount = throughChannels(config).length;
       return throughCount === 0
         ? `${String(config.cardSlotCount)} card slots`
         : `${String(config.cardSlotCount)} card slots, ${String(throughCount)} through`;

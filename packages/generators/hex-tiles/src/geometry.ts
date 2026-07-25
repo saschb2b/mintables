@@ -1,4 +1,4 @@
-import { ShapeUtils, Vector2 } from "three";
+﻿import { ShapeUtils, Vector2 } from "three";
 import { addTriangle } from "@mintables/shared/lib/geometry/mesh-utils";
 import {
   CUSTOM_TEXTURE_RESOLUTION,
@@ -6,7 +6,7 @@ import {
 } from "./custom-height-map";
 import {
   calculateHexTileLayout,
-  cardChannels,
+  throughChannels,
   cardSlotPlan,
   type CardChannel,
 } from "./layout";
@@ -36,6 +36,7 @@ const CURVE_SEGMENTS = 64;
 const WELL_RINGS = 6;
 const ROUNDED_HEX_SEGMENTS = 10;
 const BOWL_CORNER_SEGMENTS = 10;
+const DECK_WELL_MIN_INRADIUS = 5;
 const MIN_CORNER_RADIUS = 0.4;
 const ROLL_FILLET_RINGS = 5;
 const BOWL_CURVE_WIDTH = 12;
@@ -1623,7 +1624,26 @@ function buildThroughChannel(
   const outerY = hexApothem(config.acrossFlats);
   const topY = hexApothem(config.acrossFlats - 2 * config.edgeBevel);
   const zUpperSide = layout.topHeight - config.edgeBevel;
-  const floorZ = layout.cardSlotFloorZ;
+  const floorZ = layout.channelFloorZ;
+  const ledgeZ = layout.channelEdgeFloorZ;
+  const ledgeY = outerY - layout.channelLedgeReach;
+  const hasLedge = ledgeZ > floorZ + 1e-9 && ledgeY > 0;
+
+  // Floor line along the channel, in (y, z). A shelf at each end carries the
+  // floor over the magnet sockets buried in those two flats.
+  const floorLine: Point2[] = hasLedge
+    ? [
+        { x: -outerY, y: ledgeZ },
+        { x: -ledgeY, y: ledgeZ },
+        { x: -ledgeY, y: floorZ },
+        { x: ledgeY, y: floorZ },
+        { x: ledgeY, y: ledgeZ },
+        { x: outerY, y: ledgeZ },
+      ]
+    : [
+        { x: -outerY, y: floorZ },
+        { x: outerY, y: floorZ },
+      ];
 
   // The floor meets the two open flats, so it carries the same socket splits
   // as the side faces there. A split at u lands on x on one flat and -x on the
@@ -1634,21 +1654,29 @@ function buildThroughChannel(
     .sort((first, second) => first - second);
   const floorBounds = [channel.min, ...new Set(floorSplits), channel.max];
   for (let span = 0; span + 1 < floorBounds.length; span++) {
-    addOrientedQuad(
-      triangles,
-      [floorBounds[span], -outerY, floorZ],
-      [floorBounds[span + 1], -outerY, floorZ],
-      [floorBounds[span + 1], outerY, floorZ],
-      [floorBounds[span], outerY, floorZ],
-      [0, 0, 1],
-    );
+    const left = floorBounds[span];
+    const right = floorBounds[span + 1];
+    for (let step = 0; step + 1 < floorLine.length; step++) {
+      const from = floorLine[step];
+      const to = floorLine[step + 1];
+      const isRiser = Math.abs(to.x - from.x) < 1e-9;
+      addOrientedQuad(
+        triangles,
+        [left, from.x, from.y],
+        [right, from.x, from.y],
+        [right, to.x, to.y],
+        [left, to.x, to.y],
+        isRiser
+          ? [0, Math.sign(to.y - from.y) * (from.x < 0 ? 1 : -1), 0]
+          : [0, 0, 1],
+      );
+    }
   }
 
-  // Wall outline in (y, z): straight out to the flats below the top bevel,
-  // then drawn in to the trimmed top outline above it.
+  // Wall outline in (y, z): the floor line, then straight out to the flats
+  // below the top bevel and drawn in to the trimmed top outline above it.
   const profile: Point2[] = [
-    { x: -outerY, y: floorZ },
-    { x: outerY, y: floorZ },
+    ...floorLine,
     { x: outerY, y: zUpperSide },
     { x: topY, y: layout.topHeight },
     { x: -topY, y: layout.topHeight },
@@ -1686,7 +1714,7 @@ function buildOuterBody(
   const topOutline = regularHex(config.acrossFlats - 2 * config.edgeBevel);
   const zLowerSide = config.edgeBevel;
   const zUpperSide = layout.topHeight - config.edgeBevel;
-  const channels = cardChannels(config);
+  const channels = throughChannels(config);
   const splits = magnetSplitOffsets(config);
 
   buildFanFace(triangles, bottomOutline, 0, "down");
@@ -1727,7 +1755,7 @@ function buildOuterBody(
       profiles,
       splits,
       sideChannelNotches(frame, channels),
-      layout.cardSlotFloorZ,
+      layout.channelEdgeFloorZ,
     );
     if (config.magnetMode === "captive") {
       buildCaptiveRodSocket(triangles, frame, config);
@@ -1889,7 +1917,7 @@ function buildCardInterior(
         0,
       ),
     );
-  const channels = cardChannels(config);
+  const channels = throughChannels(config);
   buildTopFace(
     triangles,
     config,
@@ -1898,13 +1926,84 @@ function buildCardInterior(
     layout.topHeight,
     channels,
   );
-  const floorZ = layout.cardSlotFloorZ;
+  const floorZ = layout.channelFloorZ;
   for (const slot of pockets) {
     buildContourWall(triangles, slot, slot, floorZ, layout.topHeight, "inward");
     buildFanFace(triangles, slot, floorZ, "up");
   }
   for (const channel of channels) {
     buildThroughChannel(triangles, config, channel);
+  }
+}
+
+/** The scooped wells in the two corners a deck cradle leaves free. */
+function deckCounterWells(config: HexTileConfig): {
+  openings: Point2[][];
+  floors: Point2[][];
+} {
+  const layout = calculateHexTileLayout(config);
+  const openings: Point2[][] = [];
+  const floors: Point2[][] = [];
+  if (!config.isDeckCounterWellEnabled) return { openings, floors };
+
+  const interior = regularHex(layout.innerAcrossFlats);
+  for (const side of [-1, 1]) {
+    const slab = cleanPolygon(
+      clipHalfPlane(interior, { x: side, y: 0 }, layout.deckWellInset, "above"),
+    );
+    if (!isConvexRing(slab)) continue;
+    const inradius = polygonInradius(slab);
+    if (inradius < DECK_WELL_MIN_INRADIUS) continue;
+
+    const cornerRadius = Math.min(12, Math.max(3, inradius * 0.8));
+    const curve = Math.min(BOWL_CURVE_WIDTH, inradius * 0.5);
+    openings.push(
+      roundPolygonCorners(slab, cornerRadius, BOWL_CORNER_SEGMENTS),
+    );
+    floors.push(
+      roundPolygonCorners(
+        shrinkConvexPolygon(slab, curve),
+        Math.max(MIN_CORNER_RADIUS, cornerRadius - curve),
+        BOWL_CORNER_SEGMENTS,
+      ),
+    );
+  }
+  return { openings, floors };
+}
+
+/**
+ * A deck tile: cradles running flat to flat so a deck stands on its long edge
+ * with both ends open to a thumb, and the corners the cradles leave over
+ * scooped out for counters and dice.
+ */
+function buildDeckInterior(
+  triangles: number[][],
+  config: HexTileConfig,
+  topOutline: Point2[],
+): void {
+  const layout = calculateHexTileLayout(config);
+  const channels = throughChannels(config);
+  const wells = deckCounterWells(config);
+
+  buildTopFace(
+    triangles,
+    config,
+    topOutline,
+    wells.openings,
+    layout.topHeight,
+    channels,
+  );
+  for (const channel of channels) {
+    buildThroughChannel(triangles, config, channel);
+  }
+  for (let index = 0; index < wells.openings.length; index++) {
+    buildSmoothCavity(
+      triangles,
+      wells.openings[index],
+      wells.floors[index],
+      layout.channelFloorZ,
+      layout.topHeight,
+    );
   }
 }
 
@@ -2056,6 +2155,8 @@ export function generateHexTileTriangles(config: HexTileConfig): number[][] {
   const topOutline = buildOuterBody(triangles, config);
   if (config.purpose === "cards") {
     buildCardInterior(triangles, config, topOutline);
+  } else if (config.purpose === "deck") {
+    buildDeckInterior(triangles, config, topOutline);
   } else if (config.purpose === "dice-orbit") {
     buildDiceOrbitInterior(triangles, config, topOutline);
   } else if (config.purpose === "rolling") {

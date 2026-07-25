@@ -388,6 +388,78 @@ describe("generateHexTileTriangles", () => {
     expect(edgeUseCounts(triangles).every((count) => count === 2)).toBe(true);
   });
 
+  it("stands a deck on edge in a cradle open at both flats", () => {
+    const config = { ...DEFAULT_HEX_TILE_CONFIG, purpose: "deck" as const };
+    const layout = calculateHexTileLayout(config);
+    const triangles = generateHexTileTriangles(config);
+    const edgeY = config.acrossFlats / 2;
+    const mouthXs = triangles
+      .flatMap((triangle) => [
+        [triangle[0], triangle[1], triangle[2]],
+        [triangle[3], triangle[4], triangle[5]],
+        [triangle[6], triangle[7], triangle[8]],
+      ])
+      .filter(
+        ([, y, z]) =>
+          Math.abs(Math.abs(y) - edgeY) < 1e-9 &&
+          Math.abs(z - layout.channelEdgeFloorZ) < 1e-9,
+      )
+      .map(([x]) => x);
+
+    // 60 cards at 0.5 mm plus 2 mm of room.
+    expect(layout.deckSlotWidth).toBeCloseTo(32, 6);
+    expect(validateHexTileConfig(config).errors).toHaveLength(0);
+    expect(isPrintableMesh(triangles)).toBe(true);
+    expect(edgeUseCounts(triangles).every((count) => count === 2)).toBe(true);
+    expect(Math.min(...mouthXs)).toBeCloseTo(-16, 6);
+    expect(Math.max(...mouthXs)).toBeCloseTo(16, 6);
+    // A sleeved card is 92 mm long and has to clear the magnet shelves.
+    expect(layout.channelClearSpan).toBeGreaterThan(92);
+  });
+
+  it("steps the cradle floor over the magnet sockets", () => {
+    const keyed = { ...DEFAULT_HEX_TILE_CONFIG, purpose: "deck" as const };
+    const bare = { ...keyed, magnetMode: "none" as const };
+    const keyedLayout = calculateHexTileLayout(keyed);
+
+    expect(keyedLayout.channelLedgeReach).toBeGreaterThan(0);
+    expect(keyedLayout.channelEdgeFloorZ).toBeGreaterThan(
+      keyedLayout.magnetRoofZ,
+    );
+    expect(keyedLayout.channelEdgeFloorZ).toBeGreaterThan(
+      keyedLayout.channelFloorZ,
+    );
+    // Without magnets there is nothing to step over.
+    expect(calculateHexTileLayout(bare).channelLedgeReach).toBe(0);
+    expect(calculateHexTileLayout(bare).channelEdgeFloorZ).toBeCloseTo(
+      keyedLayout.channelFloorZ,
+      6,
+    );
+    expect(
+      edgeUseCounts(generateHexTileTriangles(bare)).every(
+        (count) => count === 2,
+      ),
+    ).toBe(true);
+  });
+
+  it("keeps two cradles and their corner wells closed", () => {
+    const config = {
+      ...DEFAULT_HEX_TILE_CONFIG,
+      purpose: "deck" as const,
+      acrossFlats: 120,
+      deckSlotCount: 2,
+      deckCapacity: 40,
+      isSurfaceTextureEnabled: true,
+      surfaceTexture: "wood-grain" as const,
+    };
+    const triangles = generateHexTileTriangles(config);
+
+    expect(validateHexTileConfig(config).errors).toHaveLength(0);
+    expect(calculateHexTileLayout(config).cardChannelCount).toBe(2);
+    expect(isPrintableMesh(triangles)).toBe(true);
+    expect(edgeUseCounts(triangles).every((count) => count === 2)).toBe(true);
+  });
+
   it("forms an outer dice trough and a higher center cup", () => {
     const config = {
       ...DEFAULT_HEX_TILE_CONFIG,

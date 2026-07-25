@@ -87,6 +87,21 @@ export function getHexTilePrintTips(config: HexTileConfig): PrintTip[] {
     }
   }
 
+  if (config.purpose === "deck") {
+    tips.push({
+      icon: "layers",
+      title: "Check the cradle against your sleeves",
+      body: `The cradle is ${layout.deckSlotWidth.toFixed(1)} mm wide, sized for ${String(config.deckCapacity)} cards at ${config.deckCardThickness.toFixed(2)} mm each plus 2 mm of room. Measure a sleeved stack with calipers before printing a set: sleeve brands vary by 0.1 mm a card, which is 6 mm across a 60-card deck.`,
+      priority: 9,
+    });
+    tips.push({
+      icon: "printer",
+      title: "Smooth the cradle walls",
+      body: "Slow the outer walls and skip textured plates for this variant. The deck rubs the cradle every time it comes out, and a rough wall wears sleeves.",
+      priority: 7,
+    });
+  }
+
   if (config.purpose === "rolling") {
     tips.push({
       icon: "layers",

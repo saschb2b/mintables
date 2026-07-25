@@ -23,6 +23,7 @@ import {
   Dices,
   Frame,
   ImageUp,
+  Layers,
   PanelsTopLeft,
   type LucideIcon,
 } from "lucide-react";
@@ -86,6 +87,13 @@ const PURPOSES: PurposeOption[] = [
     label: "Rolling tray",
     description: "One open hexagonal floor with soft corners for rolling dice.",
     icon: Frame,
+  },
+  {
+    value: "deck",
+    label: "Deck cradle",
+    description:
+      "Decks stand on edge in open channels, with wells for counters.",
+    icon: Layers,
   },
 ];
 
@@ -942,6 +950,92 @@ function CardControls({ config, update, validation }: ControlSectionProps) {
   );
 }
 
+function DeckControls({ config, update, validation }: ControlSectionProps) {
+  const layout = calculateHexTileLayout(config);
+  return (
+    <SectionCard title="Deck cradle">
+      <Box>
+        <Typography
+          variant="caption"
+          component="p"
+          sx={{ color: "text.secondary", mb: 0.75 }}
+        >
+          Cradles
+        </Typography>
+        <ToggleButtonGroup
+          exclusive
+          fullWidth
+          size="small"
+          value={Math.min(2, Math.max(1, Math.round(config.deckSlotCount)))}
+          aria-label="Number of cradles"
+          onChange={(_, value: number | null) => {
+            if (value) update({ deckSlotCount: value });
+          }}
+        >
+          <ToggleButton value={1}>One deck</ToggleButton>
+          <ToggleButton value={2}>Deck + discard</ToggleButton>
+        </ToggleButtonGroup>
+      </Box>
+      <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1.5 }}>
+        <NumberField
+          label="Capacity"
+          value={config.deckCapacity}
+          onChange={(deckCapacity) =>
+            update({ deckCapacity: Math.round(deckCapacity) })
+          }
+          field="deckCapacity"
+          validation={validation}
+          min={20}
+          max={200}
+          step={5}
+          unit="cards"
+        />
+        <NumberField
+          label="Card thickness"
+          value={config.deckCardThickness}
+          onChange={(deckCardThickness) => update({ deckCardThickness })}
+          field="deckCardThickness"
+          validation={validation}
+          min={0.25}
+          max={0.9}
+          step={0.05}
+        />
+        <NumberField
+          label="Cradle depth"
+          value={config.deckSlotDepth}
+          onChange={(deckSlotDepth) => update({ deckSlotDepth })}
+          field="deckSlotDepth"
+          validation={validation}
+          min={5}
+          max={Math.max(5, config.bodyHeight - 3)}
+          step={0.5}
+        />
+      </Box>
+      <FormControlLabel
+        control={
+          <Switch
+            checked={config.isDeckCounterWellEnabled}
+            onChange={(event) =>
+              update({ isDeckCounterWellEnabled: event.target.checked })
+            }
+          />
+        }
+        label="Scoop the corners into counter wells"
+      />
+      <Typography variant="caption" sx={{ color: "text.secondary" }}>
+        {layout.deckSlotWidth.toFixed(1)} mm per cradle, running edge to edge so
+        a thumb reaches the deck from either side. A standard sleeved card is
+        0.5 mm; unsleeved is about 0.32, double-sleeved 0.7.
+      </Typography>
+      <Typography variant="caption" sx={{ color: "text.secondary" }}>
+        Cards stand on their long edge, so a 66 mm card clears the rim by{" "}
+        {layout.deckStandProud.toFixed(0)} mm. That overhang is what you pinch
+        to lift the deck out.
+      </Typography>
+    </SectionCard>
+  );
+}
+
 function RollingControls({ config, update, validation }: ControlSectionProps) {
   const layout = calculateHexTileLayout(config);
   return (
@@ -1060,6 +1154,8 @@ function PurposeSpecificControls(props: ControlSectionProps) {
       return <DiceOrbitControls {...props} />;
     case "rolling":
       return <RollingControls {...props} />;
+    case "deck":
+      return <DeckControls {...props} />;
   }
 }
 

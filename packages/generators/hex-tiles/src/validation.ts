@@ -1,11 +1,11 @@
-import type {
+﻿import type {
   ValidationIssue,
   ValidationResult,
 } from "@mintables/shared/lib/validation";
 import { decodeCustomTextureSamples } from "./custom-height-map";
 import {
   calculateHexTileLayout,
-  cardChannels,
+  throughChannels,
   cardSlotPlan,
   type CardChannel,
   type HexTileLayout,
@@ -509,7 +509,7 @@ export function validateHexTileConfig(config: HexTileConfig): ValidationResult {
       );
     }
 
-    const channels = cardChannels(config);
+    const channels = throughChannels(config);
     const requestedThrough = Math.round(config.cardSlotThroughCount);
     if (
       !Number.isInteger(config.cardSlotThroughCount) ||
@@ -534,62 +534,87 @@ export function validateHexTileConfig(config: HexTileConfig): ValidationResult {
         ),
       );
     }
+  }
 
-    if (channels.length > 0) {
-      const outermost = Math.max(
-        ...channels.map((channel) => Math.max(-channel.min, channel.max)),
+  if (config.purpose === "deck") {
+    if (
+      !Number.isInteger(config.deckCapacity) ||
+      config.deckCapacity < 20 ||
+      config.deckCapacity > 200
+    ) {
+      errors.push(
+        issue(
+          "error",
+          "deck_capacity_range",
+          "A cradle holds between 20 and 200 cards.",
+          "deckCapacity",
+        ),
       );
-      if (outermost > layout.topFlatHalfSpan - 1) {
-        errors.push(
-          issue(
-            "error",
-            "through_channel_off_flat",
-            "Through channels must stay within the flat edges so neighbouring tiles line up. Reduce the slot spacing or the number of channels.",
-            "cardSlotThroughCount",
-          ),
-        );
-      }
-      if (layout.cardSlotFloorZ < config.edgeBevel + 1) {
-        errors.push(
-          issue(
-            "error",
-            "through_channel_deep",
-            "Through channels must leave at least 1 mm of wall above the bottom bevel. Reduce the slot depth.",
-            "cardSlotDepth",
-          ),
-        );
-      }
-      const magnetSpans = magnetSpansOnChannelledFlats(config, layout);
-      if (
-        layout.cardSlotFloorZ < layout.magnetRoofZ + CHANNEL_CLEARANCE &&
-        channels.some((channel) =>
-          magnetSpans.some((socket) =>
-            spansOverlap(channel, socket, CHANNEL_CLEARANCE),
-          ),
-        )
-      ) {
-        errors.push(
-          issue(
-            "error",
-            "through_channel_hits_magnet",
-            "A through channel runs into a magnet socket on the open sides. Change the slot spacing, reduce the channel count, or make the slots shallower.",
-            "cardSlotSpacing",
-          ),
-        );
-      }
-      if (
-        layout.northMarkerCenterX === null &&
-        (config.magnetMode === "single" || config.magnetMode === "captive")
-      ) {
-        warnings.push(
-          issue(
-            "warning",
-            "north_marker_crowded",
-            "The through channels leave no rim space for the orientation dot, so this tile prints without one.",
-            "cardSlotThroughCount",
-          ),
-        );
-      }
+    }
+    if (!finiteInRange(config.deckCardThickness, 0.25, 0.9)) {
+      errors.push(
+        issue(
+          "error",
+          "deck_thickness_range",
+          "Card thickness must be between 0.25 and 0.9 mm. Unsleeved is about 0.32, single-sleeved 0.5, double-sleeved 0.7.",
+          "deckCardThickness",
+        ),
+      );
+    }
+    if (
+      !Number.isInteger(config.deckSlotCount) ||
+      config.deckSlotCount < 1 ||
+      config.deckSlotCount > 2
+    ) {
+      errors.push(
+        issue(
+          "error",
+          "deck_slot_count_range",
+          "A deck tile holds one or two cradles.",
+          "deckSlotCount",
+        ),
+      );
+    }
+    if (!finiteInRange(config.deckSlotDepth, 5, 26)) {
+      errors.push(
+        issue(
+          "error",
+          "deck_depth_range",
+          "Cradle depth must be between 5 and 26 mm.",
+          "deckSlotDepth",
+        ),
+      );
+    } else if (config.deckSlotDepth > config.bodyHeight - 3) {
+      errors.push(
+        issue(
+          "error",
+          "deck_floor_thin",
+          "Leave at least 3 mm of floor below the cradle.",
+          "deckSlotDepth",
+        ),
+      );
+    } else if (config.deckSlotDepth < 8) {
+      warnings.push(
+        issue(
+          "warning",
+          "deck_cradle_shallow",
+          "Below 8 mm the cradle holds little of the deck, so a full stack can topple.",
+          "deckSlotDepth",
+        ),
+      );
+    }
+    if (
+      config.isDeckCounterWellEnabled &&
+      layout.deckWellInset + 10 > layout.innerAcrossFlats / Math.sqrt(3)
+    ) {
+      warnings.push(
+        issue(
+          "warning",
+          "deck_wells_crowded",
+          "The cradles leave no room for corner wells, so this tile prints without them.",
+          "isDeckCounterWellEnabled",
+        ),
+      );
     }
   }
 
@@ -728,6 +753,75 @@ export function validateHexTileConfig(config: HexTileConfig): ValidationResult {
           "center_cup_below_ring",
           "Center cup depth cannot exceed its elevation above the outer ring.",
           "orbitCenterDepth",
+        ),
+      );
+    }
+  }
+
+  const channels = throughChannels(config);
+  if (channels.length > 0) {
+    const isDeck = config.purpose === "deck";
+    const spanField = isDeck ? "deckCapacity" : "cardSlotThroughCount";
+    const depthField = isDeck ? "deckSlotDepth" : "cardSlotDepth";
+    const spanFix = isDeck
+      ? "Reduce the capacity, drop to one cradle, or widen the tile."
+      : "Reduce the slot spacing or the number of channels.";
+    const outermost = Math.max(
+      ...channels.map((channel) => Math.max(-channel.min, channel.max)),
+    );
+    if (outermost > layout.topFlatHalfSpan - 1) {
+      errors.push(
+        issue(
+          "error",
+          "through_channel_off_flat",
+          `Through channels must stay within the flat edges so neighbouring tiles line up. ${spanFix}`,
+          spanField,
+        ),
+      );
+    }
+    if (layout.channelFloorZ < config.edgeBevel + 1) {
+      errors.push(
+        issue(
+          "error",
+          "through_channel_deep",
+          "Through channels must leave at least 1 mm of wall above the bottom bevel. Make them shallower.",
+          depthField,
+        ),
+      );
+    }
+    if (layout.channelLedgeReach > 0) {
+      // The channel floor steps up over the magnet sockets. That shelf is only
+      // in the way once it reaches further in than the card it carries.
+      if (layout.channelEdgeFloorZ > layout.topHeight - 2) {
+        errors.push(
+          issue(
+            "error",
+            "through_channel_hits_magnet",
+            `The magnet sockets leave under 2 mm of channel at the tile edge. ${spanFix} Smaller magnets or a raised base also clear them.`,
+            spanField,
+          ),
+        );
+      } else {
+        warnings.push(
+          issue(
+            "warning",
+            "through_channel_shelf",
+            `The floor steps up ${layout.channelLedgeReach.toFixed(1)} mm in from each edge to clear a magnet socket, leaving ${layout.channelClearSpan.toFixed(1)} mm at full depth. Anything longer than that rests on the shelf.`,
+            spanField,
+          ),
+        );
+      }
+    }
+    if (
+      layout.northMarkerCenterX === null &&
+      (config.magnetMode === "single" || config.magnetMode === "captive")
+    ) {
+      warnings.push(
+        issue(
+          "warning",
+          "north_marker_crowded",
+          "The through channels leave no rim space for the orientation dot, so this tile prints without one.",
+          spanField,
         ),
       );
     }

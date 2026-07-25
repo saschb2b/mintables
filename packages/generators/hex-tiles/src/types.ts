@@ -1,4 +1,9 @@
-export type HexTilePurpose = "bowl" | "cards" | "dice-orbit" | "rolling";
+export type HexTilePurpose =
+  | "bowl"
+  | "cards"
+  | "deck"
+  | "dice-orbit"
+  | "rolling";
 
 export type HexTileMagnetMode = "none" | "single" | "captive" | "paired";
 
@@ -65,6 +70,17 @@ export interface HexTileConfig {
    */
   cardSlotThroughCount: number;
 
+  /** How many sleeved cards a deck cradle holds. */
+  deckCapacity: number;
+  /** Thickness of one card, sleeve included. */
+  deckCardThickness: number;
+  /** How many decks stand in the tile (1 or 2). */
+  deckSlotCount: number;
+  /** Drop from the rim to the cradle floor. */
+  deckSlotDepth: number;
+  /** Scooped wells in the two corners the cradle leaves free. */
+  isDeckCounterWellEnabled: boolean;
+
   orbitCenterDiameter: number;
   orbitCenterRaise: number;
   orbitCenterDepth: number;
@@ -115,6 +131,12 @@ export const DEFAULT_HEX_TILE_CONFIG: HexTileConfig = {
   cardSlotLength: 70,
   cardSlotSpacing: 12,
   cardSlotThroughCount: 2,
+
+  deckCapacity: 60,
+  deckCardThickness: 0.5,
+  deckSlotCount: 1,
+  deckSlotDepth: 11,
+  isDeckCounterWellEnabled: true,
 
   orbitCenterDiameter: 36,
   orbitCenterRaise: 7,
