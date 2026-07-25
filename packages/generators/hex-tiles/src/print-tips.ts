@@ -77,6 +77,14 @@ export function getHexTilePrintTips(config: HexTileConfig): PrintTip[] {
       body: "Sleeves vary by brand. Test one slot and increase width in 0.1 mm steps until cards slide in without bowing.",
       priority: 8,
     });
+    if (layout.cardChannelCount > 0) {
+      tips.push({
+        icon: "layers",
+        title: "Chain the through channels",
+        body: `${String(layout.cardChannelCount)} slots run out through both flat edges. Print every tile of a slide with the same slot width, spacing, and depth, then join them along those flats so the channels meet without a step.`,
+        priority: 8,
+      });
+    }
   }
 
   if (config.isSurfaceTextureEnabled) {

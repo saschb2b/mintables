@@ -1,10 +1,26 @@
 import type { HexTileConfig } from "./types";
 
+/** One card slot: where it sits and whether it runs out through both flats. */
+export interface CardSlotPlanEntry {
+  offset: number;
+  isThrough: boolean;
+}
+
+/** Plan-view span of a through channel, measured across the tile. */
+export interface CardChannel {
+  min: number;
+  max: number;
+}
+
 export interface HexTileLayout {
   pointToPoint: number;
   sideLength: number;
   topHeight: number;
   innerAcrossFlats: number;
+  /** Half the length of a top-face flat, the widest a through channel may sit. */
+  topFlatHalfSpan: number;
+  cardChannelCount: number;
+  cardSlotFloorZ: number;
   magnetCount: number;
   magnetSocketDiameter: number;
   magnetSocketDepth: number;
@@ -15,8 +31,82 @@ export interface HexTileLayout {
   magnetBridgeWidth: number;
   pairedMagnetOffset: number;
   northMarkerCenterY: number;
+  /** Null when through channels leave no rim space for the dot. */
+  northMarkerCenterX: number | null;
   northMarkerRadius: number;
   northMarkerDepth: number;
+}
+
+/**
+ * Card slots left to right, flagging the ones that run edge to edge. Through
+ * channels are taken in symmetric pairs from the center outward, so a request
+ * that cannot be met symmetrically falls back to the next smaller layout.
+ */
+export function cardSlotPlan(config: HexTileConfig): CardSlotPlanEntry[] {
+  const count = Math.max(0, Math.floor(config.cardSlotCount));
+  if (count === 0 || !Number.isFinite(config.cardSlotSpacing)) return [];
+
+  const groups: number[][] = [];
+  for (let low = Math.floor(count / 2) - 1; low >= 0; low--) {
+    groups.push([low, count - 1 - low]);
+  }
+  if (count % 2 === 1) groups.push([(count - 1) / 2]);
+
+  let budget = Math.min(
+    count,
+    Math.max(0, Math.round(config.cardSlotThroughCount)),
+  );
+  const through = new Set<number>();
+  for (const group of groups) {
+    if (group.length > budget) continue;
+    for (const index of group) through.add(index);
+    budget -= group.length;
+  }
+
+  const centerOffset = ((count - 1) * config.cardSlotSpacing) / 2;
+  return Array.from({ length: count }, (_, index) => ({
+    offset: index * config.cardSlotSpacing - centerOffset,
+    isThrough: through.has(index),
+  }));
+}
+
+/** The through channels of a card tile, empty for every other variant. */
+export function cardChannels(config: HexTileConfig): CardChannel[] {
+  if (config.purpose !== "cards") return [];
+  const halfWidth = config.cardSlotWidth / 2;
+  return cardSlotPlan(config)
+    .filter((slot) => slot.isThrough)
+    .map((slot) => ({
+      min: slot.offset - halfWidth,
+      max: slot.offset + halfWidth,
+    }))
+    .sort((a, b) => a.min - b.min);
+}
+
+/**
+ * Slides the orientation dot sideways until it clears every through channel.
+ * Returns null when the remaining rim is too crowded to place it at all.
+ */
+function placeNorthMarker(
+  channels: CardChannel[],
+  markerRadius: number,
+  halfSpan: number,
+): number | null {
+  const clearance = 0.6;
+  const blocked = channels.map((channel) => ({
+    min: channel.min - markerRadius - clearance,
+    max: channel.max + markerRadius + clearance,
+  }));
+  const fits = (x: number) =>
+    Math.abs(x) + markerRadius <= halfSpan &&
+    blocked.every((block) => x <= block.min || x >= block.max);
+
+  if (fits(0)) return 0;
+  const candidates = blocked
+    .flatMap((block) => [block.min, block.max])
+    .filter(fits)
+    .sort((a, b) => Math.abs(a) - Math.abs(b));
+  return candidates[0] ?? null;
 }
 
 export function calculateHexTileLayout(config: HexTileConfig): HexTileLayout {
@@ -46,11 +136,20 @@ export function calculateHexTileLayout(config: HexTileConfig): HexTileLayout {
         ? 6
         : 0;
 
+  const topHeight = config.bodyHeight + config.raiseHeight;
+  const topFlatHalfSpan =
+    (config.acrossFlats - 2 * config.edgeBevel) / (2 * Math.sqrt(3));
+  const channels = cardChannels(config);
+  const northMarkerRadius = Math.min(1.5, Math.max(0.9, rimBandWidth * 0.22));
+
   return {
     pointToPoint,
     sideLength,
-    topHeight: config.bodyHeight + config.raiseHeight,
+    topHeight,
     innerAcrossFlats: config.acrossFlats - 2 * config.rimWidth,
+    topFlatHalfSpan,
+    cardChannelCount: channels.length,
+    cardSlotFloorZ: topHeight - config.cardSlotDepth,
     magnetCount,
     magnetSocketDiameter,
     magnetSocketDepth: usesCaptiveRods
@@ -67,7 +166,12 @@ export function calculateHexTileLayout(config: HexTileConfig): HexTileLayout {
     pairedMagnetOffset: Math.min(12, sideLength * 0.2),
     northMarkerCenterY:
       (config.acrossFlats - 2 * config.rimWidth) / 2 + rimBandWidth / 2,
-    northMarkerRadius: Math.min(1.5, Math.max(0.9, rimBandWidth * 0.22)),
+    northMarkerCenterX: placeNorthMarker(
+      channels,
+      northMarkerRadius,
+      topFlatHalfSpan,
+    ),
+    northMarkerRadius,
     northMarkerDepth: 0.8,
   };
 }

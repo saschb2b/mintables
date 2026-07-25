@@ -58,6 +58,11 @@ export interface HexTileConfig {
   cardSlotDepth: number;
   cardSlotLength: number;
   cardSlotSpacing: number;
+  /**
+   * How many slots run edge to edge so neighbouring tiles chain into a longer
+   * slide. Channels are picked in symmetric pairs from the center outward.
+   */
+  cardSlotThroughCount: number;
 
   orbitCenterDiameter: number;
   orbitCenterRaise: number;
@@ -99,6 +104,7 @@ export const DEFAULT_HEX_TILE_CONFIG: HexTileConfig = {
   cardSlotDepth: 9,
   cardSlotLength: 70,
   cardSlotSpacing: 12,
+  cardSlotThroughCount: 2,
 
   orbitCenterDiameter: 36,
   orbitCenterRaise: 7,

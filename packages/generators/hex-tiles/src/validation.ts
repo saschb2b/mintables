@@ -3,7 +3,13 @@ import type {
   ValidationResult,
 } from "@mintables/shared/lib/validation";
 import { decodeCustomTextureSamples } from "./custom-height-map";
-import { calculateHexTileLayout } from "./layout";
+import {
+  calculateHexTileLayout,
+  cardChannels,
+  cardSlotPlan,
+  type CardChannel,
+  type HexTileLayout,
+} from "./layout";
 import type { HexTileConfig } from "./types";
 
 function issue(
@@ -17,6 +23,47 @@ function issue(
 
 function finiteInRange(value: number, min: number, max: number): boolean {
   return Number.isFinite(value) && value >= min && value <= max;
+}
+
+const CHANNEL_CLEARANCE = 0.6;
+
+/** Sideways spans of the magnet sockets sitting in the two channelled flats. */
+function magnetSpansOnChannelledFlats(
+  config: HexTileConfig,
+  layout: HexTileLayout,
+): CardChannel[] {
+  if (config.magnetMode === "none") return [];
+  const halfWidth = layout.magnetSocketDiameter / 2;
+  const centers =
+    config.magnetMode === "paired"
+      ? [-layout.pairedMagnetOffset, layout.pairedMagnetOffset]
+      : [0];
+  return centers.map((center) => ({
+    min: center - halfWidth,
+    max: center + halfWidth,
+  }));
+}
+
+function spansOverlap(a: CardChannel, b: CardChannel, gap: number): boolean {
+  return a.min - gap < b.max && b.min - gap < a.max;
+}
+
+/** How much material sits between a top-face point and the nearest tile edge. */
+function insetFromTopOutline(
+  config: HexTileConfig,
+  x: number,
+  y: number,
+): number {
+  const apothem = (config.acrossFlats - 2 * config.edgeBevel) / 2;
+  const diagonal = Math.sqrt(3) / 2;
+  return (
+    apothem -
+    Math.max(
+      Math.abs(y),
+      Math.abs(diagonal * x + y / 2),
+      Math.abs(diagonal * x - y / 2),
+    )
+  );
 }
 
 export function validateHexTileConfig(config: HexTileConfig): ValidationResult {
@@ -399,6 +446,127 @@ export function validateHexTileConfig(config: HexTileConfig): ValidationResult {
           "cardSlotSpacing",
         ),
       );
+    }
+    if (
+      config.cardSlotCount > 1 &&
+      config.cardSlotSpacing - config.cardSlotWidth < 1
+    ) {
+      errors.push(
+        issue(
+          "error",
+          "slot_walls_thin",
+          "Leave at least 1 mm of material between neighbouring card slots.",
+          "cardSlotSpacing",
+        ),
+      );
+    }
+
+    const pocketCorners = cardSlotPlan(config)
+      .filter((slot) => !slot.isThrough)
+      .flatMap((slot) =>
+        [-1, 1].flatMap((sideX) =>
+          [-1, 1].map((sideY) => ({
+            x: slot.offset + (sideX * config.cardSlotWidth) / 2,
+            y: (sideY * config.cardSlotLength) / 2,
+          })),
+        ),
+      );
+    if (
+      pocketCorners.some(
+        (corner) => insetFromTopOutline(config, corner.x, corner.y) < 1.2,
+      )
+    ) {
+      errors.push(
+        issue(
+          "error",
+          "slot_outside_tile",
+          "A card slot reaches the sloped tile edge. Shorten the slots or reduce the count or spacing.",
+          "cardSlotLength",
+        ),
+      );
+    }
+
+    const channels = cardChannels(config);
+    const requestedThrough = Math.round(config.cardSlotThroughCount);
+    if (
+      !Number.isInteger(config.cardSlotThroughCount) ||
+      config.cardSlotThroughCount < 0 ||
+      config.cardSlotThroughCount > config.cardSlotCount
+    ) {
+      errors.push(
+        issue(
+          "error",
+          "through_count_range",
+          "Through channels must be between 0 and the card slot count.",
+          "cardSlotThroughCount",
+        ),
+      );
+    } else if (channels.length !== requestedThrough) {
+      warnings.push(
+        issue(
+          "warning",
+          "through_count_rounded",
+          `Through channels are cut in symmetric pairs, so ${String(channels.length)} of the ${String(requestedThrough)} requested slots run edge to edge.`,
+          "cardSlotThroughCount",
+        ),
+      );
+    }
+
+    if (channels.length > 0) {
+      const outermost = Math.max(
+        ...channels.map((channel) => Math.max(-channel.min, channel.max)),
+      );
+      if (outermost > layout.topFlatHalfSpan - 1) {
+        errors.push(
+          issue(
+            "error",
+            "through_channel_off_flat",
+            "Through channels must stay within the flat edges so neighbouring tiles line up. Reduce the slot spacing or the number of channels.",
+            "cardSlotThroughCount",
+          ),
+        );
+      }
+      if (layout.cardSlotFloorZ < config.edgeBevel + 1) {
+        errors.push(
+          issue(
+            "error",
+            "through_channel_deep",
+            "Through channels must leave at least 1 mm of wall above the bottom bevel. Reduce the slot depth.",
+            "cardSlotDepth",
+          ),
+        );
+      }
+      const magnetSpans = magnetSpansOnChannelledFlats(config, layout);
+      if (
+        layout.cardSlotFloorZ < layout.magnetRoofZ + CHANNEL_CLEARANCE &&
+        channels.some((channel) =>
+          magnetSpans.some((socket) =>
+            spansOverlap(channel, socket, CHANNEL_CLEARANCE),
+          ),
+        )
+      ) {
+        errors.push(
+          issue(
+            "error",
+            "through_channel_hits_magnet",
+            "A through channel runs into a magnet socket on the open sides. Change the slot spacing, reduce the channel count, or make the slots shallower.",
+            "cardSlotSpacing",
+          ),
+        );
+      }
+      if (
+        layout.northMarkerCenterX === null &&
+        (config.magnetMode === "single" || config.magnetMode === "captive")
+      ) {
+        warnings.push(
+          issue(
+            "warning",
+            "north_marker_crowded",
+            "The through channels leave no rim space for the orientation dot, so this tile prints without one.",
+            "cardSlotThroughCount",
+          ),
+        );
+      }
     }
   }
 

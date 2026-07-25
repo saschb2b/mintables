@@ -92,6 +92,7 @@ export function decodeHexTile(data: unknown): HexTileConfig | null {
     "cardSlotDepth",
     "cardSlotLength",
     "cardSlotSpacing",
+    "cardSlotThroughCount",
     "orbitCenterDiameter",
     "orbitCenterRaise",
     "orbitCenterDepth",

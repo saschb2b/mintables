@@ -83,6 +83,74 @@ describe("validateHexTileConfig", () => {
     );
   });
 
+  it("accepts the default pair of card through channels", () => {
+    const result = validateHexTileConfig({
+      ...DEFAULT_HEX_TILE_CONFIG,
+      purpose: "cards",
+    });
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.warnings).toHaveLength(0);
+  });
+
+  it("rejects through channels that run past the flat edges", () => {
+    const result = validateHexTileConfig({
+      ...DEFAULT_HEX_TILE_CONFIG,
+      purpose: "cards",
+      cardSlotCount: 5,
+      cardSlotSpacing: 22,
+      cardSlotThroughCount: 4,
+    });
+
+    expect(
+      result.errors.some((error) => error.code === "through_channel_off_flat"),
+    ).toBe(true);
+  });
+
+  it("rejects a through channel that opens into a magnet socket", () => {
+    const result = validateHexTileConfig({
+      ...DEFAULT_HEX_TILE_CONFIG,
+      purpose: "cards",
+      magnetMode: "paired",
+      cardSlotThroughCount: 2,
+    });
+
+    expect(
+      result.errors.some(
+        (error) => error.code === "through_channel_hits_magnet",
+      ),
+    ).toBe(true);
+  });
+
+  it("warns when a through-channel count cannot be met symmetrically", () => {
+    const result = validateHexTileConfig({
+      ...DEFAULT_HEX_TILE_CONFIG,
+      purpose: "cards",
+      cardSlotCount: 4,
+      cardSlotThroughCount: 3,
+    });
+
+    expect(result.errors).toHaveLength(0);
+    expect(
+      result.warnings.some(
+        (warning) => warning.code === "through_count_rounded",
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects card slots that leave no wall between them", () => {
+    const result = validateHexTileConfig({
+      ...DEFAULT_HEX_TILE_CONFIG,
+      purpose: "cards",
+      cardSlotWidth: 4,
+      cardSlotSpacing: 4,
+    });
+
+    expect(
+      result.errors.some((error) => error.code === "slot_walls_thin"),
+    ).toBe(true);
+  });
+
   it("keeps the elevated center cup above the outer dice trough", () => {
     const result = validateHexTileConfig({
       ...DEFAULT_HEX_TILE_CONFIG,

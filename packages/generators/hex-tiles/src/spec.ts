@@ -1,4 +1,4 @@
-import { calculateHexTileLayout } from "./layout";
+import { calculateHexTileLayout, cardChannels } from "./layout";
 import { estimatePrintMaterial } from "./material-estimate";
 import type { HexTileConfig } from "./types";
 
@@ -31,8 +31,12 @@ function connectionLabel(config: HexTileConfig): string {
 
 function featureLabel(config: HexTileConfig): string {
   switch (config.purpose) {
-    case "cards":
-      return `${String(config.cardSlotCount)} card slots`;
+    case "cards": {
+      const throughCount = cardChannels(config).length;
+      return throughCount === 0
+        ? `${String(config.cardSlotCount)} card slots`
+        : `${String(config.cardSlotCount)} card slots, ${String(throughCount)} through`;
+    }
     case "dice-orbit":
       return "Outer ring + center cup";
     case "bowl":

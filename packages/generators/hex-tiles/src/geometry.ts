@@ -4,7 +4,12 @@ import {
   CUSTOM_TEXTURE_RESOLUTION,
   decodeCustomTextureSamples,
 } from "./custom-height-map";
-import { calculateHexTileLayout } from "./layout";
+import {
+  calculateHexTileLayout,
+  cardChannels,
+  cardSlotPlan,
+  type CardChannel,
+} from "./layout";
 import type { HexTileConfig } from "./types";
 
 interface Point2 {
@@ -33,12 +38,27 @@ const BOWL_CURVE_WIDTH = 12;
 const TEXTURE_EDGE_MARGIN = 0.45;
 const TEXTURE_FEATURE_MARGIN = 0.75;
 
+/**
+ * Corner coordinates are written out rather than derived from cos/sin so the
+ * two flats facing +Y and -Y are exactly horizontal. Through channels cut into
+ * those flats and rely on the shared edge coordinates matching to the bit.
+ */
 function regularHex(acrossFlats: number): Point2[] {
-  const radius = acrossFlats / Math.sqrt(3);
-  return Array.from({ length: 6 }, (_, index) => {
-    const angle = (index * Math.PI) / 3;
-    return { x: radius * Math.cos(angle), y: radius * Math.sin(angle) };
-  });
+  const circumradius = acrossFlats / Math.sqrt(3);
+  const apothem = hexApothem(acrossFlats);
+  const halfFlat = circumradius / 2;
+  return [
+    { x: circumradius, y: 0 },
+    { x: halfFlat, y: apothem },
+    { x: -halfFlat, y: apothem },
+    { x: -circumradius, y: 0 },
+    { x: -halfFlat, y: -apothem },
+    { x: halfFlat, y: -apothem },
+  ];
+}
+
+function hexApothem(acrossFlats: number): number {
+  return acrossFlats / 2;
 }
 
 function ellipseOutline(
@@ -467,6 +487,76 @@ function roundedRectangle(
   );
 }
 
+/** Plan-view footprint of a through channel, used to keep texture relief off it. */
+function channelFootprint(
+  config: HexTileConfig,
+  channel: CardChannel,
+): Point2[] {
+  const overhang = hexApothem(config.acrossFlats) + 2;
+  return [
+    { x: channel.min, y: -overhang },
+    { x: channel.max, y: -overhang },
+    { x: channel.max, y: overhang },
+    { x: channel.min, y: overhang },
+  ];
+}
+
+function polygonArea(polygon: Point2[]): number {
+  let twiceArea = 0;
+  for (let index = 0; index < polygon.length; index++) {
+    const current = polygon[index];
+    const next = polygon[(index + 1) % polygon.length];
+    twiceArea += current.x * next.y - next.x * current.y;
+  }
+  return Math.abs(twiceArea) / 2;
+}
+
+/**
+ * Sutherland-Hodgman clip of a convex outline against a vertical line. Crossing
+ * points take the cut coordinate verbatim so channel walls meet the trimmed
+ * outline exactly.
+ */
+function clipAtVerticalLine(
+  polygon: Point2[],
+  x: number,
+  keep: "left" | "right",
+): Point2[] {
+  const isInside = (point: Point2) =>
+    keep === "left" ? point.x <= x : point.x >= x;
+  const clipped: Point2[] = [];
+  for (let index = 0; index < polygon.length; index++) {
+    const current = polygon[index];
+    const next = polygon[(index + 1) % polygon.length];
+    if (isInside(current)) clipped.push(current);
+    if (isInside(current) !== isInside(next)) {
+      const progress = (x - current.x) / (next.x - current.x);
+      clipped.push({ x, y: current.y + (next.y - current.y) * progress });
+    }
+  }
+  return clipped;
+}
+
+/** The top face split into the lands left over between through channels. */
+function topFaceRegions(outer: Point2[], channels: CardChannel[]): Point2[][] {
+  if (channels.length === 0) return [outer];
+  const spans: { left: number | null; right: number | null }[] = [
+    { left: null, right: channels[0].min },
+  ];
+  for (let index = 1; index < channels.length; index++) {
+    spans.push({ left: channels[index - 1].max, right: channels[index].min });
+  }
+  spans.push({ left: channels[channels.length - 1].max, right: null });
+
+  return spans
+    .map(({ left, right }) => {
+      let region = outer;
+      if (left !== null) region = clipAtVerticalLine(region, left, "right");
+      if (right !== null) region = clipAtVerticalLine(region, right, "left");
+      return region;
+    })
+    .filter((region) => region.length >= 3 && polygonArea(region) > 1e-6);
+}
+
 function centroid(points: Point2[]): Point2 {
   return points.reduce(
     (sum, point) => ({
@@ -615,10 +705,11 @@ function northMarkerOutline(config: HexTileConfig): Point2[] | null {
     return null;
   }
   const layout = calculateHexTileLayout(config);
+  if (layout.northMarkerCenterX === null) return null;
   return ellipseOutline(
     layout.northMarkerRadius,
     layout.northMarkerRadius,
-    0,
+    layout.northMarkerCenterX,
     layout.northMarkerCenterY,
     0,
     24,
@@ -631,17 +722,29 @@ function buildTopFace(
   outer: Point2[],
   featureHoles: Point2[][],
   topZ: number,
+  channels: CardChannel[] = [],
 ): void {
   const marker = northMarkerOutline(config);
-  const blocked = marker ? [...featureHoles, marker] : featureHoles;
+  const blocked = [
+    ...featureHoles,
+    ...(marker ? [marker] : []),
+    ...channels.map((channel) => channelFootprint(config, channel)),
+  ];
   const textureGrooves = surfaceTextureGrooves(config, outer, blocked);
-  triangulateHorizontalFace(
-    triangles,
-    outer,
-    [...blocked, ...textureGrooves.map((groove) => groove.outline)],
-    topZ,
-    "up",
-  );
+  const holes = [
+    ...featureHoles,
+    ...(marker ? [marker] : []),
+    ...textureGrooves.map((groove) => groove.outline),
+  ];
+  for (const region of topFaceRegions(outer, channels)) {
+    triangulateHorizontalFace(
+      triangles,
+      region,
+      holes.filter((hole) => pointInPolygon(centroid(hole), region)),
+      topZ,
+      "up",
+    );
+  }
   if (marker) {
     const layout = calculateHexTileLayout(config);
     const markerFloorZ = topZ - layout.northMarkerDepth;
@@ -778,14 +881,24 @@ function triangulateSideFace(
   zLow: number,
   zHigh: number,
   holes: Point2[][],
+  notches: CardChannel[] = [],
+  notchFloorZ = 0,
 ): void {
   const halfLength = frame.length / 2;
-  const outer = [
+  const outer: Point2[] = [
     { x: -halfLength, y: zLow },
     { x: halfLength, y: zLow },
     { x: halfLength, y: zHigh },
-    { x: -halfLength, y: zHigh },
   ];
+  for (const notch of [...notches].sort((a, b) => b.max - a.max)) {
+    outer.push(
+      { x: notch.max, y: zHigh },
+      { x: notch.max, y: notchFloorZ },
+      { x: notch.min, y: notchFloorZ },
+      { x: notch.min, y: zHigh },
+    );
+  }
+  outer.push({ x: -halfLength, y: zHigh });
   const contour = outer.map((point) => new Vector2(point.x, point.y));
   const holeVectors = holes.map((hole) =>
     hole.map((point) => new Vector2(point.x, point.y)),
@@ -953,6 +1066,123 @@ function magnetOffsets(config: HexTileConfig): number[] {
   return config.magnetMode === "single" ? [0] : [];
 }
 
+/** Through-channel spans mapped onto one side face, empty for the other sides. */
+function sideChannelNotches(
+  frame: SideFrame,
+  channels: CardChannel[],
+): CardChannel[] {
+  if (channels.length === 0 || Math.abs(frame.outward.y) < 0.99) return [];
+  const toU = (x: number) => frame.tangent.x * (x - frame.midpoint.x);
+  return channels.map((channel) => {
+    const ends = [toU(channel.min), toU(channel.max)];
+    return { min: Math.min(...ends), max: Math.max(...ends) };
+  });
+}
+
+/**
+ * The chamfer between the side walls and the top face, skipping the spans a
+ * through channel carries away.
+ */
+function buildTopBevelBand(
+  triangles: number[][],
+  fullOutline: Point2[],
+  topOutline: Point2[],
+  zLower: number,
+  zUpper: number,
+  channels: CardChannel[],
+): void {
+  for (let index = 0; index < fullOutline.length; index++) {
+    const next = (index + 1) % fullOutline.length;
+    const lowerStart = fullOutline[index];
+    const lowerEnd = fullOutline[next];
+    const upperStart = topOutline[index];
+    const upperEnd = topOutline[next];
+    const frame = sideFrame(lowerStart, lowerEnd);
+    const desired: Point3 = [frame.outward.x, frame.outward.y, 0];
+    const cuts = Math.abs(frame.outward.y) < 0.99 ? [] : channels;
+
+    const boundaries: { lowerX: number; upperX: number }[] = [
+      { lowerX: lowerStart.x, upperX: upperStart.x },
+    ];
+    const forward = lowerEnd.x > lowerStart.x;
+    for (const channel of forward ? cuts : [...cuts].reverse()) {
+      const first = forward ? channel.min : channel.max;
+      const second = forward ? channel.max : channel.min;
+      boundaries.push(
+        { lowerX: first, upperX: first },
+        { lowerX: second, upperX: second },
+      );
+    }
+    boundaries.push({ lowerX: lowerEnd.x, upperX: upperEnd.x });
+
+    for (let span = 0; span + 1 < boundaries.length; span += 2) {
+      const from = boundaries[span];
+      const to = boundaries[span + 1];
+      addOrientedQuad(
+        triangles,
+        [from.lowerX, lowerStart.y, zLower],
+        [to.lowerX, lowerEnd.y, zLower],
+        [to.upperX, upperEnd.y, zUpper],
+        [from.upperX, upperStart.y, zUpper],
+        desired,
+      );
+    }
+  }
+}
+
+/** Floor and side walls of one channel that runs out through both flats. */
+function buildThroughChannel(
+  triangles: number[][],
+  config: HexTileConfig,
+  channel: CardChannel,
+): void {
+  const layout = calculateHexTileLayout(config);
+  const outerY = hexApothem(config.acrossFlats);
+  const topY = hexApothem(config.acrossFlats - 2 * config.edgeBevel);
+  const zUpperSide = layout.topHeight - config.edgeBevel;
+  const floorZ = layout.cardSlotFloorZ;
+
+  addOrientedQuad(
+    triangles,
+    [channel.min, -outerY, floorZ],
+    [channel.max, -outerY, floorZ],
+    [channel.max, outerY, floorZ],
+    [channel.min, outerY, floorZ],
+    [0, 0, 1],
+  );
+
+  // Wall outline in (y, z): straight out to the flats below the top bevel,
+  // then drawn in to the trimmed top outline above it.
+  const profile: Point2[] = [
+    { x: -outerY, y: floorZ },
+    { x: outerY, y: floorZ },
+    { x: outerY, y: zUpperSide },
+    { x: topY, y: layout.topHeight },
+    { x: -topY, y: layout.topHeight },
+    { x: -outerY, y: zUpperSide },
+  ];
+  const contour = profile.map((point) => new Vector2(point.x, point.y));
+  const faces = ShapeUtils.triangulateShape(contour, []);
+  for (const wall of [
+    { x: channel.min, normalX: 1 },
+    { x: channel.max, normalX: -1 },
+  ]) {
+    const desired: Point3 = [wall.normalX, 0, 0];
+    for (const face of faces) {
+      const a = profile[face[0]];
+      const b = profile[face[1]];
+      const c = profile[face[2]];
+      addOrientedTriangle(
+        triangles,
+        [wall.x, a.x, a.y],
+        [wall.x, b.x, b.y],
+        [wall.x, c.x, c.y],
+        desired,
+      );
+    }
+  }
+}
+
 function buildOuterBody(
   triangles: number[][],
   config: HexTileConfig,
@@ -963,6 +1193,7 @@ function buildOuterBody(
   const topOutline = regularHex(config.acrossFlats - 2 * config.edgeBevel);
   const zLowerSide = config.edgeBevel;
   const zUpperSide = layout.topHeight - config.edgeBevel;
+  const channels = cardChannels(config);
 
   buildFanFace(triangles, bottomOutline, 0, "down");
   buildContourWall(
@@ -993,7 +1224,15 @@ function buildOuterBody(
               layout.magnetSocketDiameter / 2,
             ),
           );
-    triangulateSideFace(triangles, frame, zLowerSide, zUpperSide, profiles);
+    triangulateSideFace(
+      triangles,
+      frame,
+      zLowerSide,
+      zUpperSide,
+      profiles,
+      sideChannelNotches(frame, channels),
+      layout.cardSlotFloorZ,
+    );
     if (config.magnetMode === "captive") {
       buildCaptiveRodSocket(triangles, frame, config);
     } else {
@@ -1003,13 +1242,13 @@ function buildOuterBody(
     }
   }
 
-  buildContourWall(
+  buildTopBevelBand(
     triangles,
     fullOutline,
     topOutline,
     zUpperSide,
     layout.topHeight,
-    "outward",
+    channels,
   );
   return topOutline;
 }
@@ -1076,21 +1315,32 @@ function buildCardInterior(
   topOutline: Point2[],
 ): void {
   const layout = calculateHexTileLayout(config);
-  const centerOffset =
-    ((config.cardSlotCount - 1) * config.cardSlotSpacing) / 2;
-  const slots = Array.from({ length: config.cardSlotCount }, (_, index) =>
-    roundedRectangle(
-      config.cardSlotWidth,
-      config.cardSlotLength,
-      index * config.cardSlotSpacing - centerOffset,
-      0,
-    ),
+  const pockets = cardSlotPlan(config)
+    .filter((slot) => !slot.isThrough)
+    .map((slot) =>
+      roundedRectangle(
+        config.cardSlotWidth,
+        config.cardSlotLength,
+        slot.offset,
+        0,
+      ),
+    );
+  const channels = cardChannels(config);
+  buildTopFace(
+    triangles,
+    config,
+    topOutline,
+    pockets,
+    layout.topHeight,
+    channels,
   );
-  buildTopFace(triangles, config, topOutline, slots, layout.topHeight);
-  const floorZ = layout.topHeight - config.cardSlotDepth;
-  for (const slot of slots) {
+  const floorZ = layout.cardSlotFloorZ;
+  for (const slot of pockets) {
     buildContourWall(triangles, slot, slot, floorZ, layout.topHeight, "inward");
     buildFanFace(triangles, slot, floorZ, "up");
+  }
+  for (const channel of channels) {
+    buildThroughChannel(triangles, config, channel);
   }
 }
 

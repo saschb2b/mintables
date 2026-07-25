@@ -818,6 +818,7 @@ function BowlControls({ config, update, validation }: ControlSectionProps) {
 
 function CardControls({ config, update, validation }: ControlSectionProps) {
   const layout = calculateHexTileLayout(config);
+  const throughCount = layout.cardChannelCount;
   return (
     <SectionCard title="Card slots">
       <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1.5 }}>
@@ -874,10 +875,28 @@ function CardControls({ config, update, validation }: ControlSectionProps) {
           max={24}
           step={1}
         />
+        <NumberField
+          label="Through channels"
+          value={config.cardSlotThroughCount}
+          onChange={(cardSlotThroughCount) =>
+            update({ cardSlotThroughCount: Math.round(cardSlotThroughCount) })
+          }
+          field="cardSlotThroughCount"
+          validation={validation}
+          min={0}
+          max={Math.max(0, Math.floor(config.cardSlotCount))}
+          step={1}
+          unit="slots"
+        />
       </Box>
       <Typography variant="caption" sx={{ color: "text.secondary" }}>
         Measure a sleeved card stack before setting width. Rounded slot ends
         reduce stress marks on cards and sleeves.
+      </Typography>
+      <Typography variant="caption" sx={{ color: "text.secondary" }}>
+        {throughCount === 0
+          ? "Every slot is a closed pocket. Raise the through channels to open slots at both flat edges."
+          : `${String(throughCount)} of ${String(config.cardSlotCount)} slots run edge to edge, so connected tiles line their channels up into one long slide. Channels open in symmetric pairs from the center outward and keep the slot floor.`}
       </Typography>
     </SectionCard>
   );

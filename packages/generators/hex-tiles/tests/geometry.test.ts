@@ -8,9 +8,10 @@ import {
   encodeCustomTextureSamples,
 } from "../src/custom-height-map";
 import { generateHexTileTriangles } from "../src/geometry";
-import { calculateHexTileLayout } from "../src/layout";
+import { calculateHexTileLayout, cardSlotPlan } from "../src/layout";
 import { DEFAULT_HEX_TILE_CONFIG } from "../src/types";
 import type { HexTileSurfaceTexture } from "../src/types";
+import { validateHexTileConfig } from "../src/validation";
 
 const SURFACE_TEXTURES: HexTileSurfaceTexture[] = [
   "wood-grain",
@@ -236,6 +237,99 @@ describe("generateHexTileTriangles", () => {
     );
 
     expect(slotGroups).toBe(config.cardSlotCount);
+    expect(edgeUseCounts(triangles).every((count) => count === 2)).toBe(true);
+  });
+
+  it("opens the requested slots into channels that reach both flat edges", () => {
+    const config = {
+      ...DEFAULT_HEX_TILE_CONFIG,
+      purpose: "cards" as const,
+      cardSlotThroughCount: 2,
+    };
+    const layout = calculateHexTileLayout(config);
+    const triangles = generateHexTileTriangles(config);
+    const plan = cardSlotPlan(config);
+    const throughOffsets = plan
+      .filter((slot) => slot.isThrough)
+      .map((slot) => slot.offset);
+    const edgeY = config.acrossFlats / 2;
+    const floorEdgeXs = triangles
+      .flatMap((triangle) => [
+        [triangle[0], triangle[1], triangle[2]],
+        [triangle[3], triangle[4], triangle[5]],
+        [triangle[6], triangle[7], triangle[8]],
+      ])
+      .filter(
+        ([, y, z]) =>
+          Math.abs(Math.abs(y) - edgeY) < 1e-9 &&
+          Math.abs(z - layout.cardSlotFloorZ) < 1e-9,
+      )
+      .map(([x]) => x);
+
+    expect(throughOffsets).toEqual([-12, 12]);
+    expect(layout.cardChannelCount).toBe(2);
+    expect(isPrintableMesh(triangles)).toBe(true);
+    expect(edgeUseCounts(triangles).every((count) => count === 2)).toBe(true);
+    for (const offset of throughOffsets) {
+      for (const side of [-1, 1]) {
+        expect(
+          floorEdgeXs.some(
+            (x) =>
+              Math.abs(x - (offset + (side * config.cardSlotWidth) / 2)) < 1e-9,
+          ),
+        ).toBe(true);
+      }
+    }
+  });
+
+  it("keeps the tile closed when every card slot runs through", () => {
+    const config = {
+      ...DEFAULT_HEX_TILE_CONFIG,
+      purpose: "cards" as const,
+      magnetMode: "none" as const,
+      cardSlotCount: 5,
+      cardSlotThroughCount: 5,
+      isSurfaceTextureEnabled: true,
+      surfaceTexture: "wood-grain" as const,
+    };
+    const layout = calculateHexTileLayout(config);
+    const triangles = generateHexTileTriangles(config);
+    const analysis = analyzeTriangles(triangles);
+
+    expect(layout.cardChannelCount).toBe(5);
+    expect(isPrintableMesh(triangles)).toBe(true);
+    expect(edgeUseCounts(triangles).every((count) => count === 2)).toBe(true);
+    expect(analysis.bounds.minZ).toBe(0);
+    expect(analysis.bounds.maxZ).toBe(layout.topHeight);
+  });
+
+  it("moves the orientation dot off a centered through channel", () => {
+    const centered = {
+      ...DEFAULT_HEX_TILE_CONFIG,
+      purpose: "cards" as const,
+      cardSlotCount: 5,
+      cardSlotThroughCount: 3,
+      cardSlotDepth: 4.5,
+    };
+    const layout = calculateHexTileLayout(centered);
+    const triangles = generateHexTileTriangles(centered);
+    const markerFloorZ = layout.topHeight - layout.northMarkerDepth;
+    const markerXs = triangles
+      .flatMap((triangle) => [
+        [triangle[0], triangle[1], triangle[2]],
+        [triangle[3], triangle[4], triangle[5]],
+        [triangle[6], triangle[7], triangle[8]],
+      ])
+      .filter(([, , z]) => Math.abs(z - markerFloorZ) < 1e-9)
+      .map(([x]) => x);
+
+    expect(layout.northMarkerCenterX).not.toBe(0);
+    expect(layout.northMarkerCenterX).not.toBeNull();
+    expect(markerXs.length).toBeGreaterThan(0);
+    expect(
+      markerXs.every((x) => Math.abs(x) >= centered.cardSlotWidth / 2 + 0.5),
+    ).toBe(true);
+    expect(validateHexTileConfig(centered).errors).toHaveLength(0);
     expect(edgeUseCounts(triangles).every((count) => count === 2)).toBe(true);
   });
 
