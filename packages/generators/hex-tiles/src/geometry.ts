@@ -35,6 +35,7 @@ interface TextureGroove {
 const CURVE_SEGMENTS = 64;
 const WELL_RINGS = 6;
 const ROUNDED_HEX_SEGMENTS = 10;
+const BOWL_CORNER_SEGMENTS = 10;
 const MIN_CORNER_RADIUS = 0.4;
 const ROLL_FILLET_RINGS = 5;
 const BOWL_CURVE_WIDTH = 12;
@@ -567,28 +568,335 @@ function clipAtVerticalLine(
       clipped.push({ x, y: current.y + (next.y - current.y) * progress });
     }
   }
-  return clipped;
+  return dedupeRing(clipped);
 }
 
-/** The top face split into the lands left over between through channels. */
-function topFaceRegions(outer: Point2[], channels: CardChannel[]): Point2[][] {
-  if (channels.length === 0) return [outer];
-  const spans: { left: number | null; right: number | null }[] = [
-    { left: null, right: channels[0].min },
-  ];
-  for (let index = 1; index < channels.length; index++) {
-    spans.push({ left: channels[index - 1].max, right: channels[index].min });
-  }
-  spans.push({ left: channels[channels.length - 1].max, right: null });
+/**
+ * Drops points a clip left sitting on top of their neighbour. A cut through a
+ * corner reports that corner both as an inside point and as the crossing, and
+ * the zero-length edge that leaves behind derails the ear clipper.
+ */
+function dedupeRing(polygon: Point2[]): Point2[] {
+  return polygon.filter((point, index) => {
+    const previous = polygon[(index - 1 + polygon.length) % polygon.length];
+    return Math.hypot(point.x - previous.x, point.y - previous.y) > 1e-9;
+  });
+}
 
-  return spans
-    .map(({ left, right }) => {
-      let region = outer;
-      if (left !== null) region = clipAtVerticalLine(region, left, "right");
-      if (right !== null) region = clipAtVerticalLine(region, right, "left");
-      return region;
-    })
-    .filter((region) => region.length >= 3 && polygonArea(region) > 1e-6);
+/** Keeps the side of a convex outline that a half-plane covers. */
+function clipHalfPlane(
+  polygon: Point2[],
+  normal: Point2,
+  offset: number,
+  keep: "below" | "above",
+): Point2[] {
+  const distance = (point: Point2) =>
+    keep === "below"
+      ? offset - (point.x * normal.x + point.y * normal.y)
+      : point.x * normal.x + point.y * normal.y - offset;
+  const clipped: Point2[] = [];
+  for (let index = 0; index < polygon.length; index++) {
+    const current = polygon[index];
+    const next = polygon[(index + 1) % polygon.length];
+    const currentDistance = distance(current);
+    const nextDistance = distance(next);
+    if (currentDistance >= 0) clipped.push(current);
+    if (currentDistance >= 0 !== nextDistance >= 0) {
+      const progress = currentDistance / (currentDistance - nextDistance);
+      clipped.push({
+        x: current.x + (next.x - current.x) * progress,
+        y: current.y + (next.y - current.y) * progress,
+      });
+    }
+  }
+  return dedupeRing(clipped);
+}
+
+/** Drops repeated and colinear points so corner rounding has real corners. */
+function cleanPolygon(polygon: Point2[]): Point2[] {
+  const deduped = polygon.filter((point, index) => {
+    const previous = polygon[(index - 1 + polygon.length) % polygon.length];
+    return Math.hypot(point.x - previous.x, point.y - previous.y) > 1e-6;
+  });
+  return deduped.filter((point, index) => {
+    const previous = deduped[(index - 1 + deduped.length) % deduped.length];
+    const next = deduped[(index + 1) % deduped.length];
+    const cross =
+      (point.x - previous.x) * (next.y - point.y) -
+      (point.y - previous.y) * (next.x - point.x);
+    return Math.abs(cross) > 1e-6;
+  });
+}
+
+function isConvexRing(polygon: Point2[]): boolean {
+  if (polygon.length < 3) return false;
+  for (let index = 0; index < polygon.length; index++) {
+    const a = polygon[index];
+    const b = polygon[(index + 1) % polygon.length];
+    const c = polygon[(index + 2) % polygon.length];
+    const cross = (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x);
+    if (cross <= 1e-9) return false;
+    if (Math.hypot(b.x - a.x, b.y - a.y) < 1e-6) return false;
+  }
+  return true;
+}
+
+/** Shortest distance from the centroid out to an edge. */
+function polygonInradius(polygon: Point2[]): number {
+  const center = centroid(polygon);
+  let inradius = Number.POSITIVE_INFINITY;
+  for (let index = 0; index < polygon.length; index++) {
+    inradius = Math.min(
+      inradius,
+      distanceToSegment(
+        center,
+        polygon[index],
+        polygon[(index + 1) % polygon.length],
+      ),
+    );
+  }
+  return inradius;
+}
+
+/**
+ * Pulls a counter-clockwise convex outline in by a fixed distance, sliding
+ * every edge along its own normal. The corner count is preserved so an outline
+ * and its offset can be walled together point for point.
+ */
+function offsetConvexPolygon(polygon: Point2[], distance: number): Point2[] {
+  const lines = polygon.map((point, index) => {
+    const next = polygon[(index + 1) % polygon.length];
+    const length = Math.hypot(next.x - point.x, next.y - point.y);
+    const direction = {
+      x: (next.x - point.x) / length,
+      y: (next.y - point.y) / length,
+    };
+    return {
+      direction,
+      point: {
+        x: point.x - direction.y * distance,
+        y: point.y + direction.x * distance,
+      },
+    };
+  });
+
+  return polygon.map((_, index) => {
+    const before = lines[(index - 1 + lines.length) % lines.length];
+    const after = lines[index];
+    const denominator =
+      before.direction.x * after.direction.y -
+      before.direction.y * after.direction.x;
+    if (Math.abs(denominator) < 1e-9) return after.point;
+    const travel =
+      ((after.point.x - before.point.x) * after.direction.y -
+        (after.point.y - before.point.y) * after.direction.x) /
+      denominator;
+    return {
+      x: before.point.x + before.direction.x * travel,
+      y: before.point.y + before.direction.y * travel,
+    };
+  });
+}
+
+/** The offset that still leaves a usable outline, backing off when it does not. */
+function shrinkConvexPolygon(polygon: Point2[], distance: number): Point2[] {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const candidate = offsetConvexPolygon(polygon, distance / 2 ** attempt);
+    if (isConvexRing(candidate)) return candidate;
+  }
+  const center = centroid(polygon);
+  return polygon.map((point) => ({
+    x: center.x + (point.x - center.x) * 0.6,
+    y: center.y + (point.y - center.y) * 0.6,
+  }));
+}
+
+/**
+ * Replaces the corners of a convex outline with arcs. Each corner takes the
+ * largest radius its own edges allow, so short edges stay clean, and every
+ * corner contributes the same number of points however tight it is.
+ */
+function roundPolygonCorners(
+  polygon: Point2[],
+  radius: number,
+  segmentsPerCorner: number,
+): Point2[] {
+  const points: Point2[] = [];
+  for (let index = 0; index < polygon.length; index++) {
+    const current = polygon[index];
+    const previous = polygon[(index - 1 + polygon.length) % polygon.length];
+    const next = polygon[(index + 1) % polygon.length];
+    const toPrevious = {
+      x: previous.x - current.x,
+      y: previous.y - current.y,
+    };
+    const toNext = { x: next.x - current.x, y: next.y - current.y };
+    const previousLength = Math.hypot(toPrevious.x, toPrevious.y);
+    const nextLength = Math.hypot(toNext.x, toNext.y);
+    const unitPrevious = {
+      x: toPrevious.x / previousLength,
+      y: toPrevious.y / previousLength,
+    };
+    const unitNext = { x: toNext.x / nextLength, y: toNext.y / nextLength };
+    const interior = Math.acos(
+      Math.max(
+        -1,
+        Math.min(1, unitPrevious.x * unitNext.x + unitPrevious.y * unitNext.y),
+      ),
+    );
+    const half = interior / 2;
+    const cornerRadius = Math.max(
+      MIN_CORNER_RADIUS,
+      Math.min(
+        radius,
+        (Math.min(previousLength, nextLength) / 2) * Math.tan(half),
+      ),
+    );
+    const tangent = cornerRadius / Math.tan(half);
+    const bisector = {
+      x: unitPrevious.x + unitNext.x,
+      y: unitPrevious.y + unitNext.y,
+    };
+    const bisectorLength = Math.hypot(bisector.x, bisector.y);
+    const center = {
+      x:
+        current.x +
+        (bisector.x / bisectorLength) * (cornerRadius / Math.sin(half)),
+      y:
+        current.y +
+        (bisector.y / bisectorLength) * (cornerRadius / Math.sin(half)),
+    };
+    const start = {
+      x: current.x + unitPrevious.x * tangent,
+      y: current.y + unitPrevious.y * tangent,
+    };
+    const end = {
+      x: current.x + unitNext.x * tangent,
+      y: current.y + unitNext.y * tangent,
+    };
+    const startAngle = Math.atan2(start.y - center.y, start.x - center.x);
+    const endAngle = Math.atan2(end.y - center.y, end.x - center.x);
+    let sweep = endAngle - startAngle;
+    while (sweep <= -Math.PI) sweep += 2 * Math.PI;
+    while (sweep > Math.PI) sweep -= 2 * Math.PI;
+    for (let step = 0; step <= segmentsPerCorner; step++) {
+      const angle = startAngle + sweep * (step / segmentsPerCorner);
+      points.push({
+        x: center.x + cornerRadius * Math.cos(angle),
+        y: center.y + cornerRadius * Math.sin(angle),
+      });
+    }
+  }
+  return points;
+}
+
+/** Lines the top face is cut along, one per ridge between neighbouring wells. */
+interface FaceCuts {
+  normal: Point2;
+  offsets: number[];
+}
+
+/**
+ * The top face broken into the lands left over between through channels, then
+ * cut again along any ridges. Ear clipping merges outline segments that are
+ * exactly colinear, and two mirrored wells line their arcs up exactly, so each
+ * call is kept down to a single hole. These cuts run inside the face, where
+ * both sides of every new edge belong to the same face.
+ */
+function topFaceRegions(
+  outer: Point2[],
+  channels: CardChannel[],
+  cuts?: FaceCuts,
+): Point2[][] {
+  const spans: { left: number | null; right: number | null }[] = [];
+  if (channels.length === 0) {
+    spans.push({ left: null, right: null });
+  } else {
+    spans.push({ left: null, right: channels[0].min });
+    for (let index = 1; index < channels.length; index++) {
+      spans.push({ left: channels[index - 1].max, right: channels[index].min });
+    }
+    spans.push({ left: channels[channels.length - 1].max, right: null });
+  }
+
+  let regions = spans.map(({ left, right }) => {
+    let region = outer;
+    if (left !== null) region = clipAtVerticalLine(region, left, "right");
+    if (right !== null) region = clipAtVerticalLine(region, right, "left");
+    return region;
+  });
+
+  for (const offset of cuts?.offsets ?? []) {
+    regions = regions.flatMap((region) => [
+      clipHalfPlane(region, cuts?.normal ?? { x: 0, y: 1 }, offset, "below"),
+      clipHalfPlane(region, cuts?.normal ?? { x: 0, y: 1 }, offset, "above"),
+    ]);
+  }
+  return regions.filter(
+    (region) => region.length >= 3 && polygonArea(region) > 1e-6,
+  );
+}
+
+/**
+ * Where the ridge cuts cross one side of an outline, as parameters measured
+ * from the middle of that side. The top face and the bevel band both read
+ * their crossings from here, so the edge they share stays in step.
+ */
+function sideCutParams(
+  outline: Point2[],
+  index: number,
+  cuts?: FaceCuts,
+): number[] {
+  if (!cuts || cuts.offsets.length === 0) return [];
+  const frame = sideFrame(
+    outline[index],
+    outline[(index + 1) % outline.length],
+  );
+  const halfLength = frame.length / 2;
+  const denominator =
+    frame.tangent.x * cuts.normal.x + frame.tangent.y * cuts.normal.y;
+  if (Math.abs(denominator) < 1e-9) return [];
+  const base =
+    frame.midpoint.x * cuts.normal.x + frame.midpoint.y * cuts.normal.y;
+  return cuts.offsets
+    .map((offset) => (offset - base) / denominator)
+    .filter((param) => param > -halfLength + 1e-9 && param < halfLength - 1e-9)
+    .sort((first, second) => first - second);
+}
+
+/** The same outline with a vertex added wherever a ridge cut crosses it. */
+function insertCutPoints(outline: Point2[], cuts?: FaceCuts): Point2[] {
+  if (!cuts || cuts.offsets.length === 0) return outline;
+  const augmented: Point2[] = [];
+  for (let index = 0; index < outline.length; index++) {
+    augmented.push(outline[index]);
+    const frame = sideFrame(
+      outline[index],
+      outline[(index + 1) % outline.length],
+    );
+    for (const param of sideCutParams(outline, index, cuts)) {
+      augmented.push({
+        x: frame.midpoint.x + frame.tangent.x * param,
+        y: frame.midpoint.y + frame.tangent.y * param,
+      });
+    }
+  }
+  return augmented;
+}
+
+/** A hairline strip along a cut line, so texture relief never straddles it. */
+function cutFootprint(
+  config: HexTileConfig,
+  cuts: FaceCuts,
+  offset: number,
+): Point2[] {
+  const reach = config.acrossFlats;
+  const along = { x: -cuts.normal.y, y: cuts.normal.x };
+  const corner = (side: number, end: number): Point2 => ({
+    x: cuts.normal.x * (offset + side * 0.05) + along.x * reach * end,
+    y: cuts.normal.y * (offset + side * 0.05) + along.y * reach * end,
+  });
+  return [corner(-1, -1), corner(-1, 1), corner(1, 1), corner(1, -1)];
 }
 
 function centroid(points: Point2[]): Point2 {
@@ -757,12 +1065,20 @@ function buildTopFace(
   featureHoles: Point2[][],
   topZ: number,
   channels: CardChannel[] = [],
+  cuts?: FaceCuts,
 ): void {
   const marker = northMarkerOutline(config);
   const blocked = [
     ...featureHoles,
     ...(marker ? [marker] : []),
     ...channels.map((channel) => channelFootprint(config, channel)),
+    ...(cuts?.offsets ?? []).map((offset) =>
+      cutFootprint(
+        config,
+        cuts ?? { normal: { x: 0, y: 1 }, offsets: [] },
+        offset,
+      ),
+    ),
   ];
   const textureGrooves = surfaceTextureGrooves(config, outer, blocked);
   const holes = [
@@ -770,7 +1086,11 @@ function buildTopFace(
     ...(marker ? [marker] : []),
     ...textureGrooves.map((groove) => groove.outline),
   ];
-  for (const region of topFaceRegions(outer, channels)) {
+  for (const region of topFaceRegions(
+    insertCutPoints(outer, cuts),
+    channels,
+    cuts,
+  )) {
     triangulateHorizontalFace(
       triangles,
       region,
@@ -1200,15 +1520,13 @@ function buildBevelBand(
   plainZ: number,
   splits: number[],
   channels: CardChannel[],
+  cuts?: FaceCuts,
 ): void {
   for (let index = 0; index < splitOutline.length; index++) {
     const next = (index + 1) % splitOutline.length;
     const frame = sideFrame(splitOutline[index], splitOutline[next]);
+    const plainFrame = sideFrame(plainOutline[index], plainOutline[next]);
     const halfLength = frame.length / 2;
-    const plainMidpoint = {
-      x: (plainOutline[index].x + plainOutline[next].x) / 2,
-      y: (plainOutline[index].y + plainOutline[next].y) / 2,
-    };
     const desired: Point3 = [frame.outward.x, frame.outward.y, 0];
     const splitPoint = (u: number): Point3 =>
       u <= -halfLength
@@ -1222,35 +1540,50 @@ function buildBevelBand(
         : u >= halfLength
           ? [plainOutline[next].x, plainOutline[next].y, plainZ]
           : [
-              plainMidpoint.x + frame.tangent.x * u,
-              plainMidpoint.y + frame.tangent.y * u,
+              plainFrame.midpoint.x + plainFrame.tangent.x * u,
+              plainFrame.midpoint.y + plainFrame.tangent.y * u,
               plainZ,
             ];
 
+    const plainCuts = sideCutParams(plainOutline, index, cuts);
     const notches = sideChannelNotches(frame, channels);
     for (const run of freeRuns(-halfLength, halfLength, notches)) {
-      const chain = [
-        run.min,
-        ...splits.filter((split) => split > run.min && split < run.max),
-        run.max,
-      ];
-      const anchor = plainPoint(run.min);
-      for (let step = 0; step + 1 < chain.length; step++) {
-        addOrientedTriangle(
-          triangles,
-          anchor,
-          splitPoint(chain[step]),
-          splitPoint(chain[step + 1]),
-          desired,
-        );
+      const inRun = (value: number) => value > run.min && value < run.max;
+      const splitChain = [run.min, ...splits.filter(inRun), run.max];
+      const plainChain = [run.min, ...plainCuts.filter(inRun), run.max];
+
+      // Zip the two chains: whichever side has the next point along the run
+      // takes the following triangle, so every point on both edges is used.
+      let splitStep = 0;
+      let plainStep = 0;
+      while (
+        splitStep + 1 < splitChain.length ||
+        plainStep + 1 < plainChain.length
+      ) {
+        const takeSplit =
+          plainStep + 1 >= plainChain.length ||
+          (splitStep + 1 < splitChain.length &&
+            splitChain[splitStep + 1] <= plainChain[plainStep + 1]);
+        if (takeSplit) {
+          addOrientedTriangle(
+            triangles,
+            plainPoint(plainChain[plainStep]),
+            splitPoint(splitChain[splitStep]),
+            splitPoint(splitChain[splitStep + 1]),
+            desired,
+          );
+          splitStep++;
+        } else {
+          addOrientedTriangle(
+            triangles,
+            splitPoint(splitChain[splitStep]),
+            plainPoint(plainChain[plainStep]),
+            plainPoint(plainChain[plainStep + 1]),
+            desired,
+          );
+          plainStep++;
+        }
       }
-      addOrientedTriangle(
-        triangles,
-        anchor,
-        splitPoint(run.max),
-        plainPoint(run.max),
-        desired,
-      );
     }
   }
 }
@@ -1388,17 +1721,43 @@ function buildOuterBody(
     layout.topHeight,
     splits,
     channels,
+    bowlFaceCuts(config),
   );
   return topOutline;
+}
+
+/**
+ * Split wells take the whole tile interior rather than sitting inside it: the
+ * hexagon is cut into bands across the split direction, each band keeps the
+ * hexagon's own edges, and only its corners are rounded off. What is left
+ * between two wells is the flat divider ridge.
+ */
+/** The ridge lines between wells, which every face crossing them is cut on. */
+function bowlFaceCuts(config: HexTileConfig): FaceCuts | undefined {
+  const layout = calculateHexTileLayout(config);
+  if (config.purpose !== "bowl" || layout.bowlWellCount < 2) return undefined;
+  const splitAngle = (config.dividerAngle * Math.PI) / 180;
+  const band = layout.innerAcrossFlats / layout.bowlWellCount;
+  return {
+    normal: {
+      x: Math.cos(splitAngle + Math.PI / 2),
+      y: Math.sin(splitAngle + Math.PI / 2),
+    },
+    offsets: Array.from(
+      { length: layout.bowlWellCount - 1 },
+      (_, ridge) => -layout.innerAcrossFlats / 2 + (ridge + 1) * band,
+    ),
+  };
 }
 
 function bowlWells(config: HexTileConfig): {
   openings: Point2[][];
   floors: Point2[][];
+  cuts?: FaceCuts;
 } {
   const layout = calculateHexTileLayout(config);
-  if (!config.bowlDivider) {
-    const openingRadius = layout.innerAcrossFlats / 2;
+  const openingRadius = layout.innerAcrossFlats / 2;
+  if (layout.bowlWellCount === 1) {
     const floorRadius = Math.max(6, openingRadius - BOWL_CURVE_WIDTH);
     return {
       openings: [ellipseOutline(openingRadius, openingRadius)],
@@ -1406,25 +1765,49 @@ function bowlWells(config: HexTileConfig): {
     };
   }
 
-  const angle = (config.dividerAngle * Math.PI) / 180;
-  const normal = angle + Math.PI / 2;
-  const majorRadius = layout.innerAcrossFlats * 0.34;
-  const minorRadius = layout.innerAcrossFlats * 0.205;
-  const centerDistance = minorRadius + 1.5;
-  const floorMajor = Math.max(6, majorRadius - 10);
-  const floorMinor = Math.max(5, minorRadius - 8);
-  const centers = [-1, 1].map((direction) => ({
-    x: Math.cos(normal) * centerDistance * direction,
-    y: Math.sin(normal) * centerDistance * direction,
-  }));
-  return {
-    openings: centers.map((center) =>
-      ellipseOutline(majorRadius, minorRadius, center.x, center.y, angle),
-    ),
-    floors: centers.map((center) =>
-      ellipseOutline(floorMajor, floorMinor, center.x, center.y, angle),
-    ),
+  const splitAngle = (config.dividerAngle * Math.PI) / 180;
+  const normal = {
+    x: Math.cos(splitAngle + Math.PI / 2),
+    y: Math.sin(splitAngle + Math.PI / 2),
   };
+  const interior = regularHex(layout.innerAcrossFlats);
+  const band = layout.innerAcrossFlats / layout.bowlWellCount;
+  const cornerRadius = Math.min(14, Math.max(3, band * 0.35));
+  const openings: Point2[][] = [];
+  const floors: Point2[][] = [];
+
+  for (let well = 0; well < layout.bowlWellCount; well++) {
+    const isFirst = well === 0;
+    const isLast = well === layout.bowlWellCount - 1;
+    const low =
+      -openingRadius + well * band + (isFirst ? 0 : layout.bowlDividerWall / 2);
+    const high =
+      -openingRadius +
+      (well + 1) * band -
+      (isLast ? 0 : layout.bowlDividerWall / 2);
+    const slab = cleanPolygon(
+      clipHalfPlane(
+        clipHalfPlane(interior, normal, high, "below"),
+        normal,
+        low,
+        "above",
+      ),
+    );
+    if (!isConvexRing(slab)) continue;
+
+    const curve = Math.min(BOWL_CURVE_WIDTH, polygonInradius(slab) * 0.5);
+    openings.push(
+      roundPolygonCorners(slab, cornerRadius, BOWL_CORNER_SEGMENTS),
+    );
+    floors.push(
+      roundPolygonCorners(
+        shrinkConvexPolygon(slab, curve),
+        Math.max(MIN_CORNER_RADIUS, cornerRadius - curve),
+        BOWL_CORNER_SEGMENTS,
+      ),
+    );
+  }
+  return { openings, floors, cuts: bowlFaceCuts(config) };
 }
 
 function buildBowlInterior(
@@ -1434,7 +1817,15 @@ function buildBowlInterior(
 ): void {
   const layout = calculateHexTileLayout(config);
   const wells = bowlWells(config);
-  buildTopFace(triangles, config, topOutline, wells.openings, layout.topHeight);
+  buildTopFace(
+    triangles,
+    config,
+    topOutline,
+    wells.openings,
+    layout.topHeight,
+    [],
+    wells.cuts,
+  );
   const minimumFloorZ = config.floorThickness + config.raiseHeight;
   const floorZ = Math.max(minimumFloorZ, layout.topHeight - config.bowlDepth);
   for (let index = 0; index < wells.openings.length; index++) {

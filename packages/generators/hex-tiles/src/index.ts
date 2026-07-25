@@ -128,17 +128,34 @@ export function decodeHexTile(data: unknown): HexTileConfig | null {
   if (typeof data.isCustomTextureInverted === "boolean") {
     config.isCustomTextureInverted = data.isCustomTextureInverted;
   }
-  if (typeof data.bowlDivider === "boolean") {
-    config.bowlDivider = data.bowlDivider;
-  }
+  config.bowlWellCount = wellCountValue(data, config.bowlWellCount);
   return config;
+}
+
+/** Presets saved before the well count was a number carry a divider flag. */
+function wellCountValue(
+  data: Record<string, unknown>,
+  fallback: number,
+): number {
+  if (typeof data.bowlWellCount === "number") {
+    const rounded = Math.round(data.bowlWellCount);
+    if (rounded >= 1 && rounded <= 3) return rounded;
+    return fallback;
+  }
+  if (typeof data.bowlDivider === "boolean") return data.bowlDivider ? 2 : 1;
+  return fallback;
+}
+
+function wellName(count: number): string {
+  if (count === 3) return "three-well";
+  return count === 2 ? "two-well" : "single";
 }
 
 function purposeLabel(config: HexTileConfig): string {
   if (config.purpose === "cards") return "card-rack";
   if (config.purpose === "dice-orbit") return "dice-orbit";
   if (config.purpose === "rolling") return "rolling-tray";
-  return config.bowlDivider ? "divided-bowl" : "bowl";
+  return `${wellName(calculateHexTileLayout(config).bowlWellCount)}-bowl`;
 }
 
 function purposeBadge(config: HexTileConfig): string {
@@ -149,8 +166,10 @@ function purposeBadge(config: HexTileConfig): string {
       return "Dice orbit";
     case "rolling":
       return "Rolling tray";
-    case "bowl":
-      return config.bowlDivider ? "Divided bowl" : "Bowl";
+    case "bowl": {
+      const wells = calculateHexTileLayout(config).bowlWellCount;
+      return wells === 1 ? "Bowl" : `${String(wells)}-well bowl`;
+    }
   }
 }
 

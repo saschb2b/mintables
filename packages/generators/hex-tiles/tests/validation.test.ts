@@ -151,6 +151,19 @@ describe("validateHexTileConfig", () => {
     ).toBe(true);
   });
 
+  it("rejects more bowl wells than the tile can hold", () => {
+    const result = validateHexTileConfig({
+      ...DEFAULT_HEX_TILE_CONFIG,
+      acrossFlats: 70,
+      rimWidth: 8,
+      bowlWellCount: 3,
+    });
+
+    expect(
+      result.errors.some((error) => error.code === "bowl_wells_crowded"),
+    ).toBe(true);
+  });
+
   it("accepts the default rolling tray", () => {
     const result = validateHexTileConfig({
       ...DEFAULT_HEX_TILE_CONFIG,

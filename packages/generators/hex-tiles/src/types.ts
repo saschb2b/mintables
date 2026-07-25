@@ -50,7 +50,8 @@ export interface HexTileConfig {
 
   /** Vertical distance from the rim to the deepest bowl surface. */
   bowlDepth: number;
-  bowlDivider: boolean;
+  /** How many wells the bowl is split into (1 to 3). */
+  bowlWellCount: number;
   dividerAngle: HexTileDividerAngle;
 
   cardSlotCount: number;
@@ -105,7 +106,7 @@ export const DEFAULT_HEX_TILE_CONFIG: HexTileConfig = {
   magnetClearance: 0.25,
 
   bowlDepth: 10,
-  bowlDivider: false,
+  bowlWellCount: 1,
   dividerAngle: 0,
 
   cardSlotCount: 5,

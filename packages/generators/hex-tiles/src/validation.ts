@@ -189,6 +189,29 @@ export function validateHexTileConfig(config: HexTileConfig): ValidationResult {
   }
 
   if (config.purpose === "bowl") {
+    if (
+      !Number.isInteger(config.bowlWellCount) ||
+      config.bowlWellCount < 1 ||
+      config.bowlWellCount > 3
+    ) {
+      errors.push(
+        issue(
+          "error",
+          "bowl_well_count_range",
+          "A bowl tile holds between 1 and 3 wells.",
+          "bowlWellCount",
+        ),
+      );
+    } else if (layout.bowlWellCount > 1 && layout.bowlWellBandWidth < 18) {
+      errors.push(
+        issue(
+          "error",
+          "bowl_wells_crowded",
+          `${String(layout.bowlWellCount)} wells leave only ${layout.bowlWellBandWidth.toFixed(1)} mm across each one. Widen the tile, narrow the rim, or use fewer wells.`,
+          "bowlWellCount",
+        ),
+      );
+    }
     if (!finiteInRange(config.bowlDepth, 5, 25)) {
       errors.push(
         issue(

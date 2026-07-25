@@ -10,7 +10,7 @@ describe("decodeHexTile", () => {
       raiseHeight: 6,
       magnetMode: "single",
       bowlDepth: 11,
-      bowlDivider: true,
+      bowlWellCount: 3,
       dividerAngle: 120,
       cardSlotCount: 7,
       orbitCenterDiameter: 40,
@@ -30,7 +30,7 @@ describe("decodeHexTile", () => {
       raiseHeight: 6,
       magnetMode: "single",
       bowlDepth: 11,
-      bowlDivider: true,
+      bowlWellCount: 3,
       dividerAngle: 120,
       cardSlotCount: 7,
       orbitCenterDiameter: 40,
@@ -81,6 +81,18 @@ describe("decodeHexTile", () => {
       magnetLipOpening: 2.6,
       magnetLipDepth: 0.8,
     });
+  });
+
+  it("carries a preset saved with the old divider flag over to two wells", () => {
+    expect(decodeHexTile({ bowlDivider: true })).toMatchObject({
+      bowlWellCount: 2,
+    });
+    expect(decodeHexTile({ bowlDivider: false })).toMatchObject({
+      bowlWellCount: 1,
+    });
+    expect(
+      decodeHexTile({ bowlDivider: true, bowlWellCount: 3 }),
+    ).toMatchObject({ bowlWellCount: 3 });
   });
 
   it("rejects non-object preset data", () => {

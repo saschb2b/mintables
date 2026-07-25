@@ -41,8 +41,10 @@ function featureLabel(config: HexTileConfig): string {
       return "Outer ring + center cup";
     case "rolling":
       return `${calculateHexTileLayout(config).rollFloorAcrossFlats.toFixed(1)} mm rolling floor`;
-    case "bowl":
-      return config.bowlDivider ? "Two smooth wells" : "One smooth well";
+    case "bowl": {
+      const wells = calculateHexTileLayout(config).bowlWellCount;
+      return wells === 1 ? "One smooth well" : `${String(wells)} smooth wells`;
+    }
   }
 }
 

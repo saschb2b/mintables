@@ -207,10 +207,10 @@ describe("generateHexTileTriangles", () => {
     expect(edgeUseCounts(triangles).every((count) => count === 2)).toBe(true);
   });
 
-  it("keeps divided wells smooth, separate, and manifold", () => {
+  it("keeps split wells smooth, separate, and manifold", () => {
     const config = {
       ...DEFAULT_HEX_TILE_CONFIG,
-      bowlDivider: true,
+      bowlWellCount: 2,
       dividerAngle: 60 as const,
     };
     const triangles = generateHexTileTriangles(config);
@@ -232,6 +232,33 @@ describe("generateHexTileTriangles", () => {
     expect(floorVertices.some(([x, y]) => x < -5 || y < -5)).toBe(true);
     expect(edgeUseCounts(triangles).every((count) => count === 2)).toBe(true);
   });
+
+  it.each([2, 3])(
+    "fills the tile outline with %i split wells",
+    (bowlWellCount) => {
+      const config = { ...DEFAULT_HEX_TILE_CONFIG, bowlWellCount };
+      const layout = calculateHexTileLayout(config);
+      const triangles = generateHexTileTriangles(config);
+      const rimVertices = triangles
+        .flatMap((triangle) => [
+          [triangle[0], triangle[1], triangle[2]],
+          [triangle[3], triangle[4], triangle[5]],
+          [triangle[6], triangle[7], triangle[8]],
+        ])
+        .filter(([, , z]) => Math.abs(z - layout.topHeight) < 1e-9);
+      // Wells reach the interior outline, so the top face keeps only the rim
+      // band and the ridges between wells.
+      const wellEdgeReach = Math.max(
+        ...rimVertices.map(([, y]) => Math.abs(y)).filter((y) => y < 43.5),
+      );
+
+      expect(validateHexTileConfig(config).errors).toHaveLength(0);
+      expect(layout.bowlWellCount).toBe(bowlWellCount);
+      expect(isPrintableMesh(triangles)).toBe(true);
+      expect(edgeUseCounts(triangles).every((count) => count === 2)).toBe(true);
+      expect(wellEdgeReach).toBeCloseTo(layout.innerAcrossFlats / 2, 6);
+    },
+  );
 
   it("builds rounded card slots to their requested count and depth", () => {
     const config = {

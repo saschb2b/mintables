@@ -12,6 +12,8 @@ import Select, { type SelectChangeEvent } from "@mui/material/Select";
 import Stack from "@mui/material/Stack";
 import Switch from "@mui/material/Switch";
 import TextField from "@mui/material/TextField";
+import ToggleButton from "@mui/material/ToggleButton";
+import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import type { ValidationResult } from "@mintables/shared/lib/validation";
@@ -95,6 +97,11 @@ const MAGNET_MODES: { value: HexTileMagnetMode; label: string }[] = [
 ];
 
 const DIVIDER_ANGLES: HexTileDividerAngle[] = [0, 60, 120];
+const WELL_COUNTS = [
+  { value: 1, label: "One" },
+  { value: 2, label: "Two" },
+  { value: 3, label: "Three" },
+];
 const MAX_CUSTOM_TEXTURE_BYTES = 5 * 1024 * 1024;
 const CUSTOM_TEXTURE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const KEYED_POLES = [
@@ -774,32 +781,39 @@ function MagnetControls({ config, update, validation }: ControlSectionProps) {
 }
 
 function BowlControls({ config, update, validation }: ControlSectionProps) {
+  const layout = calculateHexTileLayout(config);
   return (
     <SectionCard title="Bowl layout">
-      <NumberField
-        label="Dish depth"
-        value={config.bowlDepth}
-        onChange={(bowlDepth) => update({ bowlDepth })}
-        field="bowlDepth"
-        validation={validation}
-        min={5}
-        max={Math.max(5, config.bodyHeight - config.floorThickness)}
-        step={0.5}
-      />
-      <FormControlLabel
-        control={
-          <Switch
-            checked={config.bowlDivider}
-            onChange={(event) => update({ bowlDivider: event.target.checked })}
-          />
-        }
-        label="Split into two smooth wells"
-      />
-      {config.bowlDivider ? (
+      <Box>
+        <Typography
+          variant="caption"
+          component="p"
+          sx={{ color: "text.secondary", mb: 0.75 }}
+        >
+          Wells
+        </Typography>
+        <ToggleButtonGroup
+          exclusive
+          fullWidth
+          size="small"
+          value={layout.bowlWellCount}
+          aria-label="Number of wells"
+          onChange={(_, value: number | null) => {
+            if (value) update({ bowlWellCount: value });
+          }}
+        >
+          {WELL_COUNTS.map((option) => (
+            <ToggleButton key={option.value} value={option.value}>
+              {option.label}
+            </ToggleButton>
+          ))}
+        </ToggleButtonGroup>
+      </Box>
+      {layout.bowlWellCount > 1 ? (
         <TextField
           select
           size="small"
-          label="Divider direction"
+          label="Split direction"
           value={config.dividerAngle}
           onChange={(event) =>
             update({
@@ -814,6 +828,23 @@ function BowlControls({ config, update, validation }: ControlSectionProps) {
             </MenuItem>
           ))}
         </TextField>
+      ) : null}
+      <NumberField
+        label="Dish depth"
+        value={config.bowlDepth}
+        onChange={(bowlDepth) => update({ bowlDepth })}
+        field="bowlDepth"
+        validation={validation}
+        min={5}
+        max={Math.max(5, config.bodyHeight - config.floorThickness)}
+        step={0.5}
+      />
+      {layout.bowlWellCount > 1 ? (
+        <Typography variant="caption" sx={{ color: "text.secondary" }}>
+          Each well follows the tile outline and is{" "}
+          {layout.bowlWellBandWidth.toFixed(1)} mm across, separated by a{" "}
+          {layout.bowlDividerWall.toFixed(1)} mm ridge.
+        </Typography>
       ) : null}
       <Typography variant="caption" sx={{ color: "text.secondary" }}>
         A deeper floor increases capacity and removes print material. The broad

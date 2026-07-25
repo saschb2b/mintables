@@ -21,6 +21,11 @@ export interface HexTileLayout {
   topFlatHalfSpan: number;
   cardChannelCount: number;
   cardSlotFloorZ: number;
+  bowlWellCount: number;
+  /** Flat ridge left between neighbouring bowl wells. */
+  bowlDividerWall: number;
+  /** Width of one well across the split direction, walls already taken out. */
+  bowlWellBandWidth: number;
   rollFloorZ: number;
   /** Across-flats size of the flat rolling floor, once draft and fillet are cut. */
   rollFloorAcrossFlats: number;
@@ -147,6 +152,11 @@ export function calculateHexTileLayout(config: HexTileConfig): HexTileLayout {
   const channels = cardChannels(config);
   const northMarkerRadius = Math.min(1.5, Math.max(0.9, rimBandWidth * 0.22));
   const innerAcrossFlats = config.acrossFlats - 2 * config.rimWidth;
+  const bowlWellCount = Math.min(
+    3,
+    Math.max(1, Math.round(config.bowlWellCount)),
+  );
+  const bowlDividerWall = Math.min(6, Math.max(3, innerAcrossFlats * 0.05));
   const rollFloorInset =
     Math.tan((config.rollWallDraft * Math.PI) / 180) *
       Math.max(0, config.rollDepth - config.rollFloorFillet) +
@@ -160,6 +170,11 @@ export function calculateHexTileLayout(config: HexTileConfig): HexTileLayout {
     topFlatHalfSpan,
     cardChannelCount: channels.length,
     cardSlotFloorZ: topHeight - config.cardSlotDepth,
+    bowlWellCount,
+    bowlDividerWall,
+    bowlWellBandWidth:
+      innerAcrossFlats / bowlWellCount -
+      ((bowlWellCount - 1) / bowlWellCount) * bowlDividerWall,
     rollFloorZ: topHeight - config.rollDepth,
     rollFloorAcrossFlats: innerAcrossFlats - 2 * rollFloorInset,
     rollFloorInset,
