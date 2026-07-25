@@ -39,6 +39,8 @@ function featureLabel(config: HexTileConfig): string {
     }
     case "dice-orbit":
       return "Outer ring + center cup";
+    case "rolling":
+      return `${calculateHexTileLayout(config).rollFloorAcrossFlats.toFixed(1)} mm rolling floor`;
     case "bowl":
       return config.bowlDivider ? "Two smooth wells" : "One smooth well";
   }

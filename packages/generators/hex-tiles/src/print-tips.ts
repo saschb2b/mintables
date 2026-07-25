@@ -87,6 +87,21 @@ export function getHexTilePrintTips(config: HexTileConfig): PrintTip[] {
     }
   }
 
+  if (config.purpose === "rolling") {
+    tips.push({
+      icon: "layers",
+      title: "Roll on a quiet floor",
+      body: `The ${layout.rollFloorAcrossFlats.toFixed(1)} mm floor is the loudest part of a printed tray. A top texture, a felt disc, or a slower top-surface speed all take the rattle out of it.`,
+      priority: 8,
+    });
+    tips.push({
+      icon: "printer",
+      title: "No supports in the well",
+      body: `The ${String(config.rollWallDraft)}-degree wall draft and the ${config.rollFloorFillet.toFixed(1)} mm floor fillet keep every surface self-supporting. Keep them if you shrink the well.`,
+      priority: 7,
+    });
+  }
+
   if (config.isSurfaceTextureEnabled) {
     tips.push({
       icon: "layers",

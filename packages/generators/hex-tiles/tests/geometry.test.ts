@@ -381,6 +381,67 @@ describe("generateHexTileTriangles", () => {
     expect(edgeUseCounts(triangles).every((count) => count === 2)).toBe(true);
   });
 
+  it("carves a rolling well with a wide flat floor and no sharp corner", () => {
+    const config = {
+      ...DEFAULT_HEX_TILE_CONFIG,
+      purpose: "rolling" as const,
+    };
+    const layout = calculateHexTileLayout(config);
+    const triangles = generateHexTileTriangles(config);
+    const floorPoints = triangles
+      .flatMap((triangle) => [
+        [triangle[0], triangle[1], triangle[2]],
+        [triangle[3], triangle[4], triangle[5]],
+        [triangle[6], triangle[7], triangle[8]],
+      ])
+      .filter(([, , z]) => Math.abs(z - layout.rollFloorZ) < 1e-9);
+    const acrossFlats =
+      2 * Math.max(...floorPoints.map(([, y]) => Math.abs(y)));
+    const cornerReach = Math.max(
+      ...floorPoints.map(([x, y]) => Math.hypot(x, y)),
+    );
+
+    expect(isPrintableMesh(triangles)).toBe(true);
+    expect(edgeUseCounts(triangles).every((count) => count === 2)).toBe(true);
+    expect(acrossFlats).toBeCloseTo(layout.rollFloorAcrossFlats, 6);
+    // A sharp corner would reach the circumradius. An arc of radius r on a
+    // 120-degree corner pulls that in by r * (1 / sin 60 - 1).
+    const floorCornerRadius = config.rollCornerRadius - layout.rollFloorInset;
+    expect(acrossFlats / Math.sqrt(3) - cornerReach).toBeCloseTo(
+      floorCornerRadius * (1 / Math.sin(Math.PI / 3) - 1),
+      3,
+    );
+    expect(layout.rollFloorAcrossFlats).toBeGreaterThan(
+      layout.innerAcrossFlats - 2 * config.rollDepth,
+    );
+  });
+
+  it("keeps the rolling well closed with relief and captive rods", () => {
+    const config = {
+      ...DEFAULT_HEX_TILE_CONFIG,
+      purpose: "rolling" as const,
+      magnetMode: "captive" as const,
+      isSurfaceTextureEnabled: true,
+      surfaceTexture: "hammered-stone" as const,
+      rollWallDraft: 0,
+      rollFloorFillet: 0.5,
+    };
+    const layout = calculateHexTileLayout(config);
+    const triangles = generateHexTileTriangles(config);
+    const heights = uniqueHeights(triangles);
+
+    expect(validateHexTileConfig(config).errors).toHaveLength(0);
+    expect(isPrintableMesh(triangles)).toBe(true);
+    expect(edgeUseCounts(triangles).every((count) => count === 2)).toBe(true);
+    expect(
+      heights.some(
+        (height) =>
+          Math.abs(height - (layout.rollFloorZ - config.surfaceTextureDepth)) <
+          1e-9,
+      ),
+    ).toBe(true);
+  });
+
   it("raises the storage surface without moving the magnet system", () => {
     const raised = { ...DEFAULT_HEX_TILE_CONFIG, raiseHeight: 8 };
     const baseLayout = calculateHexTileLayout(DEFAULT_HEX_TILE_CONFIG);

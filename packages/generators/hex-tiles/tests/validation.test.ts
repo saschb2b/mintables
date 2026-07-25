@@ -151,6 +151,42 @@ describe("validateHexTileConfig", () => {
     ).toBe(true);
   });
 
+  it("accepts the default rolling tray", () => {
+    const result = validateHexTileConfig({
+      ...DEFAULT_HEX_TILE_CONFIG,
+      purpose: "rolling",
+    });
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.warnings).toHaveLength(0);
+  });
+
+  it("rejects a rolling well deeper than its floor allows", () => {
+    const result = validateHexTileConfig({
+      ...DEFAULT_HEX_TILE_CONFIG,
+      purpose: "rolling",
+      rollDepth: 14,
+    });
+
+    expect(
+      result.errors.some((error) => error.code === "roll_floor_thin"),
+    ).toBe(true);
+  });
+
+  it("rejects rolling corners eaten by the draft and fillet", () => {
+    const result = validateHexTileConfig({
+      ...DEFAULT_HEX_TILE_CONFIG,
+      purpose: "rolling",
+      rollCornerRadius: 2,
+      rollFloorFillet: 6,
+      rollWallDraft: 10,
+    });
+
+    expect(
+      result.errors.some((error) => error.code === "roll_corner_pinched"),
+    ).toBe(true);
+  });
+
   it("keeps the elevated center cup above the outer dice trough", () => {
     const result = validateHexTileConfig({
       ...DEFAULT_HEX_TILE_CONFIG,

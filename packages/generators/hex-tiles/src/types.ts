@@ -1,4 +1,4 @@
-export type HexTilePurpose = "bowl" | "cards" | "dice-orbit";
+export type HexTilePurpose = "bowl" | "cards" | "dice-orbit" | "rolling";
 
 export type HexTileMagnetMode = "none" | "single" | "captive" | "paired";
 
@@ -67,6 +67,15 @@ export interface HexTileConfig {
   orbitCenterDiameter: number;
   orbitCenterRaise: number;
   orbitCenterDepth: number;
+
+  /** Drop from the rim to the rolling floor. */
+  rollDepth: number;
+  /** Plan-view rounding on the six corners of the rolling well. */
+  rollCornerRadius: number;
+  /** Radius where the rolling wall meets the floor. */
+  rollFloorFillet: number;
+  /** Outward lean of the rolling wall, in degrees. */
+  rollWallDraft: number;
 }
 
 export const DEFAULT_HEX_TILE_CONFIG: HexTileConfig = {
@@ -109,4 +118,9 @@ export const DEFAULT_HEX_TILE_CONFIG: HexTileConfig = {
   orbitCenterDiameter: 36,
   orbitCenterRaise: 7,
   orbitCenterDepth: 4.5,
+
+  rollDepth: 11,
+  rollCornerRadius: 6,
+  rollFloorFillet: 2.5,
+  rollWallDraft: 4,
 };

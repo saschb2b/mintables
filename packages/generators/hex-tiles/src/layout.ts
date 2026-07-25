@@ -21,6 +21,11 @@ export interface HexTileLayout {
   topFlatHalfSpan: number;
   cardChannelCount: number;
   cardSlotFloorZ: number;
+  rollFloorZ: number;
+  /** Across-flats size of the flat rolling floor, once draft and fillet are cut. */
+  rollFloorAcrossFlats: number;
+  /** How far the rolling floor sits in from the well opening. */
+  rollFloorInset: number;
   magnetCount: number;
   magnetSocketDiameter: number;
   magnetSocketDepth: number;
@@ -141,15 +146,23 @@ export function calculateHexTileLayout(config: HexTileConfig): HexTileLayout {
     (config.acrossFlats - 2 * config.edgeBevel) / (2 * Math.sqrt(3));
   const channels = cardChannels(config);
   const northMarkerRadius = Math.min(1.5, Math.max(0.9, rimBandWidth * 0.22));
+  const innerAcrossFlats = config.acrossFlats - 2 * config.rimWidth;
+  const rollFloorInset =
+    Math.tan((config.rollWallDraft * Math.PI) / 180) *
+      Math.max(0, config.rollDepth - config.rollFloorFillet) +
+    config.rollFloorFillet;
 
   return {
     pointToPoint,
     sideLength,
     topHeight,
-    innerAcrossFlats: config.acrossFlats - 2 * config.rimWidth,
+    innerAcrossFlats,
     topFlatHalfSpan,
     cardChannelCount: channels.length,
     cardSlotFloorZ: topHeight - config.cardSlotDepth,
+    rollFloorZ: topHeight - config.rollDepth,
+    rollFloorAcrossFlats: innerAcrossFlats - 2 * rollFloorInset,
+    rollFloorInset,
     magnetCount,
     magnetSocketDiameter,
     magnetSocketDepth: usesCaptiveRods

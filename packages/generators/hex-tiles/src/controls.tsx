@@ -19,6 +19,7 @@ import { NumberField, SectionCard } from "@mintables/shared/ui";
 import {
   CircleDot,
   Dices,
+  Frame,
   ImageUp,
   PanelsTopLeft,
   type LucideIcon,
@@ -77,6 +78,12 @@ const PURPOSES: PurposeOption[] = [
     label: "Dice orbit",
     description: "An outer dice trough with a raised active-die cup.",
     icon: Dices,
+  },
+  {
+    value: "rolling",
+    label: "Rolling tray",
+    description: "One open hexagonal floor with soft corners for rolling dice.",
+    icon: Frame,
   },
 ];
 
@@ -902,6 +909,66 @@ function CardControls({ config, update, validation }: ControlSectionProps) {
   );
 }
 
+function RollingControls({ config, update, validation }: ControlSectionProps) {
+  const layout = calculateHexTileLayout(config);
+  return (
+    <SectionCard title="Rolling well">
+      <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1.5 }}>
+        <NumberField
+          label="Rolling depth"
+          value={config.rollDepth}
+          onChange={(rollDepth) => update({ rollDepth })}
+          field="rollDepth"
+          validation={validation}
+          min={6}
+          max={Math.max(6, config.bodyHeight - config.floorThickness)}
+          step={0.5}
+        />
+        <NumberField
+          label="Corner rounding"
+          value={config.rollCornerRadius}
+          onChange={(rollCornerRadius) => update({ rollCornerRadius })}
+          field="rollCornerRadius"
+          validation={validation}
+          min={1.5}
+          max={20}
+          step={0.5}
+        />
+        <NumberField
+          label="Floor fillet"
+          value={config.rollFloorFillet}
+          onChange={(rollFloorFillet) => update({ rollFloorFillet })}
+          field="rollFloorFillet"
+          validation={validation}
+          min={0.5}
+          max={8}
+          step={0.5}
+        />
+        <NumberField
+          label="Wall draft"
+          value={config.rollWallDraft}
+          onChange={(rollWallDraft) => update({ rollWallDraft })}
+          field="rollWallDraft"
+          validation={validation}
+          min={0}
+          max={12}
+          step={0.5}
+          unit="deg"
+        />
+      </Box>
+      <Typography variant="caption" sx={{ color: "text.secondary" }}>
+        {layout.rollFloorAcrossFlats.toFixed(1)} mm of flat floor across the
+        flats. Narrow the rim to trade wall for rolling space.
+      </Typography>
+      <Typography variant="caption" sx={{ color: "text.secondary" }}>
+        Rounded corners, a leaning wall, and the floor fillet keep dice from
+        wedging and let the well print without supports. Keep all three small to
+        hold on to rolling area.
+      </Typography>
+    </SectionCard>
+  );
+}
+
 function DiceOrbitControls({
   config,
   update,
@@ -958,6 +1025,8 @@ function PurposeSpecificControls(props: ControlSectionProps) {
       return <CardControls {...props} />;
     case "dice-orbit":
       return <DiceOrbitControls {...props} />;
+    case "rolling":
+      return <RollingControls {...props} />;
   }
 }
 

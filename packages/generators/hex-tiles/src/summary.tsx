@@ -13,6 +13,7 @@ import type { HexTileConfig } from "./types";
 function purposeName(config: HexTileConfig): string {
   if (config.purpose === "cards") return "Card display";
   if (config.purpose === "dice-orbit") return "Dice orbit";
+  if (config.purpose === "rolling") return "Rolling tray";
   return "Component bowl";
 }
 
@@ -68,6 +69,12 @@ export function HexTileSummary({ config }: { config: HexTileConfig }) {
         <SpecRow
           label="Dish depth"
           value={`${config.bowlDepth.toFixed(1)} mm`}
+        />
+      ) : null}
+      {config.purpose === "rolling" ? (
+        <SpecRow
+          label="Rolling depth"
+          value={`${config.rollDepth.toFixed(1)} mm`}
         />
       ) : null}
       <SpecRow

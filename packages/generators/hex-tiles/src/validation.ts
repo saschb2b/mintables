@@ -570,6 +570,97 @@ export function validateHexTileConfig(config: HexTileConfig): ValidationResult {
     }
   }
 
+  if (config.purpose === "rolling") {
+    if (!finiteInRange(config.rollDepth, 6, 26)) {
+      errors.push(
+        issue(
+          "error",
+          "roll_depth_range",
+          "Rolling depth must be between 6 and 26 mm.",
+          "rollDepth",
+        ),
+      );
+    } else if (config.rollDepth > config.bodyHeight - config.floorThickness) {
+      errors.push(
+        issue(
+          "error",
+          "roll_floor_thin",
+          "Rolling depth must leave the configured floor thickness below it.",
+          "rollDepth",
+        ),
+      );
+    }
+    if (!finiteInRange(config.rollCornerRadius, 1.5, 20)) {
+      errors.push(
+        issue(
+          "error",
+          "roll_corner_range",
+          "Corner rounding must be between 1.5 and 20 mm.",
+          "rollCornerRadius",
+        ),
+      );
+    }
+    if (!finiteInRange(config.rollFloorFillet, 0.5, 8)) {
+      errors.push(
+        issue(
+          "error",
+          "roll_fillet_range",
+          "Floor fillet must be between 0.5 and 8 mm.",
+          "rollFloorFillet",
+        ),
+      );
+    } else if (config.rollFloorFillet > config.rollDepth - 2) {
+      errors.push(
+        issue(
+          "error",
+          "roll_fillet_deep",
+          "Leave at least 2 mm of straight wall above the floor fillet.",
+          "rollFloorFillet",
+        ),
+      );
+    }
+    if (!finiteInRange(config.rollWallDraft, 0, 12)) {
+      errors.push(
+        issue(
+          "error",
+          "roll_draft_range",
+          "Wall draft must be between 0 and 12 degrees.",
+          "rollWallDraft",
+        ),
+      );
+    }
+    if (config.rollCornerRadius - layout.rollFloorInset < 0.5) {
+      errors.push(
+        issue(
+          "error",
+          "roll_corner_pinched",
+          "The draft and floor fillet eat the whole corner rounding. Increase the corner radius or reduce the fillet or draft.",
+          "rollCornerRadius",
+        ),
+      );
+    }
+    if (layout.rollFloorAcrossFlats < 40) {
+      errors.push(
+        issue(
+          "error",
+          "roll_floor_small",
+          "The rolling floor drops below 40 mm across. Widen the tile or narrow the rim.",
+          "rimWidth",
+        ),
+      );
+    }
+    if (layout.rollFloorAcrossFlats < 60) {
+      warnings.push(
+        issue(
+          "warning",
+          "roll_floor_tight",
+          `A ${layout.rollFloorAcrossFlats.toFixed(1)} mm floor is cramped for rolling more than a couple of dice.`,
+          "acrossFlats",
+        ),
+      );
+    }
+  }
+
   if (config.purpose === "dice-orbit") {
     if (
       !finiteInRange(

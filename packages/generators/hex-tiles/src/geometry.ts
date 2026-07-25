@@ -34,6 +34,9 @@ interface TextureGroove {
 
 const CURVE_SEGMENTS = 64;
 const WELL_RINGS = 6;
+const ROUNDED_HEX_SEGMENTS = 10;
+const MIN_CORNER_RADIUS = 0.4;
+const ROLL_FILLET_RINGS = 5;
 const BOWL_CURVE_WIDTH = 12;
 const TEXTURE_EDGE_MARGIN = 0.45;
 const TEXTURE_FEATURE_MARGIN = 0.75;
@@ -59,6 +62,37 @@ function regularHex(acrossFlats: number): Point2[] {
 
 function hexApothem(acrossFlats: number): number {
   return acrossFlats / 2;
+}
+
+/**
+ * A hexagon with arcs at the corners. Insetting one by d is the same shape
+ * with `acrossFlats - 2d` and `cornerRadius - d`: the arc centers hold still,
+ * so rings taken at different insets line up point for point and can be walled
+ * together directly.
+ */
+function roundedHex(
+  acrossFlats: number,
+  cornerRadius: number,
+  segmentsPerCorner = ROUNDED_HEX_SEGMENTS,
+): Point2[] {
+  const circumradius = acrossFlats / Math.sqrt(3);
+  const radius = Math.max(MIN_CORNER_RADIUS, cornerRadius);
+  const centerDistance = circumradius - radius / Math.sin(Math.PI / 3);
+  const points: Point2[] = [];
+  for (let corner = 0; corner < 6; corner++) {
+    const cornerAngle = (corner * Math.PI) / 3;
+    const centerX = centerDistance * Math.cos(cornerAngle);
+    const centerY = centerDistance * Math.sin(cornerAngle);
+    for (let step = 0; step <= segmentsPerCorner; step++) {
+      const angle =
+        cornerAngle - Math.PI / 6 + (step / segmentsPerCorner) * (Math.PI / 3);
+      points.push({
+        x: centerX + radius * Math.cos(angle),
+        y: centerY + radius * Math.sin(angle),
+      });
+    }
+  }
+  return points;
 }
 
 function ellipseOutline(
@@ -1449,6 +1483,85 @@ function buildCardInterior(
   }
 }
 
+function buildTexturedFloor(
+  triangles: number[][],
+  config: HexTileConfig,
+  outline: Point2[],
+  z: number,
+): void {
+  if (!config.isSurfaceTextureEnabled) {
+    buildFanFace(triangles, outline, z, "up");
+    return;
+  }
+  const textureGrooves = surfaceTextureGrooves(config, outline, []);
+  triangulateHorizontalFace(
+    triangles,
+    outline,
+    textureGrooves.map((groove) => groove.outline),
+    z,
+    "up",
+  );
+  for (const groove of textureGrooves) {
+    const textureFloorZ = z - config.surfaceTextureDepth * groove.depthScale;
+    buildContourWall(
+      triangles,
+      groove.outline,
+      groove.outline,
+      textureFloorZ,
+      z,
+      "inward",
+    );
+    buildFanFace(triangles, groove.outline, textureFloorZ, "up");
+  }
+}
+
+/**
+ * The rolling well: one open hexagonal floor taking as much of the tile as the
+ * rim allows. Its corners are rounded in plan, the wall leans out a few
+ * degrees, and it turns into the floor over a fillet, so the well prints
+ * without supports and dice never wedge into a hard corner.
+ */
+function buildRollingInterior(
+  triangles: number[][],
+  config: HexTileConfig,
+  topOutline: Point2[],
+): void {
+  const layout = calculateHexTileLayout(config);
+  const floorZ = layout.rollFloorZ;
+  const fillet = Math.min(config.rollFloorFillet, config.rollDepth);
+  const draftInset = Math.max(0, layout.rollFloorInset - fillet);
+  const ringAt = (inset: number) =>
+    roundedHex(
+      layout.innerAcrossFlats - 2 * inset,
+      config.rollCornerRadius - inset,
+    );
+
+  const opening = ringAt(0);
+  buildTopFace(triangles, config, topOutline, [opening], layout.topHeight);
+
+  const filletTopZ = floorZ + fillet;
+  let previous = ringAt(draftInset);
+  let previousZ = filletTopZ;
+  buildContourWall(
+    triangles,
+    previous,
+    opening,
+    filletTopZ,
+    layout.topHeight,
+    "inward",
+  );
+
+  for (let ring = 1; ring <= ROLL_FILLET_RINGS; ring++) {
+    const sweep = (ring / ROLL_FILLET_RINGS) * (Math.PI / 2);
+    const next = ringAt(draftInset + fillet * (1 - Math.cos(sweep)));
+    const nextZ = floorZ + fillet * (1 - Math.sin(sweep));
+    buildContourWall(triangles, next, previous, nextZ, previousZ, "inward");
+    previous = next;
+    previousZ = nextZ;
+  }
+  buildTexturedFloor(triangles, config, previous, floorZ);
+}
+
 function buildDiceOrbitInterior(
   triangles: number[][],
   config: HexTileConfig,
@@ -1520,6 +1633,8 @@ export function generateHexTileTriangles(config: HexTileConfig): number[][] {
     buildCardInterior(triangles, config, topOutline);
   } else if (config.purpose === "dice-orbit") {
     buildDiceOrbitInterior(triangles, config, topOutline);
+  } else if (config.purpose === "rolling") {
+    buildRollingInterior(triangles, config, topOutline);
   } else {
     buildBowlInterior(triangles, config, topOutline);
   }
