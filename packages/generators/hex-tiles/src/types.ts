@@ -3,6 +3,7 @@ export type HexTilePurpose =
   | "cards"
   | "deck"
   | "dice-orbit"
+  | "plain"
   | "rolling";
 
 export type HexTileMagnetMode = "none" | "single" | "captive" | "paired";

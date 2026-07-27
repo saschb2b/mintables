@@ -2086,6 +2086,20 @@ function buildRollingInterior(
   buildTexturedFloor(triangles, config, previous, floorZ);
 }
 
+/**
+ * A plain tile: nothing is cut into it, so the body stays solid and the top is
+ * one flat land from edge to edge. The shared top face still carries the
+ * orientation dot and any surface relief, which now covers the whole hexagon.
+ */
+function buildPlainTop(
+  triangles: number[][],
+  config: HexTileConfig,
+  topOutline: Point2[],
+): void {
+  const layout = calculateHexTileLayout(config);
+  buildTopFace(triangles, config, topOutline, [], layout.topHeight);
+}
+
 function buildDiceOrbitInterior(
   triangles: number[][],
   config: HexTileConfig,
@@ -2161,6 +2175,8 @@ export function generateHexTileTriangles(config: HexTileConfig): number[][] {
     buildDiceOrbitInterior(triangles, config, topOutline);
   } else if (config.purpose === "rolling") {
     buildRollingInterior(triangles, config, topOutline);
+  } else if (config.purpose === "plain") {
+    buildPlainTop(triangles, config, topOutline);
   } else {
     buildBowlInterior(triangles, config, topOutline);
   }

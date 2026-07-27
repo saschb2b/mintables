@@ -98,6 +98,12 @@ export function cardSlotPlan(config: HexTileConfig): CardSlotPlanEntry[] {
 /** Wall left standing between two deck cradles, and beside the corner wells. */
 export const DECK_WALL = 4;
 
+/**
+ * A plain tile has no interior, so it has no rim either. Its orientation dot
+ * sits in a band of this width just inside the top edge instead.
+ */
+export const PLAIN_MARKER_BAND = 6;
+
 /** Room around a deck so it drops in without being pressed. */
 export const DECK_CLEARANCE = 2;
 
@@ -180,7 +186,10 @@ export function calculateHexTileLayout(config: HexTileConfig): HexTileLayout {
     config.edgeBevel +
     1.2 +
     (usesCaptiveRods ? magnetSocketLength / 2 : socketRadius);
-  const rimBandWidth = config.rimWidth - config.edgeBevel;
+  const markerBandWidth =
+    config.purpose === "plain"
+      ? PLAIN_MARKER_BAND
+      : config.rimWidth - config.edgeBevel;
   const openingHalfHeight = Math.min(config.magnetLipOpening / 2, socketRadius);
   const chamberIntersectionDepth = Math.sqrt(
     Math.max(0, socketRadius ** 2 - openingHalfHeight ** 2),
@@ -196,7 +205,10 @@ export function calculateHexTileLayout(config: HexTileConfig): HexTileLayout {
   const topFlatHalfSpan =
     (config.acrossFlats - 2 * config.edgeBevel) / (2 * Math.sqrt(3));
   const channels = throughChannels(config);
-  const northMarkerRadius = Math.min(1.5, Math.max(0.9, rimBandWidth * 0.22));
+  const northMarkerRadius = Math.min(
+    1.5,
+    Math.max(0.9, markerBandWidth * 0.22),
+  );
   const innerAcrossFlats = config.acrossFlats - 2 * config.rimWidth;
   const bowlWellCount = Math.min(
     3,
@@ -283,8 +295,9 @@ export function calculateHexTileLayout(config: HexTileConfig): HexTileLayout {
     magnetRoofZ,
     magnetBridgeWidth: magnetSocketDiameter * (Math.SQRT2 - 1),
     pairedMagnetOffset: Math.min(12, sideLength * 0.2),
+    // Centered in whichever band carries it, measured in from the top edge.
     northMarkerCenterY:
-      (config.acrossFlats - 2 * config.rimWidth) / 2 + rimBandWidth / 2,
+      config.acrossFlats / 2 - config.edgeBevel - markerBandWidth / 2,
     northMarkerCenterX: placeNorthMarker(
       channels,
       northMarkerRadius,

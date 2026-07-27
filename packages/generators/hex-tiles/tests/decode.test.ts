@@ -45,6 +45,12 @@ describe("decodeHexTile", () => {
     });
   });
 
+  it("hydrates a shared plain tile", () => {
+    expect(
+      decodeHexTile({ purpose: "plain", acrossFlats: 80, bodyHeight: 9 }),
+    ).toMatchObject({ purpose: "plain", acrossFlats: 80, bodyHeight: 9 });
+  });
+
   it("falls back from unknown variants without discarding numeric edits", () => {
     const decoded = decodeHexTile({
       purpose: "unknown",

@@ -117,6 +117,21 @@ export function getHexTilePrintTips(config: HexTileConfig): PrintTip[] {
     });
   }
 
+  if (config.purpose === "plain") {
+    tips.push({
+      icon: "printer",
+      title: "Print a plain tile for paint",
+      body: "Nothing is hollowed out here, so infill is most of the print time. 10 to 15% still carries the magnets, and the material summary assumes 15%. Iron the top surface, or just slow it down, so primer does not pick up every layer line.",
+      priority: 9,
+    });
+    tips.push({
+      icon: "layers",
+      title: "Prime, then build on top",
+      body: "Bare PLA holds acrylics poorly, so prime the tile first. Flock, sand, rocks, and trees then glue on with PVA, and a full-area top bonds them far better than a rim.",
+      priority: 8,
+    });
+  }
+
   if (config.isSurfaceTextureEnabled) {
     tips.push({
       icon: "layers",

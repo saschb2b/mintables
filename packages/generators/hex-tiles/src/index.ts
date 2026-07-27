@@ -34,6 +34,7 @@ function purposeValue(
     value === "cards" ||
     value === "deck" ||
     value === "dice-orbit" ||
+    value === "plain" ||
     value === "rolling"
     ? value
     : fallback;
@@ -163,6 +164,7 @@ function purposeLabel(config: HexTileConfig): string {
   if (config.purpose === "cards") return "card-rack";
   if (config.purpose === "deck") return "deck-cradle";
   if (config.purpose === "dice-orbit") return "dice-orbit";
+  if (config.purpose === "plain") return "plain";
   if (config.purpose === "rolling") return "rolling-tray";
   return `${wellName(calculateHexTileLayout(config).bowlWellCount)}-bowl`;
 }
@@ -175,6 +177,8 @@ function purposeBadge(config: HexTileConfig): string {
       return `${String(config.deckSlotCount)}-deck cradle`;
     case "dice-orbit":
       return "Dice orbit";
+    case "plain":
+      return "Plain";
     case "rolling":
       return "Rolling tray";
     case "bowl": {
@@ -203,7 +207,7 @@ export const hexTileGenerator: Generator<HexTileConfig> = {
     name: "Hex Tiles",
     tagline: "Magnetic Tabletop Tile Generator",
     description:
-      "Create connectable hex tiles with smooth component bowls, card racks, dice rolling trays, and elevated dice displays.",
+      "Create connectable hex tiles: plain tiles to paint or build terrain on, smooth component bowls, card racks, dice rolling trays, and elevated dice displays.",
     icon: Hexagon,
     accent: "#ef4444",
     iconArt: HexTileIconArt,

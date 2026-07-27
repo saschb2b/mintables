@@ -22,6 +22,7 @@ import {
   CircleDot,
   Dices,
   Frame,
+  Hexagon,
   ImageUp,
   Layers,
   PanelsTopLeft,
@@ -64,6 +65,12 @@ interface PurposeOption {
 }
 
 const PURPOSES: PurposeOption[] = [
+  {
+    value: "plain",
+    label: "Plain tile",
+    description: "A solid flat top to paint, flock, or build terrain on.",
+    icon: Hexagon,
+  },
   {
     value: "bowl",
     label: "Component bowl",
@@ -428,6 +435,9 @@ function PolarityGuide({ mode }: { mode: "single" | "captive" }) {
 }
 
 function TileBodyControls({ config, update, validation }: ControlSectionProps) {
+  // A plain tile is solid, so a rim and a floor would control nothing, and
+  // only the magnets set a lower bound on how thin it may be.
+  const isSolid = config.purpose === "plain";
   return (
     <SectionCard title="Tile body">
       <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1.5 }}>
@@ -447,7 +457,7 @@ function TileBodyControls({ config, update, validation }: ControlSectionProps) {
           onChange={(bodyHeight) => update({ bodyHeight })}
           field="bodyHeight"
           validation={validation}
-          min={12}
+          min={isSolid ? 8 : 12}
           max={30}
           step={1}
         />
@@ -461,26 +471,30 @@ function TileBodyControls({ config, update, validation }: ControlSectionProps) {
           max={16}
           step={1}
         />
-        <NumberField
-          label="Rim width"
-          value={config.rimWidth}
-          onChange={(rimWidth) => update({ rimWidth })}
-          field="rimWidth"
-          validation={validation}
-          min={5}
-          max={18}
-          step={0.5}
-        />
-        <NumberField
-          label="Floor"
-          value={config.floorThickness}
-          onChange={(floorThickness) => update({ floorThickness })}
-          field="floorThickness"
-          validation={validation}
-          min={2}
-          max={8}
-          step={0.2}
-        />
+        {isSolid ? null : (
+          <>
+            <NumberField
+              label="Rim width"
+              value={config.rimWidth}
+              onChange={(rimWidth) => update({ rimWidth })}
+              field="rimWidth"
+              validation={validation}
+              min={5}
+              max={18}
+              step={0.5}
+            />
+            <NumberField
+              label="Floor"
+              value={config.floorThickness}
+              onChange={(floorThickness) => update({ floorThickness })}
+              field="floorThickness"
+              validation={validation}
+              min={2}
+              max={8}
+              step={0.2}
+            />
+          </>
+        )}
         <NumberField
           label="Edge bevel"
           value={config.edgeBevel}
@@ -784,6 +798,28 @@ function MagnetControls({ config, update, validation }: ControlSectionProps) {
           ) : null}
         </>
       ) : null}
+    </SectionCard>
+  );
+}
+
+function PlainControls({ config }: ControlSectionProps) {
+  const layout = calculateHexTileLayout(config);
+  return (
+    <SectionCard title="Plain top">
+      <Typography variant="caption" sx={{ color: "text.secondary" }}>
+        Nothing is cut into this tile: {config.acrossFlats.toFixed(0)} mm across
+        the flats and {layout.topHeight.toFixed(1)} mm tall, flat from edge to
+        edge. Print a set, then paint them, flock them, or build terrain and
+        resource hexes on top.
+      </Typography>
+      <Typography variant="caption" sx={{ color: "text.secondary" }}>
+        Surface finish above carves its relief into the whole face rather than a
+        rim band, so a texture or an uploaded height map covers the entire hex.
+      </Typography>
+      <Typography variant="caption" sx={{ color: "text.secondary" }}>
+        The tile is solid, so it needs no rim or floor. Its height is free to
+        drop to whatever the magnets still fit in.
+      </Typography>
     </SectionCard>
   );
 }
@@ -1162,6 +1198,8 @@ function PurposeSpecificControls(props: ControlSectionProps) {
       return <CardControls {...props} />;
     case "dice-orbit":
       return <DiceOrbitControls {...props} />;
+    case "plain":
+      return <PlainControls {...props} />;
     case "rolling":
       return <RollingControls {...props} />;
     case "deck":
