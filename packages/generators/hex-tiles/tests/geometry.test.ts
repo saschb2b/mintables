@@ -682,6 +682,108 @@ describe("generateHexTileTriangles", () => {
     },
   );
 
+  it.each(SURFACE_TEXTURES)(
+    "runs %s relief out to the tile edge when asked",
+    (surfaceTexture) => {
+      const inset = {
+        ...DEFAULT_HEX_TILE_CONFIG,
+        purpose: "plain" as const,
+        isSurfaceTextureEnabled: true,
+        surfaceTexture,
+        isSurfaceTextureEdgeToEdge: false,
+      };
+      const edge = { ...inset, isSurfaceTextureEdgeToEdge: true };
+      const reliefReach = (config: typeof inset) => {
+        const floorZ = config.bodyHeight - config.surfaceTextureDepth;
+        const reach = triangleVertices(generateHexTileTriangles(config))
+          .filter(([, , z]) => z < config.bodyHeight - 1e-9 && z >= floorZ)
+          .map(([x, y]) =>
+            // How close the relief gets to the flat it sits nearest.
+            Math.max(
+              Math.abs(y),
+              Math.abs((Math.sqrt(3) * x) / 2 + y / 2),
+              Math.abs((Math.sqrt(3) * x) / 2 - y / 2),
+            ),
+          );
+        return Math.max(...reach);
+      };
+      // The top face stops one bevel short of the tile size.
+      const faceApothem =
+        DEFAULT_HEX_TILE_CONFIG.acrossFlats / 2 -
+        DEFAULT_HEX_TILE_CONFIG.edgeBevel;
+      const border = faceApothem - reliefReach(edge);
+
+      expect(isPrintableMesh(generateHexTileTriangles(edge))).toBe(true);
+      expect(
+        edgeUseCounts(generateHexTileTriangles(edge)).every(
+          (count) => count === 2,
+        ),
+      ).toBe(true);
+      // Cut flush, the pattern stops on the staggered cut line and nowhere
+      // short of it. Kept whole, it always ends further in.
+      expect(border).toBeGreaterThanOrEqual(0.45);
+      expect(border).toBeLessThanOrEqual(0.81);
+      expect(reliefReach(edge)).toBeGreaterThan(reliefReach(inset));
+    },
+  );
+
+  it("carries a custom height map into the corners of the tile", () => {
+    const samples = Uint8Array.from(
+      { length: CUSTOM_TEXTURE_SAMPLE_COUNT },
+      (_, index) => (index % 3 === 0 ? 0 : 200),
+    );
+    const config = {
+      ...DEFAULT_HEX_TILE_CONFIG,
+      purpose: "plain" as const,
+      isSurfaceTextureEnabled: true,
+      surfaceTexture: "custom" as const,
+      customTextureData: encodeCustomTextureSamples(samples),
+      isSurfaceTextureEdgeToEdge: true,
+    };
+    const cellReach = (edgeToEdge: boolean) =>
+      Math.max(
+        ...triangleVertices(
+          generateHexTileTriangles({
+            ...config,
+            isSurfaceTextureEdgeToEdge: edgeToEdge,
+          }),
+        )
+          .filter(
+            ([, , z]) =>
+              z < config.bodyHeight - 1e-9 &&
+              z > config.bodyHeight - config.surfaceTextureDepth - 1e-9,
+          )
+          .map(([x, y]) => Math.hypot(x, y)),
+      );
+    const triangles = generateHexTileTriangles(config);
+
+    expect(isPrintableMesh(triangles)).toBe(true);
+    expect(edgeUseCounts(triangles).every((count) => count === 2)).toBe(true);
+    // A map is always laid over the face itself, so clipping is what fills the
+    // corners the square sample grid otherwise leaves bare.
+    expect(cellReach(true)).toBeGreaterThan(cellReach(false));
+  });
+
+  it("keeps clipped relief clear of the bowl opening", () => {
+    const config = {
+      ...DEFAULT_HEX_TILE_CONFIG,
+      isSurfaceTextureEnabled: true,
+      surfaceTexture: "cobblestone" as const,
+      isSurfaceTextureEdgeToEdge: true,
+    };
+    const layout = calculateHexTileLayout(config);
+    const floorZ = config.bodyHeight - config.surfaceTextureDepth;
+    const reliefRadii = triangleVertices(generateHexTileTriangles(config))
+      .filter(([, , z]) => Math.abs(z - floorZ) < 1e-9)
+      .map(([x, y]) => Math.hypot(x, y));
+
+    expect(isPrintableMesh(generateHexTileTriangles(config))).toBe(true);
+    // Running to the outer edge must not let relief spill into the well.
+    expect(Math.min(...reliefRadii)).toBeGreaterThan(
+      layout.innerAcrossFlats / 2,
+    );
+  });
+
   it("keeps bowl relief outside the carved opening", () => {
     const config = {
       ...DEFAULT_HEX_TILE_CONFIG,

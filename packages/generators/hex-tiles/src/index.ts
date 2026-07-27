@@ -134,11 +134,29 @@ export function decodeHexTile(data: unknown): HexTileConfig | null {
   if (typeof data.isCustomTextureInverted === "boolean") {
     config.isCustomTextureInverted = data.isCustomTextureInverted;
   }
+  config.isSurfaceTextureEdgeToEdge = edgeToEdgeValue(
+    data,
+    config.isSurfaceTextureEdgeToEdge,
+  );
   config.bowlWellCount = wellCountValue(data, config.bowlWellCount);
   if (typeof data.isDeckCounterWellEnabled === "boolean") {
     config.isDeckCounterWellEnabled = data.isDeckCounterWellEnabled;
   }
   return config;
+}
+
+/**
+ * Relief always stopped short of the face edge before this was a choice, so a
+ * preset saved with a texture back then keeps the border it was saved with.
+ */
+function edgeToEdgeValue(
+  data: Record<string, unknown>,
+  fallback: boolean,
+): boolean {
+  if (typeof data.isSurfaceTextureEdgeToEdge === "boolean") {
+    return data.isSurfaceTextureEdgeToEdge;
+  }
+  return data.isSurfaceTextureEnabled === true ? false : fallback;
 }
 
 /** Presets saved before the well count was a number carry a divider flag. */

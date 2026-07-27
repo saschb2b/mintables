@@ -573,6 +573,22 @@ function SurfaceTextureControls({
             max={0.8}
             step={0.05}
           />
+          <FormControlLabel
+            control={
+              <Switch
+                checked={config.isSurfaceTextureEdgeToEdge}
+                onChange={(event) =>
+                  update({ isSurfaceTextureEdgeToEdge: event.target.checked })
+                }
+              />
+            }
+            label="Carry the relief to the tile edge"
+          />
+          <Typography variant="caption" sx={{ color: "text.secondary" }}>
+            {config.isSurfaceTextureEdgeToEdge
+              ? "The pattern is cut off flush with the edge, so it covers the face completely. Neighbouring tiles read as one continuous surface."
+              : "Only whole features are kept, so a smooth border follows the edge and every stone, plank, or panel stays intact."}
+          </Typography>
           {config.surfaceTexture === "custom" ? (
             <Stack spacing={1}>
               <Button
@@ -635,9 +651,9 @@ function SurfaceTextureControls({
             </Stack>
           ) : null}
           <Typography variant="caption" sx={{ color: "text.secondary" }}>
-            Shallow recessed detail stays clear of storage areas, card slots,
-            the orientation dot, and functional edges. A 0.4 mm depth is a
-            reliable two-layer starting point at 0.2 mm layer height.
+            Shallow recessed detail always stays clear of storage areas, card
+            slots, and the orientation dot. A 0.4 mm depth is a reliable
+            two-layer starting point at 0.2 mm layer height.
           </Typography>
         </>
       ) : (

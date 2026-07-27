@@ -33,6 +33,11 @@ export interface HexTileConfig {
   surfaceTexture: HexTileSurfaceTexture;
   /** Depth of the recessed top-surface relief. */
   surfaceTextureDepth: number;
+  /**
+   * Whether the relief runs out to the edge of the face, cut off where it
+   * meets it, or keeps whole features only and leaves a smooth border.
+   */
+  isSurfaceTextureEdgeToEdge: boolean;
   customTextureName: string;
   customTextureData: string;
   isCustomTextureInverted: boolean;
@@ -108,6 +113,7 @@ export const DEFAULT_HEX_TILE_CONFIG: HexTileConfig = {
   isSurfaceTextureEnabled: false,
   surfaceTexture: "wood-grain",
   surfaceTextureDepth: 0.4,
+  isSurfaceTextureEdgeToEdge: true,
   customTextureName: "",
   customTextureData: "",
   isCustomTextureInverted: false,
