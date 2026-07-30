@@ -83,6 +83,42 @@ describe("decodeHexTile", () => {
     });
   });
 
+  it("hydrates the pen holder options", () => {
+    const decoded = decodeHexTile({
+      purpose: "pens",
+      penShape: "hexagon",
+      penWallStyle: "lattice",
+      penCornerExponent: 3.5,
+      penCupWidth: 72,
+      penCupHeight: 95,
+      penWallThickness: 3,
+      penLatticeRows: 5,
+      penLatticeColumns: 14,
+      penLatticeSlatWidth: 5,
+      penSectionCount: 2,
+    });
+
+    expect(decoded).toMatchObject({
+      purpose: "pens",
+      penShape: "hexagon",
+      penWallStyle: "lattice",
+      penCornerExponent: 3.5,
+      penCupWidth: 72,
+      penCupHeight: 95,
+      penWallThickness: 3,
+      penLatticeRows: 5,
+      penLatticeColumns: 14,
+      penLatticeSlatWidth: 5,
+      penSectionCount: 2,
+    });
+    expect(
+      decodeHexTile({ penShape: "octagon", penWallStyle: "mesh" }),
+    ).toMatchObject({
+      penShape: DEFAULT_HEX_TILE_CONFIG.penShape,
+      penWallStyle: DEFAULT_HEX_TILE_CONFIG.penWallStyle,
+    });
+  });
+
   it("carries a preset saved with the old divider flag over to two wells", () => {
     expect(decodeHexTile({ bowlDivider: true })).toMatchObject({
       bowlWellCount: 2,

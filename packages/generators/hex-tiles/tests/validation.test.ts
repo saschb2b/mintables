@@ -203,6 +203,42 @@ describe("validateHexTileConfig", () => {
     ).toBe(true);
   });
 
+  it("accepts the default pen holder quietly", () => {
+    const result = validateHexTileConfig({
+      ...DEFAULT_HEX_TILE_CONFIG,
+      purpose: "pens",
+    });
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.warnings).toHaveLength(0);
+  });
+
+  it("rejects a pen cup that overflows the tile interior", () => {
+    const result = validateHexTileConfig({
+      ...DEFAULT_HEX_TILE_CONFIG,
+      purpose: "pens",
+      penCupWidth: 88,
+    });
+
+    expect(
+      result.errors.some((error) => error.code === "pen_cup_overflow"),
+    ).toBe(true);
+  });
+
+  it("warns when lattice slats climb too shallowly to print", () => {
+    const result = validateHexTileConfig({
+      ...DEFAULT_HEX_TILE_CONFIG,
+      purpose: "pens",
+      penLatticeColumns: 6,
+      penLatticeRows: 5,
+    });
+
+    expect(result.errors).toHaveLength(0);
+    expect(
+      result.warnings.some((warning) => warning.code === "pen_lattice_shallow"),
+    ).toBe(true);
+  });
+
   it("accepts the default rolling tray", () => {
     const result = validateHexTileConfig({
       ...DEFAULT_HEX_TILE_CONFIG,

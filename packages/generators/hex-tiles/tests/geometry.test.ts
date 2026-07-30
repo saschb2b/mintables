@@ -460,6 +460,57 @@ describe("generateHexTileTriangles", () => {
     expect(edgeUseCounts(triangles).every((count) => count === 2)).toBe(true);
   });
 
+  it("raises a closed kumiko pen cup above the tile", () => {
+    const config = { ...DEFAULT_HEX_TILE_CONFIG, purpose: "pens" as const };
+    const layout = calculateHexTileLayout(config);
+    const triangles = generateHexTileTriangles(config);
+    const analysis = analyzeTriangles(triangles);
+
+    expect(validateHexTileConfig(config).errors).toHaveLength(0);
+    expect(isPrintableMesh(triangles)).toBe(true);
+    expect(edgeUseCounts(triangles).every((count) => count === 2)).toBe(true);
+    expect(analysis.bounds.maxZ).toBeCloseTo(
+      config.bodyHeight + config.penCupHeight,
+      6,
+    );
+    expect(layout.overallHeight).toBeCloseTo(
+      config.bodyHeight + config.penCupHeight,
+      6,
+    );
+    // The slats climb steeply enough to print without supports.
+    expect(layout.penSlatAngle).toBeGreaterThan(40);
+    expect(layout.penLatticeOpening).toBeGreaterThan(2);
+  });
+
+  it("keeps a solid sectioned hexagon cup closed", () => {
+    const config = {
+      ...DEFAULT_HEX_TILE_CONFIG,
+      purpose: "pens" as const,
+      penShape: "hexagon" as const,
+      penWallStyle: "solid" as const,
+      penSectionCount: 3,
+      isSurfaceTextureEnabled: true,
+      surfaceTexture: "sci-fi-panels" as const,
+    };
+    const triangles = generateHexTileTriangles(config);
+    const dividerVertices = triangles
+      .flatMap((triangle) => [
+        [triangle[0], triangle[1], triangle[2]],
+        [triangle[3], triangle[4], triangle[5]],
+        [triangle[6], triangle[7], triangle[8]],
+      ])
+      .filter(
+        ([x, y, z]) =>
+          z > config.bodyHeight + 10 && Math.hypot(x, y) < 10 && y < 0,
+      );
+
+    expect(validateHexTileConfig(config).errors).toHaveLength(0);
+    expect(isPrintableMesh(triangles)).toBe(true);
+    expect(edgeUseCounts(triangles).every((count) => count === 2)).toBe(true);
+    // The spokes reach the middle of the cup well above the tile.
+    expect(dividerVertices.length).toBeGreaterThan(0);
+  });
+
   it("forms an outer dice trough and a higher center cup", () => {
     const config = {
       ...DEFAULT_HEX_TILE_CONFIG,

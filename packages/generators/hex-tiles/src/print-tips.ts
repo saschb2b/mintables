@@ -102,6 +102,23 @@ export function getHexTilePrintTips(config: HexTileConfig): PrintTip[] {
     });
   }
 
+  if (config.purpose === "pens") {
+    if (config.penWallStyle !== "solid") {
+      tips.push({
+        icon: "printer",
+        title: "Print the lattice slowly",
+        body: `The kumiko slats climb at ${layout.penSlatAngle.toFixed(0)} degrees with solid bands top and bottom, so no supports are needed. Halve the outer wall speed above the tile and keep part cooling high so the openwork stays crisp.`,
+        priority: 9,
+      });
+    }
+    tips.push({
+      icon: "gauge",
+      title: "Mind the height",
+      body: `The cup tops out at ${layout.overallHeight.toFixed(0)} mm. Tall thin prints amplify z wobble, so a stable printer surface matters more here than on flat tiles. The wide hex base needs no brim.`,
+      priority: 7,
+    });
+  }
+
   if (config.purpose === "rolling") {
     tips.push({
       icon: "layers",

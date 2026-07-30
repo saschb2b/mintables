@@ -12,10 +12,19 @@ export interface CardChannel {
   max: number;
 }
 
+/** Solid liner behind a lined kumiko lattice. */
+export const PEN_LINER_THICKNESS = 1.6;
+/** Solid band above and below the lattice. */
+export const PEN_BAND_HEIGHT = 6;
+/** How far the cup sinks into the tile so the two print as one. */
+export const PEN_SINK = 2;
+
 export interface HexTileLayout {
   pointToPoint: number;
   sideLength: number;
   topHeight: number;
+  /** Top of the tallest feature, the tile itself unless a cup rises above. */
+  overallHeight: number;
   innerAcrossFlats: number;
   /** Half the length of a top-face flat, the widest a through channel may sit. */
   topFlatHalfSpan: number;
@@ -41,6 +50,20 @@ export interface HexTileLayout {
   bowlDividerWall: number;
   /** Widest circle one well holds, walls already taken out. */
   bowlWellBandWidth: number;
+  /** Everything the cup wall takes, liner included. */
+  penWallTotal: number;
+  /** Clear width inside the cup. */
+  penOpeningWidth: number;
+  /** Outer perimeter of the cup, which the lattice wraps around. */
+  penPerimeter: number;
+  penCellWidth: number;
+  penCellHeight: number;
+  /** Slat climb measured from horizontal; steeper prints cleaner. */
+  penSlatAngle: number;
+  /** Clear vertical gap left inside one lattice diamond. */
+  penLatticeOpening: number;
+  /** Rough count of 10 mm pens the cup swallows. */
+  penCapacity: number;
   rollFloorZ: number;
   /** Across-flats size of the flat rolling floor, once draft and fillet are cut. */
   rollFloorAcrossFlats: number;
@@ -165,6 +188,48 @@ function placeNorthMarker(
   return candidates[0] ?? null;
 }
 
+/** Clamped superellipse exponent: 2 is a circle, higher squares the corners. */
+export function penExponent(config: HexTileConfig): number {
+  return Number.isFinite(config.penCornerExponent)
+    ? Math.min(8, Math.max(2, config.penCornerExponent))
+    : 2;
+}
+
+function penCupPerimeter(config: HexTileConfig): number {
+  if (!Number.isFinite(config.penCupWidth) || config.penCupWidth <= 0) return 0;
+  if (config.penShape === "hexagon") {
+    return 2 * Math.sqrt(3) * config.penCupWidth;
+  }
+  const a = config.penCupWidth / 2;
+  const n = penExponent(config);
+  let length = 0;
+  let previousX = a;
+  let previousY = 0;
+  const samples = 128;
+  for (let index = 1; index <= samples; index++) {
+    const t = (index / samples) * 2 * Math.PI;
+    const c = Math.cos(t);
+    const s = Math.sin(t);
+    const x = a * Math.sign(c) * Math.abs(c) ** (2 / n);
+    const y = a * Math.sign(s) * Math.abs(s) ** (2 / n);
+    length += Math.hypot(x - previousX, y - previousY);
+    previousX = x;
+    previousY = y;
+  }
+  return length;
+}
+
+/** Fraction of the bounding square a cup cross-section fills. */
+function penAreaFactor(config: HexTileConfig): number {
+  if (config.penShape === "hexagon") return 0.83;
+  // Superellipse area factors sampled at n = 2..6, interpolated between.
+  const table = [0.785, 0.849, 0.887, 0.911, 0.927];
+  const n = Math.min(6, penExponent(config));
+  const low = Math.min(table.length - 1, Math.max(0, Math.floor(n) - 2));
+  const high = Math.min(table.length - 1, low + 1);
+  return table[low] + (table[high] - table[low]) * (n - 2 - low);
+}
+
 export function calculateHexTileLayout(config: HexTileConfig): HexTileLayout {
   const pointToPoint = (2 * config.acrossFlats) / Math.sqrt(3);
   const sideLength = pointToPoint / 2;
@@ -208,6 +273,20 @@ export function calculateHexTileLayout(config: HexTileConfig): HexTileLayout {
       Math.max(0, config.rollDepth - config.rollFloorFillet) +
     config.rollFloorFillet;
 
+  const penWallTotal =
+    config.penWallStyle === "lined-lattice"
+      ? config.penWallThickness + PEN_LINER_THICKNESS
+      : config.penWallThickness;
+  const penOpeningWidth = config.penCupWidth - 2 * penWallTotal;
+  const penPerimeter = penCupPerimeter(config);
+  const penRows = Math.max(1, Math.round(config.penLatticeRows));
+  const penColumns = Math.max(3, Math.round(config.penLatticeColumns));
+  const penCellWidth = penPerimeter / penColumns;
+  const penCellHeight =
+    Math.max(1, config.penCupHeight - 2 * PEN_BAND_HEIGHT) / penRows;
+  const penInnerArea =
+    Math.max(0, penOpeningWidth) ** 2 * penAreaFactor(config);
+
   const slotWidth = deckSlotWidth(config);
   const deckSpan = Math.max(
     0,
@@ -245,6 +324,16 @@ export function calculateHexTileLayout(config: HexTileConfig): HexTileLayout {
     pointToPoint,
     sideLength,
     topHeight,
+    overallHeight:
+      topHeight + (config.purpose === "pens" ? config.penCupHeight : 0),
+    penWallTotal,
+    penOpeningWidth,
+    penPerimeter,
+    penCellWidth,
+    penCellHeight,
+    penSlatAngle: (Math.atan2(penCellHeight, penCellWidth) * 180) / Math.PI,
+    penLatticeOpening: penCellHeight - 2 * config.penLatticeSlatWidth,
+    penCapacity: Math.max(0, Math.floor(penInnerArea / 140)),
     innerAcrossFlats,
     topFlatHalfSpan,
     cardChannelCount: channels.length,

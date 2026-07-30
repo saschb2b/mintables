@@ -25,6 +25,7 @@ import {
   ImageUp,
   Layers,
   PanelsTopLeft,
+  PenLine,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -40,6 +41,8 @@ import type {
   HexTileConfig,
   HexTileDividerAngle,
   HexTileMagnetMode,
+  HexTilePenShape,
+  HexTilePenWallStyle,
   HexTilePurpose,
   HexTileSurfaceTexture,
 } from "./types";
@@ -94,6 +97,12 @@ const PURPOSES: PurposeOption[] = [
     description:
       "Decks stand on edge in open channels, with wells for counters.",
     icon: Layers,
+  },
+  {
+    value: "pens",
+    label: "Pen holder",
+    description: "A kumiko desk organizer cup rising from the tile.",
+    icon: PenLine,
   },
 ];
 
@@ -950,6 +959,230 @@ function CardControls({ config, update, validation }: ControlSectionProps) {
   );
 }
 
+const PEN_WALL_STYLES: {
+  value: HexTilePenWallStyle;
+  label: string;
+  description: string;
+}[] = [
+  {
+    value: "lined-lattice",
+    label: "Kumiko over a liner",
+    description:
+      "The diamond lattice wraps a solid inner wall, so pens never poke through.",
+  },
+  {
+    value: "lattice",
+    label: "Open kumiko",
+    description: "Pure openwork between two solid bands. Light and airy.",
+  },
+  {
+    value: "solid",
+    label: "Solid wall",
+    description: "A plain cup wall. Fastest print, quietest look.",
+  },
+];
+
+function PenControls({ config, update, validation }: ControlSectionProps) {
+  const layout = calculateHexTileLayout(config);
+  const showLattice = config.penWallStyle !== "solid";
+  const selectedStyle =
+    PEN_WALL_STYLES.find((style) => style.value === config.penWallStyle) ??
+    PEN_WALL_STYLES[0];
+  return (
+    <SectionCard title="Pen cup">
+      <Box>
+        <Typography
+          variant="caption"
+          component="p"
+          sx={{ color: "text.secondary", mb: 0.75 }}
+        >
+          Cup shape
+        </Typography>
+        <ToggleButtonGroup
+          exclusive
+          fullWidth
+          size="small"
+          value={config.penShape}
+          aria-label="Cup shape"
+          onChange={(_, value: HexTilePenShape | null) => {
+            if (value) update({ penShape: value });
+          }}
+        >
+          <ToggleButton value="superellipse">Superellipse</ToggleButton>
+          <ToggleButton value="hexagon">Hexagon</ToggleButton>
+        </ToggleButtonGroup>
+      </Box>
+      <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1.5 }}>
+        {config.penShape === "superellipse" ? (
+          <NumberField
+            label="Corner exponent"
+            value={config.penCornerExponent}
+            onChange={(penCornerExponent) => update({ penCornerExponent })}
+            field="penCornerExponent"
+            validation={validation}
+            min={2}
+            max={6}
+            step={0.5}
+          />
+        ) : null}
+        <NumberField
+          label="Cup width"
+          value={config.penCupWidth}
+          onChange={(penCupWidth) => update({ penCupWidth })}
+          field="penCupWidth"
+          validation={validation}
+          min={40}
+          max={160}
+          step={1}
+        />
+        <NumberField
+          label="Cup height"
+          value={config.penCupHeight}
+          onChange={(penCupHeight) => update({ penCupHeight })}
+          field="penCupHeight"
+          validation={validation}
+          min={30}
+          max={120}
+          step={1}
+        />
+        <NumberField
+          label="Wall"
+          value={config.penWallThickness}
+          onChange={(penWallThickness) => update({ penWallThickness })}
+          field="penWallThickness"
+          validation={validation}
+          min={1.6}
+          max={5}
+          step={0.2}
+        />
+      </Box>
+      <FormControl fullWidth size="small">
+        <InputLabel id="hex-tile-pen-wall-label">Wall style</InputLabel>
+        <Select<HexTilePenWallStyle>
+          id="hex-tile-pen-wall"
+          labelId="hex-tile-pen-wall-label"
+          label="Wall style"
+          value={config.penWallStyle}
+          onChange={(event: SelectChangeEvent<HexTilePenWallStyle>) =>
+            update({
+              penWallStyle: event.target.value as HexTilePenWallStyle,
+            })
+          }
+          renderValue={() => (
+            <Box sx={{ minWidth: 0 }}>
+              <Typography
+                variant="body2"
+                sx={{ color: "text.primary", fontWeight: 600 }}
+              >
+                {selectedStyle.label}
+              </Typography>
+            </Box>
+          )}
+        >
+          {PEN_WALL_STYLES.map((style) => (
+            <MenuItem
+              key={style.value}
+              value={style.value}
+              sx={{ px: 1.5, py: 1, whiteSpace: "normal" }}
+            >
+              <Box sx={{ minWidth: 0 }}>
+                <Typography
+                  variant="body2"
+                  sx={{ color: "text.primary", fontWeight: 600 }}
+                >
+                  {style.label}
+                </Typography>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: "text.secondary",
+                    display: "block",
+                    lineHeight: 1.35,
+                  }}
+                >
+                  {style.description}
+                </Typography>
+              </Box>
+            </MenuItem>
+          ))}
+        </Select>
+      </FormControl>
+      {showLattice ? (
+        <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1.5 }}>
+          <NumberField
+            label="Diamond rows"
+            value={config.penLatticeRows}
+            onChange={(penLatticeRows) =>
+              update({ penLatticeRows: Math.round(penLatticeRows) })
+            }
+            field="penLatticeRows"
+            validation={validation}
+            min={2}
+            max={8}
+            step={1}
+          />
+          <NumberField
+            label="Diamond columns"
+            value={config.penLatticeColumns}
+            onChange={(penLatticeColumns) =>
+              update({ penLatticeColumns: Math.round(penLatticeColumns) })
+            }
+            field="penLatticeColumns"
+            validation={validation}
+            min={6}
+            max={24}
+            step={1}
+          />
+          <NumberField
+            label="Slat width"
+            value={config.penLatticeSlatWidth}
+            onChange={(penLatticeSlatWidth) => update({ penLatticeSlatWidth })}
+            field="penLatticeSlatWidth"
+            validation={validation}
+            min={3}
+            max={8}
+            step={0.5}
+          />
+        </Box>
+      ) : null}
+      <Box>
+        <Typography
+          variant="caption"
+          component="p"
+          sx={{ color: "text.secondary", mb: 0.75 }}
+        >
+          Pen sections
+        </Typography>
+        <ToggleButtonGroup
+          exclusive
+          fullWidth
+          size="small"
+          value={Math.min(3, Math.max(1, Math.round(config.penSectionCount)))}
+          aria-label="Pen sections"
+          onChange={(_, value: number | null) => {
+            if (value) update({ penSectionCount: value });
+          }}
+        >
+          <ToggleButton value={1}>Open</ToggleButton>
+          <ToggleButton value={2}>Two</ToggleButton>
+          <ToggleButton value={3}>Three</ToggleButton>
+        </ToggleButtonGroup>
+      </Box>
+      <Typography variant="caption" sx={{ color: "text.secondary" }}>
+        The {layout.penOpeningWidth.toFixed(0)} mm opening swallows roughly{" "}
+        {String(layout.penCapacity)} pens.
+        {showLattice
+          ? ` Slats climb at ${layout.penSlatAngle.toFixed(0)} degrees; keep them above 40 so the openwork prints cleanly.`
+          : ""}
+      </Typography>
+      <Typography variant="caption" sx={{ color: "text.secondary" }}>
+        The cup sinks 2 mm into the tile and prints with it as one part, so the
+        tile stays the connection layer for the rest of the set.
+      </Typography>
+    </SectionCard>
+  );
+}
+
 function DeckControls({ config, update, validation }: ControlSectionProps) {
   const layout = calculateHexTileLayout(config);
   return (
@@ -1166,6 +1399,8 @@ function PurposeSpecificControls(props: ControlSectionProps) {
       return <RollingControls {...props} />;
     case "deck":
       return <DeckControls {...props} />;
+    case "pens":
+      return <PenControls {...props} />;
   }
 }
 

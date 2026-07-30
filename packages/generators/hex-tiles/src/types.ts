@@ -3,7 +3,12 @@ export type HexTilePurpose =
   | "cards"
   | "deck"
   | "dice-orbit"
+  | "pens"
   | "rolling";
+
+export type HexTilePenShape = "superellipse" | "hexagon";
+
+export type HexTilePenWallStyle = "solid" | "lattice" | "lined-lattice";
 
 export type HexTileMagnetMode = "none" | "single" | "captive" | "paired";
 
@@ -85,6 +90,25 @@ export interface HexTileConfig {
   orbitCenterRaise: number;
   orbitCenterDepth: number;
 
+  /** Plan shape of the pen cup rising from the tile. */
+  penShape: HexTilePenShape;
+  /** Superellipse exponent: 2 is a circle, higher squares the corners. */
+  penCornerExponent: number;
+  /** Across-flats width of the cup at its base. */
+  penCupWidth: number;
+  /** How far the cup rises above the tile surface. */
+  penCupHeight: number;
+  penWallThickness: number;
+  penWallStyle: HexTilePenWallStyle;
+  /** Diamond rows in the kumiko lattice. */
+  penLatticeRows: number;
+  /** Diamond columns around the cup. */
+  penLatticeColumns: number;
+  /** Vertical thickness of each lattice slat. */
+  penLatticeSlatWidth: number;
+  /** Interior pen sections (1 leaves the cup open). */
+  penSectionCount: number;
+
   /** Drop from the rim to the rolling floor. */
   rollDepth: number;
   /** Plan-view rounding on the six corners of the rolling well. */
@@ -141,6 +165,17 @@ export const DEFAULT_HEX_TILE_CONFIG: HexTileConfig = {
   orbitCenterDiameter: 36,
   orbitCenterRaise: 7,
   orbitCenterDepth: 4.5,
+
+  penShape: "superellipse",
+  penCornerExponent: 4,
+  penCupWidth: 68,
+  penCupHeight: 80,
+  penWallThickness: 2.4,
+  penWallStyle: "lined-lattice",
+  penLatticeRows: 3,
+  penLatticeColumns: 12,
+  penLatticeSlatWidth: 4.5,
+  penSectionCount: 1,
 
   rollDepth: 11,
   rollCornerRadius: 6,

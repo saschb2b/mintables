@@ -15,6 +15,7 @@ function purposeName(config: HexTileConfig): string {
   if (config.purpose === "dice-orbit") return "Dice orbit";
   if (config.purpose === "rolling") return "Rolling tray";
   if (config.purpose === "deck") return "Deck cradle";
+  if (config.purpose === "pens") return "Pen holder";
   return "Component bowl";
 }
 
@@ -76,6 +77,12 @@ export function HexTileSummary({ config }: { config: HexTileConfig }) {
         <SpecRow
           label="Rolling depth"
           value={`${config.rollDepth.toFixed(1)} mm`}
+        />
+      ) : null}
+      {config.purpose === "pens" ? (
+        <SpecRow
+          label="Cup"
+          value={`${config.penCupWidth.toFixed(0)} mm wide, ${config.penCupHeight.toFixed(0)} mm above the tile`}
         />
       ) : null}
       {config.purpose === "deck" ? (

@@ -5,8 +5,9 @@
 import { decodeCustomTextureSamples } from "./custom-height-map";
 import {
   calculateHexTileLayout,
-  throughChannels,
   cardSlotPlan,
+  penExponent,
+  throughChannels,
   type CardChannel,
   type HexTileLayout,
 } from "./layout";
@@ -616,6 +617,168 @@ export function validateHexTileConfig(config: HexTileConfig): ValidationResult {
           "deck_wells_crowded",
           "The cradles leave no room for corner wells, so this tile prints without them.",
           "isDeckCounterWellEnabled",
+        ),
+      );
+    }
+  }
+
+  if (config.purpose === "pens") {
+    if (!finiteInRange(config.penCupWidth, 40, 160)) {
+      errors.push(
+        issue(
+          "error",
+          "pen_width_range",
+          "Cup width must be between 40 and 160 mm.",
+          "penCupWidth",
+        ),
+      );
+    } else {
+      // The widest reach of the cup against the interior hexagon in that
+      // direction: corners land at 45 degrees for the superellipse and on the
+      // tile corners for the hex cup.
+      const apothem = layout.innerAcrossFlats / 2;
+      const overflow =
+        config.penShape === "hexagon"
+          ? config.penCupWidth / Math.sqrt(3) >
+            apothem / Math.cos(Math.PI / 6) - 1
+          : (config.penCupWidth / 2) * 2 ** (1 / 2 - 1 / penExponent(config)) >
+              apothem / Math.cos(Math.PI / 12) - 1 ||
+            config.penCupWidth / 2 > apothem - 1;
+      if (overflow) {
+        errors.push(
+          issue(
+            "error",
+            "pen_cup_overflow",
+            "The cup does not fit the tile interior. Reduce the width or corner exponent, widen the tile, or narrow the rim.",
+            "penCupWidth",
+          ),
+        );
+      }
+    }
+    if (!finiteInRange(config.penCupHeight, 30, 120)) {
+      errors.push(
+        issue(
+          "error",
+          "pen_height_range",
+          "Cup height must be between 30 and 120 mm.",
+          "penCupHeight",
+        ),
+      );
+    }
+    if (!finiteInRange(config.penWallThickness, 1.6, 5)) {
+      errors.push(
+        issue(
+          "error",
+          "pen_wall_range",
+          "Cup wall must be between 1.6 and 5 mm.",
+          "penWallThickness",
+        ),
+      );
+    }
+    if (
+      config.penShape === "superellipse" &&
+      !finiteInRange(config.penCornerExponent, 2, 6)
+    ) {
+      errors.push(
+        issue(
+          "error",
+          "pen_exponent_range",
+          "The corner exponent must be between 2 (a circle) and 6.",
+          "penCornerExponent",
+        ),
+      );
+    }
+    if (
+      !Number.isInteger(config.penSectionCount) ||
+      config.penSectionCount < 1 ||
+      config.penSectionCount > 3
+    ) {
+      errors.push(
+        issue(
+          "error",
+          "pen_sections_range",
+          "The cup holds between 1 and 3 pen sections.",
+          "penSectionCount",
+        ),
+      );
+    }
+    if (config.penWallStyle !== "solid") {
+      if (
+        !Number.isInteger(config.penLatticeRows) ||
+        config.penLatticeRows < 2 ||
+        config.penLatticeRows > 8
+      ) {
+        errors.push(
+          issue(
+            "error",
+            "pen_lattice_rows_range",
+            "Use between 2 and 8 diamond rows.",
+            "penLatticeRows",
+          ),
+        );
+      }
+      if (
+        !Number.isInteger(config.penLatticeColumns) ||
+        config.penLatticeColumns < 6 ||
+        config.penLatticeColumns > 24
+      ) {
+        errors.push(
+          issue(
+            "error",
+            "pen_lattice_columns_range",
+            "Use between 6 and 24 diamond columns.",
+            "penLatticeColumns",
+          ),
+        );
+      }
+      if (!finiteInRange(config.penLatticeSlatWidth, 3, 8)) {
+        errors.push(
+          issue(
+            "error",
+            "pen_slat_range",
+            "Lattice slats must be between 3 and 8 mm.",
+            "penLatticeSlatWidth",
+          ),
+        );
+      }
+      if (config.penCupHeight < 2 * 6 + 12) {
+        errors.push(
+          issue(
+            "error",
+            "pen_lattice_short",
+            "A lattice cup needs at least 24 mm of height for its bands and one open row.",
+            "penCupHeight",
+          ),
+        );
+      }
+      if (errors.length === 0 && layout.penLatticeOpening < 2) {
+        warnings.push(
+          issue(
+            "warning",
+            "pen_lattice_closed",
+            "The diamonds nearly close up. Use fewer rows, thinner slats, or a taller cup to open the pattern.",
+            "penLatticeSlatWidth",
+          ),
+        );
+      }
+      if (errors.length === 0 && layout.penSlatAngle < 40) {
+        warnings.push(
+          issue(
+            "warning",
+            "pen_lattice_shallow",
+            `The slats climb at only ${layout.penSlatAngle.toFixed(0)} degrees, which can droop while printing. Add columns or remove rows to steepen them.`,
+            "penLatticeColumns",
+          ),
+        );
+      }
+    }
+    if (errors.length === 0 && layout.penOpeningWidth < 35) {
+      warnings.push(
+        issue(
+          "warning",
+          "pen_opening_tight",
+          `A ${layout.penOpeningWidth.toFixed(1)} mm opening is tight for a handful of pens. Widen the cup or thin its wall.`,
+          "penCupWidth",
         ),
       );
     }

@@ -34,6 +34,7 @@ function purposeValue(
     value === "cards" ||
     value === "deck" ||
     value === "dice-orbit" ||
+    value === "pens" ||
     value === "rolling"
     ? value
     : fallback;
@@ -108,6 +109,14 @@ export function decodeHexTile(data: unknown): HexTileConfig | null {
     "deckCardThickness",
     "deckSlotCount",
     "deckSlotDepth",
+    "penCornerExponent",
+    "penCupWidth",
+    "penCupHeight",
+    "penWallThickness",
+    "penLatticeRows",
+    "penLatticeColumns",
+    "penLatticeSlatWidth",
+    "penSectionCount",
   ] as const) {
     config[key] = finiteNumber(data[key], config[key]);
   }
@@ -137,6 +146,16 @@ export function decodeHexTile(data: unknown): HexTileConfig | null {
   if (typeof data.isDeckCounterWellEnabled === "boolean") {
     config.isDeckCounterWellEnabled = data.isDeckCounterWellEnabled;
   }
+  if (data.penShape === "superellipse" || data.penShape === "hexagon") {
+    config.penShape = data.penShape;
+  }
+  if (
+    data.penWallStyle === "solid" ||
+    data.penWallStyle === "lattice" ||
+    data.penWallStyle === "lined-lattice"
+  ) {
+    config.penWallStyle = data.penWallStyle;
+  }
   return config;
 }
 
@@ -163,6 +182,7 @@ function purposeLabel(config: HexTileConfig): string {
   if (config.purpose === "cards") return "card-rack";
   if (config.purpose === "deck") return "deck-cradle";
   if (config.purpose === "dice-orbit") return "dice-orbit";
+  if (config.purpose === "pens") return "pen-holder";
   if (config.purpose === "rolling") return "rolling-tray";
   return `${wellName(calculateHexTileLayout(config).bowlWellCount)}-bowl`;
 }
@@ -175,6 +195,8 @@ function purposeBadge(config: HexTileConfig): string {
       return `${String(config.deckSlotCount)}-deck cradle`;
     case "dice-orbit":
       return "Dice orbit";
+    case "pens":
+      return config.penWallStyle === "solid" ? "Pen holder" : "Kumiko pens";
     case "rolling":
       return "Rolling tray";
     case "bowl": {
@@ -203,7 +225,7 @@ export const hexTileGenerator: Generator<HexTileConfig> = {
     name: "Hex Tiles",
     tagline: "Magnetic Tabletop Tile Generator",
     description:
-      "Create connectable hex tiles with smooth component bowls, card racks, dice rolling trays, and elevated dice displays.",
+      "Create connectable hex tiles with smooth component bowls, card racks, dice rolling trays, kumiko pen holders, and elevated dice displays.",
     icon: Hexagon,
     accent: "#ef4444",
     iconArt: HexTileIconArt,

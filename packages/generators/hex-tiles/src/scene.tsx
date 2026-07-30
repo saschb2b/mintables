@@ -135,12 +135,12 @@ export function HexTileScene({
   const maxDimension = Math.max(
     layout.pointToPoint,
     config.acrossFlats,
-    layout.topHeight,
+    layout.overallHeight,
   );
   const bounds = {
     maxDimension,
     cameraDistance: maxDimension * 1.7,
-    orbitTarget: [0, layout.topHeight * 0.3, 0] as [number, number, number],
+    orbitTarget: [0, layout.overallHeight * 0.3, 0] as [number, number, number],
   };
 
   const changeRenderView = (nextView: RenderView) => {

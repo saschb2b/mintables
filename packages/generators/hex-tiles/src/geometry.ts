@@ -6,8 +6,12 @@ import {
 } from "./custom-height-map";
 import {
   calculateHexTileLayout,
-  throughChannels,
   cardSlotPlan,
+  penExponent,
+  PEN_BAND_HEIGHT,
+  PEN_LINER_THICKNESS,
+  PEN_SINK,
+  throughChannels,
   type CardChannel,
 } from "./layout";
 import type { HexTileConfig } from "./types";
@@ -478,9 +482,23 @@ function surfaceTextureGrooves(
       candidates = customHeightMapCandidates(config, outer);
       break;
   }
-  return candidates.filter((candidate) =>
-    textureCandidateFits(candidate.outline, outer, blocked),
-  );
+  // The patterns place grooves on regular grids, so points of different
+  // grooves land on exactly shared coordinates, and the ear clipper can
+  // bridge straight through such colinear runs and drop an edge. A jitter two
+  // hundredths of a millimetre wide, far below anything a nozzle resolves,
+  // makes every such tie decisive. It has to be this coarse: a subtler nudge
+  // only turns exact ties into precision-level ones, which clip worse.
+  return candidates
+    .filter((candidate) =>
+      textureCandidateFits(candidate.outline, outer, blocked),
+    )
+    .map((candidate) => ({
+      depthScale: candidate.depthScale,
+      outline: candidate.outline.map((point) => ({
+        x: point.x + (patternHash(point.x, point.y, 71) - 0.5) * 0.04,
+        y: point.y + (patternHash(point.y, point.x, 72) - 0.5) * 0.04,
+      })),
+    }));
 }
 
 function roundedRectangle(
@@ -1096,6 +1114,8 @@ function buildTopFace(
   topZ: number,
   channels: CardChannel[] = [],
   cells?: FaceCells,
+  /** Regions texture relief must stay clear of that are not holes: something solid stands there. */
+  blockedOnly: Point2[][] = [],
 ): void {
   const marker = northMarkerOutline(config);
   const blocked = [
@@ -1105,6 +1125,7 @@ function buildTopFace(
     ...(cells && cells.length > 1 ? cells : []).flatMap((cell) =>
       cell.map((half) => cutFootprint(config, half)),
     ),
+    ...blockedOnly,
   ];
   const textureGrooves = surfaceTextureGrooves(config, outer, blocked);
   const holes = [
@@ -2086,6 +2107,372 @@ function buildRollingInterior(
   buildTexturedFloor(triangles, config, previous, floorZ);
 }
 
+function superellipseOutline(
+  width: number,
+  exponent: number,
+  segments = 96,
+): Point2[] {
+  const a = width / 2;
+  return Array.from({ length: segments }, (_, index) => {
+    const t = (index / segments) * 2 * Math.PI;
+    const c = Math.cos(t);
+    const s = Math.sin(t);
+    return {
+      x: a * Math.sign(c) * Math.abs(c) ** (2 / exponent),
+      y: a * Math.sign(s) * Math.abs(s) ** (2 / exponent),
+    };
+  });
+}
+
+/**
+ * The cup's outer outline plus an inset that keeps the point count, so any
+ * two rings wall together directly.
+ */
+function penCupOutlines(config: HexTileConfig): {
+  outer: Point2[];
+  insetBy: (distance: number) => Point2[];
+} {
+  if (config.penShape === "hexagon") {
+    const radius = Math.min(12, Math.max(3, config.penCupWidth * 0.15));
+    return {
+      outer: roundedHex(config.penCupWidth, radius),
+      insetBy: (distance) =>
+        roundedHex(config.penCupWidth - 2 * distance, radius - distance),
+    };
+  }
+  const outer = superellipseOutline(config.penCupWidth, penExponent(config));
+  return {
+    outer,
+    insetBy: (distance) => shrinkConvexPolygon(outer, distance),
+  };
+}
+
+/** A closed wall ring between two same-count outlines. */
+function buildPenRing(
+  triangles: number[][],
+  outer: Point2[],
+  inner: Point2[],
+  zLow: number,
+  zHigh: number,
+): void {
+  buildContourWall(triangles, outer, outer, zLow, zHigh, "outward");
+  buildContourWall(triangles, inner, inner, zLow, zHigh, "inward");
+  buildAnnularFace(triangles, outer, inner, zHigh, "up");
+  buildAnnularFace(triangles, outer, inner, zLow, "down");
+}
+
+/** A closed straight-walled prism over a convex plan outline. */
+function buildPenPrism(
+  triangles: number[][],
+  outline: Point2[],
+  zLow: number,
+  zHigh: number,
+): void {
+  buildFanFace(triangles, outline, zLow, "down");
+  buildFanFace(triangles, outline, zHigh, "up");
+  buildContourWall(triangles, outline, outline, zLow, zHigh, "outward");
+}
+
+interface PenTrack {
+  length: number;
+  pointAt(s: number): { outer: Point2; inner: Point2 };
+}
+
+/**
+ * Arc-length lookup along the cup wall. Outer and inner points share segment
+ * indices, so a lattice slat keeps a consistent radial thickness while it
+ * winds around the cup.
+ */
+function outlineTrack(outer: Point2[], inner: Point2[]): PenTrack {
+  const count = outer.length;
+  const starts: number[] = [0];
+  for (let index = 0; index < count; index++) {
+    const next = outer[(index + 1) % count];
+    starts.push(
+      starts[index] +
+        Math.hypot(next.x - outer[index].x, next.y - outer[index].y),
+    );
+  }
+  const total = starts[count];
+  return {
+    length: total,
+    pointAt(s: number) {
+      let wrapped = s % total;
+      if (wrapped < 0) wrapped += total;
+      let index = 0;
+      while (index < count - 1 && starts[index + 1] <= wrapped) index++;
+      const segment = starts[index + 1] - starts[index];
+      const t = segment > 0 ? (wrapped - starts[index]) / segment : 0;
+      const outerA = outer[index];
+      const outerB = outer[(index + 1) % count];
+      const innerA = inner[index];
+      const innerB = inner[(index + 1) % count];
+      return {
+        outer: {
+          x: outerA.x + (outerB.x - outerA.x) * t,
+          y: outerA.y + (outerB.y - outerA.y) * t,
+        },
+        inner: {
+          x: innerA.x + (innerB.x - innerA.x) * t,
+          y: innerA.y + (innerB.y - innerA.y) * t,
+        },
+      };
+    },
+  };
+}
+
+/**
+ * One kumiko slat: a closed ribbon of wall thickness that climbs around the
+ * cup. Crossing slats and the bands they end inside overlap as separate
+ * closed solids; the slicer unions them.
+ */
+function buildLatticeSlat(
+  triangles: number[][],
+  track: PenTrack,
+  startS: number,
+  run: number,
+  zLow: number,
+  zHigh: number,
+  slatWidth: number,
+): void {
+  const steps = Math.max(12, Math.ceil(Math.abs(run) / 2.5));
+  const half = slatWidth / 2;
+  const samples = Array.from({ length: steps + 1 }, (_, index) => {
+    const t = index / steps;
+    return {
+      point: track.pointAt(startS + run * t),
+      z: zLow + (zHigh - zLow) * t,
+    };
+  });
+
+  for (let index = 0; index < steps; index++) {
+    const a = samples[index];
+    const b = samples[index + 1];
+    const radialOut: Point3 = [
+      a.point.outer.x - a.point.inner.x,
+      a.point.outer.y - a.point.inner.y,
+      0,
+    ];
+    addOrientedQuad(
+      triangles,
+      [a.point.outer.x, a.point.outer.y, a.z - half],
+      [b.point.outer.x, b.point.outer.y, b.z - half],
+      [b.point.outer.x, b.point.outer.y, b.z + half],
+      [a.point.outer.x, a.point.outer.y, a.z + half],
+      radialOut,
+    );
+    addOrientedQuad(
+      triangles,
+      [a.point.inner.x, a.point.inner.y, a.z - half],
+      [b.point.inner.x, b.point.inner.y, b.z - half],
+      [b.point.inner.x, b.point.inner.y, b.z + half],
+      [a.point.inner.x, a.point.inner.y, a.z + half],
+      [-radialOut[0], -radialOut[1], 0],
+    );
+    addOrientedQuad(
+      triangles,
+      [a.point.outer.x, a.point.outer.y, a.z + half],
+      [b.point.outer.x, b.point.outer.y, b.z + half],
+      [b.point.inner.x, b.point.inner.y, b.z + half],
+      [a.point.inner.x, a.point.inner.y, a.z + half],
+      [0, 0, 1],
+    );
+    addOrientedQuad(
+      triangles,
+      [a.point.outer.x, a.point.outer.y, a.z - half],
+      [b.point.outer.x, b.point.outer.y, b.z - half],
+      [b.point.inner.x, b.point.inner.y, b.z - half],
+      [a.point.inner.x, a.point.inner.y, a.z - half],
+      [0, 0, -1],
+    );
+  }
+
+  const first = samples[0];
+  const second = samples[1];
+  const last = samples[steps];
+  const beforeLast = samples[steps - 1];
+  addOrientedQuad(
+    triangles,
+    [first.point.outer.x, first.point.outer.y, first.z - half],
+    [first.point.inner.x, first.point.inner.y, first.z - half],
+    [first.point.inner.x, first.point.inner.y, first.z + half],
+    [first.point.outer.x, first.point.outer.y, first.z + half],
+    [
+      first.point.outer.x - second.point.outer.x,
+      first.point.outer.y - second.point.outer.y,
+      first.z - second.z,
+    ],
+  );
+  addOrientedQuad(
+    triangles,
+    [last.point.outer.x, last.point.outer.y, last.z - half],
+    [last.point.inner.x, last.point.inner.y, last.z - half],
+    [last.point.inner.x, last.point.inner.y, last.z + half],
+    [last.point.outer.x, last.point.outer.y, last.z + half],
+    [
+      last.point.outer.x - beforeLast.point.outer.x,
+      last.point.outer.y - beforeLast.point.outer.y,
+      last.z - beforeLast.z,
+    ],
+  );
+}
+
+/** Radius of the outline in one direction, off its nearest sampled point. */
+function outlineRadiusAt(outline: Point2[], angle: number): number {
+  let radius = 0;
+  let bestDifference = Number.POSITIVE_INFINITY;
+  for (const point of outline) {
+    let difference = Math.abs(Math.atan2(point.y, point.x) - angle);
+    if (difference > Math.PI) difference = 2 * Math.PI - difference;
+    if (difference < bestDifference) {
+      bestDifference = difference;
+      radius = Math.hypot(point.x, point.y);
+    }
+  }
+  return radius;
+}
+
+/** Straight walls splitting the cup into pen sections, flush with the rim. */
+function buildPenDividers(
+  triangles: number[][],
+  config: HexTileConfig,
+  outer: Point2[],
+  zBase: number,
+  zTop: number,
+): void {
+  const layout = calculateHexTileLayout(config);
+  const sections = Math.min(3, Math.max(1, Math.round(config.penSectionCount)));
+  if (sections < 2) return;
+  const half = config.penWallThickness / 2;
+  const reach = (angle: number) =>
+    outlineRadiusAt(outer, angle) - layout.penWallTotal / 2;
+
+  if (sections === 2) {
+    const north = reach(Math.PI / 2);
+    const south = reach(-Math.PI / 2);
+    buildPenPrism(
+      triangles,
+      [
+        { x: -half, y: -south },
+        { x: half, y: -south },
+        { x: half, y: north },
+        { x: -half, y: north },
+      ],
+      zBase,
+      zTop,
+    );
+    return;
+  }
+
+  for (const angle of [Math.PI / 2, (7 * Math.PI) / 6, (11 * Math.PI) / 6]) {
+    const direction = { x: Math.cos(angle), y: Math.sin(angle) };
+    const perpendicular = { x: -direction.y, y: direction.x };
+    const length = reach(angle);
+    buildPenPrism(
+      triangles,
+      [
+        { x: -perpendicular.x * half, y: -perpendicular.y * half },
+        {
+          x: direction.x * length - perpendicular.x * half,
+          y: direction.y * length - perpendicular.y * half,
+        },
+        {
+          x: direction.x * length + perpendicular.x * half,
+          y: direction.y * length + perpendicular.y * half,
+        },
+        { x: perpendicular.x * half, y: perpendicular.y * half },
+      ],
+      zBase,
+      zTop,
+    );
+  }
+}
+
+/**
+ * A pen cup rising from the tile, after the kumiko desk organizers: a
+ * superellipse (or hex) wall, either solid or an openwork diamond lattice,
+ * optionally over a solid liner so pens cannot poke through the pattern. The
+ * cup sinks into the tile body so the print fuses into one part.
+ */
+function buildPenHolder(
+  triangles: number[][],
+  config: HexTileConfig,
+  topOutline: Point2[],
+): void {
+  const layout = calculateHexTileLayout(config);
+  const { outer, insetBy } = penCupOutlines(config);
+  buildTopFace(
+    triangles,
+    config,
+    topOutline,
+    [],
+    layout.topHeight,
+    [],
+    undefined,
+    [outer],
+  );
+
+  const zBase = layout.topHeight - PEN_SINK;
+  const zTop = layout.topHeight + config.penCupHeight;
+  const wall = config.penWallThickness;
+
+  if (config.penWallStyle === "solid") {
+    buildPenRing(triangles, outer, insetBy(wall), zBase, zTop);
+  } else {
+    const latticeInner = insetBy(wall);
+    buildPenRing(
+      triangles,
+      outer,
+      latticeInner,
+      zBase,
+      layout.topHeight + PEN_BAND_HEIGHT,
+    );
+    buildPenRing(triangles, outer, latticeInner, zTop - PEN_BAND_HEIGHT, zTop);
+
+    const track = outlineTrack(outer, latticeInner);
+    const columns = Math.max(3, Math.round(config.penLatticeColumns));
+    const rows = Math.max(1, Math.round(config.penLatticeRows));
+    const cellWidth = track.length / columns;
+    const latticeHeight = Math.max(
+      1,
+      config.penCupHeight - 2 * PEN_BAND_HEIGHT,
+    );
+    const slope = (rows * cellWidth) / latticeHeight;
+    // Slats bury into the bands so the parts fuse. The falling family buries
+    // a little deeper: both families start each column at the same point, and
+    // identical end caps would collapse into one another in the mesh.
+    for (const family of [
+      { direction: 1, bury: 1 },
+      { direction: -1, bury: 1.4 },
+    ]) {
+      const zLow = layout.topHeight + PEN_BAND_HEIGHT - family.bury;
+      const zHigh = zTop - PEN_BAND_HEIGHT + family.bury;
+      const run = family.direction * slope * (zHigh - zLow);
+      for (let column = 0; column < columns; column++) {
+        buildLatticeSlat(
+          triangles,
+          track,
+          column * cellWidth,
+          run,
+          zLow,
+          zHigh,
+          config.penLatticeSlatWidth,
+        );
+      }
+    }
+
+    if (config.penWallStyle === "lined-lattice") {
+      // The liner overlaps the lattice radially and stops short of the rim,
+      // so no two solids meet face to face.
+      const linerOuter = insetBy(wall - 0.3);
+      const linerInner = insetBy(wall - 0.3 + PEN_LINER_THICKNESS);
+      buildPenRing(triangles, linerOuter, linerInner, zBase, zTop - 0.6);
+    }
+  }
+
+  buildPenDividers(triangles, config, outer, zBase, zTop);
+}
+
 function buildDiceOrbitInterior(
   triangles: number[][],
   config: HexTileConfig,
@@ -2159,6 +2546,8 @@ export function generateHexTileTriangles(config: HexTileConfig): number[][] {
     buildDeckInterior(triangles, config, topOutline);
   } else if (config.purpose === "dice-orbit") {
     buildDiceOrbitInterior(triangles, config, topOutline);
+  } else if (config.purpose === "pens") {
+    buildPenHolder(triangles, config, topOutline);
   } else if (config.purpose === "rolling") {
     buildRollingInterior(triangles, config, topOutline);
   } else {

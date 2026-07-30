@@ -45,6 +45,10 @@ function featureLabel(config: HexTileConfig): string {
     }
     case "dice-orbit":
       return "Outer ring + center cup";
+    case "pens": {
+      const layout = calculateHexTileLayout(config);
+      return `${layout.penOpeningWidth.toFixed(0)} mm pen cup, ~${String(layout.penCapacity)} pens`;
+    }
     case "rolling":
       return `${calculateHexTileLayout(config).rollFloorAcrossFlats.toFixed(1)} mm rolling floor`;
     case "bowl": {
@@ -61,7 +65,7 @@ export function getHexTileSpec(config: HexTileConfig): HexTileSpec {
   return {
     pointToPoint: layout.pointToPoint,
     acrossFlats: config.acrossFlats,
-    totalHeight: layout.topHeight,
+    totalHeight: layout.overallHeight,
     usableInterior: layout.innerAcrossFlats,
     magnetCount: layout.magnetCount,
     magnetBackWall: config.rimWidth - layout.magnetSocketDepth,
