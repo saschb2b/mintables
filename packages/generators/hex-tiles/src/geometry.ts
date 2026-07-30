@@ -2222,6 +2222,18 @@ function outlineTrack(outer: Point2[], inner: Point2[]): PenTrack {
 }
 
 /**
+ * Interior sample positions along a straight canvas stroke, nudged along the
+ * line by a deterministic hash. The stroke's shape does not change: every
+ * sample still sits exactly on the centerline. What it buys is that two
+ * crossing ribbons can never place a sample on exactly the same point, which
+ * would fuse their cross-section edges in the mesh.
+ */
+function strokeSampleT(index: number, steps: number, seed: number): number {
+  if (index === 0 || index === steps) return index / steps;
+  return (index + (patternHash(seed, index, 91) - 0.5) * 0.5) / steps;
+}
+
+/**
  * One kumiko slat: a closed ribbon of wall thickness that climbs around the
  * cup. Crossing slats and the bands they end inside overlap as separate
  * closed solids; the slicer unions them.
@@ -2238,7 +2250,7 @@ function buildLatticeSlat(
   const steps = Math.max(12, Math.ceil(Math.abs(run) / 2.5));
   const half = slatWidth / 2;
   const samples = Array.from({ length: steps + 1 }, (_, index) => {
-    const t = index / steps;
+    const t = strokeSampleT(index, steps, startS);
     return {
       point: track.pointAt(startS + run * t),
       z: zLow + (zHigh - zLow) * t,
@@ -2315,6 +2327,213 @@ function buildLatticeSlat(
       last.z - beforeLast.z,
     ],
   );
+}
+
+/** A point on the unwrapped wall canvas: arc length along it, and height. */
+interface WallPoint {
+  s: number;
+  z: number;
+}
+
+/**
+ * A short closed ribbon between two points on the wall canvas, with its
+ * thickness perpendicular to the stroke. The lattice slats carry their
+ * thickness vertically, which degenerates for the upright hemp-leaf spokes,
+ * so those are drawn with this instead.
+ */
+function buildWallStroke(
+  triangles: number[][],
+  track: PenTrack,
+  from: WallPoint,
+  to: WallPoint,
+  width: number,
+): void {
+  const length = Math.hypot(to.s - from.s, to.z - from.z);
+  if (length < 1e-6) return;
+  const unit = { s: (to.s - from.s) / length, z: (to.z - from.z) / length };
+  const normal = { s: (-unit.z * width) / 2, z: (unit.s * width) / 2 };
+  const steps = Math.max(4, Math.ceil(length / 2));
+
+  const samples = Array.from({ length: steps + 1 }, (_, index) => {
+    const t = strokeSampleT(index, steps, from.s + from.z);
+    const center = {
+      s: from.s + (to.s - from.s) * t,
+      z: from.z + (to.z - from.z) * t,
+    };
+    const left = track.pointAt(center.s + normal.s);
+    const right = track.pointAt(center.s - normal.s);
+    return {
+      leftZ: center.z + normal.z,
+      rightZ: center.z - normal.z,
+      left,
+      right,
+    };
+  });
+
+  const corner = (
+    sample: (typeof samples)[number],
+    side: "left" | "right",
+    surface: "outer" | "inner",
+  ): Point3 => {
+    const point = sample[side][surface];
+    return [point.x, point.y, side === "left" ? sample.leftZ : sample.rightZ];
+  };
+
+  for (let index = 0; index < steps; index++) {
+    const a = samples[index];
+    const b = samples[index + 1];
+    const radialOut: Point3 = [
+      a.left.outer.x - a.left.inner.x,
+      a.left.outer.y - a.left.inner.y,
+      0,
+    ];
+    addOrientedQuad(
+      triangles,
+      corner(a, "left", "outer"),
+      corner(a, "right", "outer"),
+      corner(b, "right", "outer"),
+      corner(b, "left", "outer"),
+      radialOut,
+    );
+    addOrientedQuad(
+      triangles,
+      corner(a, "left", "inner"),
+      corner(a, "right", "inner"),
+      corner(b, "right", "inner"),
+      corner(b, "left", "inner"),
+      [-radialOut[0], -radialOut[1], 0],
+    );
+    const towardLeft: Point3 = [
+      a.left.outer.x - a.right.outer.x,
+      a.left.outer.y - a.right.outer.y,
+      a.leftZ - a.rightZ,
+    ];
+    addOrientedQuad(
+      triangles,
+      corner(a, "left", "outer"),
+      corner(a, "left", "inner"),
+      corner(b, "left", "inner"),
+      corner(b, "left", "outer"),
+      towardLeft,
+    );
+    addOrientedQuad(
+      triangles,
+      corner(a, "right", "outer"),
+      corner(a, "right", "inner"),
+      corner(b, "right", "inner"),
+      corner(b, "right", "outer"),
+      [-towardLeft[0], -towardLeft[1], -towardLeft[2]],
+    );
+  }
+
+  const first = samples[0];
+  const second = samples[1];
+  const last = samples[steps];
+  const travel: Point3 = [
+    second.left.outer.x - first.left.outer.x,
+    second.left.outer.y - first.left.outer.y,
+    second.leftZ - first.leftZ,
+  ];
+  addOrientedQuad(
+    triangles,
+    corner(first, "left", "outer"),
+    corner(first, "right", "outer"),
+    corner(first, "right", "inner"),
+    corner(first, "left", "inner"),
+    [-travel[0], -travel[1], -travel[2]],
+  );
+  addOrientedQuad(
+    triangles,
+    corner(last, "left", "outer"),
+    corner(last, "right", "outer"),
+    corner(last, "right", "inner"),
+    corner(last, "left", "inner"),
+    travel,
+  );
+}
+
+interface AsanohaGrid {
+  columns: number;
+  rows: number;
+  cellWidth: number;
+  cellHeight: number;
+  zBandTop: number;
+  outer: Point2[];
+  latticeInner: Point2[];
+}
+
+/**
+ * The hemp-leaf infill of a kumiko lattice. Horizontal rails through the
+ * diamond waists turn the frame into a triangular grid, and every triangle
+ * gets three thin spokes from its centroid to its corners. Spoke ends pull
+ * back from the shared nodes by staggered amounts: they still bury inside the
+ * frame there, but no two end caps ever land on the same coordinates.
+ */
+function buildAsanohaInfill(
+  triangles: number[][],
+  config: HexTileConfig,
+  track: PenTrack,
+  grid: AsanohaGrid,
+): void {
+  const slatWidth = config.penLatticeSlatWidth;
+  const leafWidth = slatWidth * 0.6;
+  // A hair taller than the frame slats: a slat sample can land exactly on a
+  // lattice node on an outline vertex, and with equal spans its cross-section
+  // edge would coincide with the rail's wall edge there.
+  const railHalf = slatWidth / 2 + 0.15;
+
+  for (let row = 0; row < grid.rows; row++) {
+    const railZ = grid.zBandTop + (row + 0.5) * grid.cellHeight;
+    buildPenRing(
+      triangles,
+      grid.outer,
+      grid.latticeInner,
+      railZ - railHalf,
+      railZ + railHalf,
+    );
+  }
+
+  let strokeIndex = 0;
+  for (let row = 0; row < grid.rows; row++) {
+    for (let column = 0; column < grid.columns; column++) {
+      const sMid = column * grid.cellWidth;
+      const baseZ = grid.zBandTop + (row + 0.5) * grid.cellHeight;
+      const corners = [
+        { s: sMid - grid.cellWidth / 2, z: baseZ },
+        { s: sMid + grid.cellWidth / 2, z: baseZ },
+      ];
+      for (const apex of [
+        { s: sMid, z: grid.zBandTop + row * grid.cellHeight },
+        { s: sMid, z: grid.zBandTop + (row + 1) * grid.cellHeight },
+      ]) {
+        const centroid = { s: sMid, z: (apex.z + 2 * baseZ) / 3 };
+        for (const vertex of [apex, ...corners]) {
+          const length = Math.hypot(
+            vertex.s - centroid.s,
+            vertex.z - centroid.z,
+          );
+          if (length < 1e-6) continue;
+          const unit = {
+            s: (vertex.s - centroid.s) / length,
+            z: (vertex.z - centroid.z) / length,
+          };
+          const extend = 0.3 + (strokeIndex % 5) * 0.12;
+          const inset = 0.25 + (strokeIndex % 7) * 0.07;
+          strokeIndex++;
+          buildWallStroke(
+            triangles,
+            track,
+            {
+              s: centroid.s - unit.s * extend,
+              z: centroid.z - unit.z * extend,
+            },
+            { s: vertex.s - unit.s * inset, z: vertex.z - unit.z * inset },
+            leafWidth,
+          );
+        }
+      }
+    }
+  }
 }
 
 /** Radius of the outline in one direction, off its nearest sampled point. */
@@ -2437,28 +2656,46 @@ function buildPenHolder(
       1,
       config.penCupHeight - 2 * PEN_BAND_HEIGHT,
     );
-    const slope = (rows * cellWidth) / latticeHeight;
-    // Slats bury into the bands so the parts fuse. The falling family buries
-    // a little deeper: both families start each column at the same point, and
-    // identical end caps would collapse into one another in the mesh.
+    const cellHeight = latticeHeight / rows;
+    const dsPerDz = cellWidth / cellHeight;
+    const zBandTop = layout.topHeight + PEN_BAND_HEIGHT;
+    const zBandBottom = zTop - PEN_BAND_HEIGHT;
+    // Slats bury into the bands so the parts fuse, extended along their own
+    // centerlines so every crossing stays exactly on a lattice node: the
+    // rails and hemp leaves meet the frame at those nodes. The falling family
+    // buries a little deeper, or the two end caps of a column would collapse
+    // into one another in the mesh.
     for (const family of [
       { direction: 1, bury: 1 },
       { direction: -1, bury: 1.4 },
     ]) {
-      const zLow = layout.topHeight + PEN_BAND_HEIGHT - family.bury;
-      const zHigh = zTop - PEN_BAND_HEIGHT + family.bury;
-      const run = family.direction * slope * (zHigh - zLow);
+      const zLow = zBandTop - family.bury;
+      const zHigh = zBandBottom + family.bury;
+      const run = family.direction * dsPerDz * (zHigh - zLow);
+      const startShift = -family.direction * dsPerDz * family.bury;
       for (let column = 0; column < columns; column++) {
         buildLatticeSlat(
           triangles,
           track,
-          column * cellWidth,
+          column * cellWidth + startShift,
           run,
           zLow,
           zHigh,
           config.penLatticeSlatWidth,
         );
       }
+    }
+
+    if (config.penLatticePattern === "asanoha") {
+      buildAsanohaInfill(triangles, config, track, {
+        columns,
+        rows,
+        cellWidth,
+        cellHeight,
+        zBandTop,
+        outer,
+        latticeInner,
+      });
     }
 
     if (config.penWallStyle === "lined-lattice") {

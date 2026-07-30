@@ -10,6 +10,8 @@ export type HexTilePenShape = "superellipse" | "hexagon";
 
 export type HexTilePenWallStyle = "solid" | "lattice" | "lined-lattice";
 
+export type HexTilePenLatticePattern = "asanoha" | "diamond";
+
 export type HexTileMagnetMode = "none" | "single" | "captive" | "paired";
 
 export type HexTileDividerAngle = 0 | 60 | 120;
@@ -100,6 +102,8 @@ export interface HexTileConfig {
   penCupHeight: number;
   penWallThickness: number;
   penWallStyle: HexTilePenWallStyle;
+  /** Classic hemp-leaf infill, or the bare diamond frame. */
+  penLatticePattern: HexTilePenLatticePattern;
   /** Diamond rows in the kumiko lattice. */
   penLatticeRows: number;
   /** Diamond columns around the cup. */
@@ -172,6 +176,7 @@ export const DEFAULT_HEX_TILE_CONFIG: HexTileConfig = {
   penCupHeight: 80,
   penWallThickness: 2.4,
   penWallStyle: "lined-lattice",
+  penLatticePattern: "asanoha",
   penLatticeRows: 3,
   penLatticeColumns: 12,
   penLatticeSlatWidth: 4.5,

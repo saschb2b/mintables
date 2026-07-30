@@ -107,9 +107,17 @@ export function getHexTilePrintTips(config: HexTileConfig): PrintTip[] {
       tips.push({
         icon: "printer",
         title: "Print the lattice slowly",
-        body: `The kumiko slats climb at ${layout.penSlatAngle.toFixed(0)} degrees with solid bands top and bottom, so no supports are needed. Halve the outer wall speed above the tile and keep part cooling high so the openwork stays crisp.`,
+        body: `The kumiko frame climbs at ${layout.penSlatAngle.toFixed(0)} degrees with solid bands top and bottom, so no supports are needed. Halve the outer wall speed above the tile and keep part cooling high so the openwork stays crisp.`,
         priority: 9,
       });
+      if (config.penLatticePattern === "asanoha") {
+        tips.push({
+          icon: "layers",
+          title: "Let the hemp leaves bridge",
+          body: "The asanoha spokes span only a few millimetres each and always grow from a solid anchor, but the shallow ones are short bridges. Full part cooling and a dry filament keep their undersides clean.",
+          priority: 8,
+        });
+      }
     }
     tips.push({
       icon: "gauge",

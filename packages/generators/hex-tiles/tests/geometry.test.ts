@@ -482,6 +482,43 @@ describe("generateHexTileTriangles", () => {
     expect(layout.penLatticeOpening).toBeGreaterThan(2);
   });
 
+  it("fills the lattice with hemp leaves only when asanoha is chosen", () => {
+    const asanoha = { ...DEFAULT_HEX_TILE_CONFIG, purpose: "pens" as const };
+    const diamond = {
+      ...asanoha,
+      penLatticePattern: "diamond" as const,
+    };
+    const asanohaTriangles = generateHexTileTriangles(asanoha);
+    const diamondTriangles = generateHexTileTriangles(diamond);
+
+    expect(isPrintableMesh(asanohaTriangles)).toBe(true);
+    expect(isPrintableMesh(diamondTriangles)).toBe(true);
+    expect(edgeUseCounts(asanohaTriangles).every((count) => count === 2)).toBe(
+      true,
+    );
+    expect(edgeUseCounts(diamondTriangles).every((count) => count === 2)).toBe(
+      true,
+    );
+    // Rails and three spokes per triangle more than double the mesh.
+    expect(asanohaTriangles.length).toBeGreaterThan(
+      diamondTriangles.length * 2,
+    );
+    // The rails run at the diamond waists.
+    const layout = calculateHexTileLayout(asanoha);
+    const railZ =
+      DEFAULT_HEX_TILE_CONFIG.bodyHeight + 6 + layout.penCellHeight / 2;
+    expect(
+      uniqueHeights(asanohaTriangles).some(
+        (height) => Math.abs(height - (railZ - 2.4)) < 1e-6,
+      ),
+    ).toBe(true);
+    expect(
+      uniqueHeights(diamondTriangles).some(
+        (height) => Math.abs(height - (railZ - 2.4)) < 1e-6,
+      ),
+    ).toBe(false);
+  });
+
   it("keeps a solid sectioned hexagon cup closed", () => {
     const config = {
       ...DEFAULT_HEX_TILE_CONFIG,

@@ -156,6 +156,12 @@ export function decodeHexTile(data: unknown): HexTileConfig | null {
   ) {
     config.penWallStyle = data.penWallStyle;
   }
+  if (
+    data.penLatticePattern === "asanoha" ||
+    data.penLatticePattern === "diamond"
+  ) {
+    config.penLatticePattern = data.penLatticePattern;
+  }
   return config;
 }
 

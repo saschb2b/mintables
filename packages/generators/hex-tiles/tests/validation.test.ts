@@ -225,6 +225,19 @@ describe("validateHexTileConfig", () => {
     ).toBe(true);
   });
 
+  it("warns when the cells are too small for hemp leaves", () => {
+    const result = validateHexTileConfig({
+      ...DEFAULT_HEX_TILE_CONFIG,
+      purpose: "pens",
+      penLatticeColumns: 24,
+    });
+
+    expect(result.errors).toHaveLength(0);
+    expect(
+      result.warnings.some((warning) => warning.code === "pen_asanoha_dense"),
+    ).toBe(true);
+  });
+
   it("warns when lattice slats climb too shallowly to print", () => {
     const result = validateHexTileConfig({
       ...DEFAULT_HEX_TILE_CONFIG,

@@ -88,6 +88,7 @@ describe("decodeHexTile", () => {
       purpose: "pens",
       penShape: "hexagon",
       penWallStyle: "lattice",
+      penLatticePattern: "diamond",
       penCornerExponent: 3.5,
       penCupWidth: 72,
       penCupHeight: 95,
@@ -102,6 +103,7 @@ describe("decodeHexTile", () => {
       purpose: "pens",
       penShape: "hexagon",
       penWallStyle: "lattice",
+      penLatticePattern: "diamond",
       penCornerExponent: 3.5,
       penCupWidth: 72,
       penCupHeight: 95,
@@ -112,10 +114,15 @@ describe("decodeHexTile", () => {
       penSectionCount: 2,
     });
     expect(
-      decodeHexTile({ penShape: "octagon", penWallStyle: "mesh" }),
+      decodeHexTile({
+        penShape: "octagon",
+        penWallStyle: "mesh",
+        penLatticePattern: "stars",
+      }),
     ).toMatchObject({
       penShape: DEFAULT_HEX_TILE_CONFIG.penShape,
       penWallStyle: DEFAULT_HEX_TILE_CONFIG.penWallStyle,
+      penLatticePattern: DEFAULT_HEX_TILE_CONFIG.penLatticePattern,
     });
   });
 

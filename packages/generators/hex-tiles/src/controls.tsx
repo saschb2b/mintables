@@ -41,6 +41,7 @@ import type {
   HexTileConfig,
   HexTileDividerAngle,
   HexTileMagnetMode,
+  HexTilePenLatticePattern,
   HexTilePenShape,
   HexTilePenWallStyle,
   HexTilePurpose,
@@ -1108,6 +1109,30 @@ function PenControls({ config, update, validation }: ControlSectionProps) {
         </Select>
       </FormControl>
       {showLattice ? (
+        <Box>
+          <Typography
+            variant="caption"
+            component="p"
+            sx={{ color: "text.secondary", mb: 0.75 }}
+          >
+            Kumiko pattern
+          </Typography>
+          <ToggleButtonGroup
+            exclusive
+            fullWidth
+            size="small"
+            value={config.penLatticePattern}
+            aria-label="Kumiko pattern"
+            onChange={(_, value: HexTilePenLatticePattern | null) => {
+              if (value) update({ penLatticePattern: value });
+            }}
+          >
+            <ToggleButton value="asanoha">Asanoha</ToggleButton>
+            <ToggleButton value="diamond">Diamond</ToggleButton>
+          </ToggleButtonGroup>
+        </Box>
+      ) : null}
+      {showLattice ? (
         <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1.5 }}>
           <NumberField
             label="Diamond rows"
@@ -1172,7 +1197,10 @@ function PenControls({ config, update, validation }: ControlSectionProps) {
         The {layout.penOpeningWidth.toFixed(0)} mm opening swallows roughly{" "}
         {String(layout.penCapacity)} pens.
         {showLattice
-          ? ` Slats climb at ${layout.penSlatAngle.toFixed(0)} degrees; keep them above 40 so the openwork prints cleanly.`
+          ? ` Frame slats climb at ${layout.penSlatAngle.toFixed(0)} degrees; keep them above 40 so the openwork prints cleanly.`
+          : ""}
+        {showLattice && config.penLatticePattern === "asanoha"
+          ? " The hemp leaves want roomy cells: rows and columns around the defaults read best."
           : ""}
       </Typography>
       <Typography variant="caption" sx={{ color: "text.secondary" }}>

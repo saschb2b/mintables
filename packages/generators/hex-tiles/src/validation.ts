@@ -751,6 +751,20 @@ export function validateHexTileConfig(config: HexTileConfig): ValidationResult {
           ),
         );
       }
+      if (
+        errors.length === 0 &&
+        config.penLatticePattern === "asanoha" &&
+        (layout.penCellWidth < 12 || layout.penCellHeight < 12)
+      ) {
+        warnings.push(
+          issue(
+            "warning",
+            "pen_asanoha_dense",
+            "The cells are too small for the hemp leaves to read. Use fewer rows or columns, or switch the pattern to the plain diamond frame.",
+            "penLatticeColumns",
+          ),
+        );
+      }
       if (errors.length === 0 && layout.penLatticeOpening < 2) {
         warnings.push(
           issue(
