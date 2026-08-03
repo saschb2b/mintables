@@ -1,5 +1,5 @@
 import { addTriangle } from "@mintables/shared/lib/geometry/mesh-utils";
-import { deriveClamp, type ClampDerived } from "./derived";
+import { armThicknessAtAngle, deriveClamp, type ClampDerived } from "./derived";
 import type { ClampConfig } from "./types";
 
 /** Segments for a full circle of the jaw arcs (outer wall, bore). */
@@ -12,8 +12,12 @@ const HOLE_SEGMENTS = 64;
 const PLATE_CAP_SEGMENTS = 40;
 /** Segments per straight side of the base plate outline. */
 const PLATE_SIDE_SEGMENTS = 12;
-/** Edge chamfer applied to the base plate's top and bottom rims (mm). */
-const PLATE_CHAMFER = 0.6;
+/** Rings used for quarter-round face and plate edge fillets. */
+const FILLET_SEGMENTS = 5;
+/** Samples along each structural gusset's curved outer edge. */
+const GUSSET_CURVE_SEGMENTS = 12;
+/** Printable height held at each gusset attachment before the taper begins. */
+const GUSSET_LANDING_HEIGHT = 0.8;
 
 /** 2D point in the jaw profile plane: u across the mouth, v up. */
 export interface ProfilePoint {
@@ -28,6 +32,11 @@ interface Pt2 {
 
 function clampNum(x: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, x));
+}
+
+function smoothstep01(value: number): number {
+  const t = clampNum(value, 0, 1);
+  return t * t * (3 - 2 * t);
 }
 
 function acosSafe(x: number): number {
@@ -60,6 +69,46 @@ function boreArc(
     pts.push(fromBore(centerV, radius, fromAngle + (sweep * i) / count));
   }
   return pts;
+}
+
+/** Variable-radius outer arm arc with a thin spring and reinforced root. */
+function outerArmArc(
+  config: ClampConfig,
+  centerV: number,
+  boreRadius: number,
+  fromAngle: number,
+  toAngle: number,
+): ProfilePoint[] {
+  const sweep = toAngle - fromAngle;
+  const count = Math.max(
+    6,
+    Math.ceil((Math.abs(sweep) / (2 * Math.PI)) * ARC_SEGMENTS),
+  );
+  const points: ProfilePoint[] = [];
+  for (let i = 0; i <= count; i++) {
+    const angle = fromAngle + (sweep * i) / count;
+    points.push(
+      fromBore(centerV, boreRadius + armThicknessAtAngle(config, angle), angle),
+    );
+  }
+  return points;
+}
+
+/** Root-side intersection of the tapered outer arm with a neck half-width. */
+function outerExitAngle(
+  config: ClampConfig,
+  boreRadius: number,
+  neckHalf: number,
+): number {
+  let low = Math.PI / 2;
+  let high = Math.PI;
+  for (let i = 0; i < 36; i++) {
+    const angle = (low + high) / 2;
+    const radius = boreRadius + armThicknessAtAngle(config, angle);
+    if (radius * Math.sin(angle) > neckHalf) low = angle;
+    else high = angle;
+  }
+  return (low + high) / 2;
 }
 
 /**
@@ -135,8 +184,7 @@ function lineCircleMaxS(
 
 /**
  * Shared construction data for the neck skirt (the S-curve that carries the
- * jaw down into the plate). Also used by the jaw-face gussets, which must
- * stay inside the skirt's silhouette.
+ * jaw down into the plate).
  */
 interface NeckSkirtInfo {
   zExit: number;
@@ -147,11 +195,6 @@ interface NeckSkirtInfo {
   p1v: number;
   p2u: number;
   p2v: number;
-  /**
-   * Lower bound of the skirt's half-width over its whole height (Bezier
-   * convex-hull property: the curve never goes below its control points).
-   */
-  waistHalfMin: number;
 }
 
 function neckSkirtInfo(
@@ -166,10 +209,10 @@ function neckSkirtInfo(
   const zJoin = Math.min(config.baseThickness - bury, zExit - 0.3);
   const h = Math.max(0.3, zExit - zJoin);
   // Where the skirt lands on the plate: use the room the plate offers,
-  // held inside the side walls AND the plate's top edge chamfer.
+  // held inside the side walls and the plate's rounded top edge.
   const landHalf = Math.max(
     neckHalf * 0.6,
-    Math.min(config.baseWidth / 2 - PLATE_CHAMFER - 0.4, neckHalf + 0.8 * h),
+    Math.min(config.baseWidth / 2 - 1.2, neckHalf + 0.8 * h),
   );
   // P1 continues the jaw's outer circle along its tangent; P2 sets the
   // landing direction, 20 degrees from horizontal.
@@ -186,7 +229,6 @@ function neckSkirtInfo(
     p1v,
     p2u,
     p2v,
-    waistHalfMin: Math.min(neckHalf, landHalf, p1u, p2u),
   };
 }
 
@@ -214,10 +256,11 @@ export function jawProfile(
 ): ProfilePoint[] {
   const der = d ?? deriveClamp(config);
   const R = der.boreRadius;
-  const Ro = der.outerRadius;
+  const springRo = der.outerRadius;
+  const rootRo = der.maxOuterRadius;
   const rc = der.armCenterRadius;
   const rb = der.tipRadius;
-  const arm = Ro - R;
+  const arm = springRo - R;
   const alpha = der.mouthHalfAngle;
   const zc = der.boreCenterZ;
 
@@ -227,8 +270,8 @@ export function jawProfile(
   let exitAngle = Math.PI;
   let neckHalf = 0;
   if (isPlate) {
-    neckHalf = clampNum(config.neckWidth / 2, 1, Ro * 0.98);
-    exitAngle = Math.PI - Math.asin(neckHalf / Ro);
+    neckHalf = clampNum(config.neckWidth / 2, 1, rootRo * 0.98);
+    exitAngle = outerExitAngle(config, R, neckHalf);
   }
 
   // Right-arm tip geometry. Everything below is expressed for the right
@@ -258,7 +301,7 @@ export function jawProfile(
     // Where the walls cross the outer and bore circles (relative to the
     // bore center). Fall back to the base points if a wall misses.
     const sOut =
-      lineCircleMaxS({ u: outBase.u, v: outBase.v - zc }, dir, Ro) ?? 0;
+      lineCircleMaxS({ u: outBase.u, v: outBase.v - zc }, dir, springRo) ?? 0;
     const sIn = lineCircleMaxS({ u: inBase.u, v: inBase.v - zc }, dir, R) ?? 0;
     const wallPoint = (base: ProfilePoint, s: number): ProfilePoint => ({
       u: base.u + s * dir.u,
@@ -300,7 +343,9 @@ export function jawProfile(
   } else {
     // Tips directly on the seat circle: join the tip circle to the outer
     // and bore circles at their exact circle-circle intersections.
-    const dOuter = acosSafe((rc * rc + Ro * Ro - rb * rb) / (2 * rc * Ro));
+    const dOuter = acosSafe(
+      (rc * rc + springRo * springRo - rb * rb) / (2 * rc * springRo),
+    );
     const dInner = acosSafe((rc * rc + R * R - rb * rb) / (2 * rc * R));
     // Keep the tips clear of the neck even while the user drags into an
     // invalid combination; validation reports the real error.
@@ -314,14 +359,14 @@ export function jawProfile(
       tipArc(
         rightCenter,
         fromBore(zc, R, innerEndAngle),
-        fromBore(zc, Ro, outerStartAngle),
+        fromBore(zc, springRo, outerStartAngle),
         Math.atan2(Math.sin(alpha), -Math.cos(alpha)),
       ),
     ];
     leftTipPieces = [
       tipArc(
         leftCenter,
-        fromBore(zc, Ro, 2 * Math.PI - outerStartAngle),
+        fromBore(zc, springRo, 2 * Math.PI - outerStartAngle),
         fromBore(zc, R, 2 * Math.PI - innerEndAngle),
         Math.atan2(Math.sin(alpha), Math.cos(alpha)),
       ),
@@ -331,7 +376,8 @@ export function jawProfile(
   const points: ProfilePoint[] = [];
 
   if (isPlate) {
-    const skirt = neckSkirtInfo(config, Ro, zc, neckHalf, exitAngle);
+    const exitRadius = R + armThicknessAtAngle(config, exitAngle);
+    const skirt = neckSkirtInfo(config, exitRadius, zc, neckHalf, exitAngle);
 
     // Neck side: a tangent-continuous S-curve, like the scanned original.
     // It leaves the jaw's outer circle exactly along the circle tangent
@@ -359,17 +405,32 @@ export function jawProfile(
       return side === 1 ? pts : pts.reverse();
     };
 
-    appendPoints(points, boreArc(zc, Ro, outerStartAngle, exitAngle));
+    appendPoints(
+      points,
+      outerArmArc(config, zc, R, outerStartAngle, exitAngle),
+    );
     appendPoints(points, neckSide(1));
     appendPoints(points, neckSide(-1));
     appendPoints(
       points,
-      boreArc(zc, Ro, 2 * Math.PI - exitAngle, 2 * Math.PI - outerStartAngle),
+      outerArmArc(
+        config,
+        zc,
+        R,
+        2 * Math.PI - exitAngle,
+        2 * Math.PI - outerStartAngle,
+      ),
     );
   } else {
     appendPoints(
       points,
-      boreArc(zc, Ro, outerStartAngle, 2 * Math.PI - outerStartAngle),
+      outerArmArc(
+        config,
+        zc,
+        R,
+        outerStartAngle,
+        2 * Math.PI - outerStartAngle,
+      ),
     );
   }
 
@@ -476,7 +537,7 @@ function triangulate(poly: ProfilePoint[]): [number, number, number][] {
 
 /**
  * Offset a CCW polygon inward (into the material) by `dist`, using mitered
- * vertex normals. Used for the face-edge chamfers; `dist` stays well below
+ * vertex normals. Used for the face-edge fillets; `dist` stays well below
  * the thinnest local feature (validated arm thickness), so the offset
  * cannot fold over itself.
  */
@@ -529,9 +590,10 @@ function emitTriangle(
 }
 
 /**
- * Extrude a CCW profile from w0 to w1. With `chamfer` > 0 the profile-to-cap
- * edges are broken by a 45 degree chamfer band: the caps shrink to an inward
- * offset of the profile and the side wall stops `chamfer` short of each end.
+ * Extrude a CCW profile from w0 to w1. With `edgeRadius` > 0 the face edges
+ * turn through sampled quarter-round fillets instead of a single chamfer.
+ * This removes the sharp axial stress riser and gives the bulb tips a
+ * three-dimensional crown.
  */
 function extrudeProfile(
   triangles: number[][],
@@ -539,95 +601,86 @@ function extrudeProfile(
   w0: number,
   w1: number,
   embed: Embed,
-  chamfer = 0,
+  edgeRadius = 0,
 ): void {
   const poly = signedArea(polyIn) < 0 ? [...polyIn].reverse() : polyIn;
-  const n = poly.length;
-  const c = Math.min(chamfer, (w1 - w0) / 3);
-  const useChamfer = c >= 0.15;
-  const capPoly = useChamfer ? offsetInward(poly, c) : poly;
-  const caps = triangulate(capPoly);
-  const wallLo = useChamfer ? w0 + c : w0;
-  const wallHi = useChamfer ? w1 - c : w1;
+  const radius = Math.min(edgeRadius, (w1 - w0) / 3);
+  const useFillet = radius >= 0.15;
+  const rings: { profile: ProfilePoint[]; w: number }[] = [];
 
-  for (let i = 0; i < n; i++) {
-    const j = (i + 1) % n;
-    const a = poly[i];
-    const b = poly[j];
-    emitTriangle(
-      triangles,
-      embed(a.u, a.v, wallLo),
-      embed(b.u, b.v, wallLo),
-      embed(b.u, b.v, wallHi),
-    );
-    emitTriangle(
-      triangles,
-      embed(a.u, a.v, wallLo),
-      embed(b.u, b.v, wallHi),
-      embed(a.u, a.v, wallHi),
-    );
-    if (useChamfer) {
-      const ai = capPoly[i];
-      const bi = capPoly[j];
-      // Lower chamfer band: inset ring at w0 out to the full profile.
+  if (useFillet) {
+    for (let i = 0; i <= FILLET_SEGMENTS; i++) {
+      const angle = ((Math.PI / 2) * i) / FILLET_SEGMENTS;
+      rings.push({
+        profile: offsetInward(poly, radius * Math.cos(angle)),
+        w: w0 + radius * Math.sin(angle),
+      });
+    }
+    rings.push({ profile: poly, w: w1 - radius });
+    for (let i = FILLET_SEGMENTS - 1; i >= 0; i--) {
+      const angle = ((Math.PI / 2) * i) / FILLET_SEGMENTS;
+      rings.push({
+        profile: offsetInward(poly, radius * Math.cos(angle)),
+        w: w1 - radius * Math.sin(angle),
+      });
+    }
+  } else {
+    rings.push({ profile: poly, w: w0 }, { profile: poly, w: w1 });
+  }
+
+  for (let ring = 0; ring < rings.length - 1; ring++) {
+    const low = rings[ring];
+    const high = rings[ring + 1];
+    for (let i = 0; i < poly.length; i++) {
+      const j = (i + 1) % poly.length;
       emitTriangle(
         triangles,
-        embed(ai.u, ai.v, w0),
-        embed(bi.u, bi.v, w0),
-        embed(b.u, b.v, wallLo),
+        embed(low.profile[i].u, low.profile[i].v, low.w),
+        embed(low.profile[j].u, low.profile[j].v, low.w),
+        embed(high.profile[j].u, high.profile[j].v, high.w),
       );
       emitTriangle(
         triangles,
-        embed(ai.u, ai.v, w0),
-        embed(b.u, b.v, wallLo),
-        embed(a.u, a.v, wallLo),
-      );
-      // Upper chamfer band: full profile back in to the inset ring at w1.
-      emitTriangle(
-        triangles,
-        embed(a.u, a.v, wallHi),
-        embed(b.u, b.v, wallHi),
-        embed(bi.u, bi.v, w1),
-      );
-      emitTriangle(
-        triangles,
-        embed(a.u, a.v, wallHi),
-        embed(bi.u, bi.v, w1),
-        embed(ai.u, ai.v, w1),
+        embed(low.profile[i].u, low.profile[i].v, low.w),
+        embed(high.profile[j].u, high.profile[j].v, high.w),
+        embed(high.profile[i].u, high.profile[i].v, high.w),
       );
     }
   }
 
+  const lowCap = rings[0];
+  const highCap = rings[rings.length - 1];
+  const caps = triangulate(lowCap.profile);
   for (const [ia, ib, ic] of caps) {
-    const a = capPoly[ia];
-    const b = capPoly[ib];
-    const cc = capPoly[ic];
+    const a = lowCap.profile[ia];
+    const b = lowCap.profile[ib];
+    const cc = lowCap.profile[ic];
     emitTriangle(
       triangles,
-      embed(a.u, a.v, w1),
-      embed(b.u, b.v, w1),
-      embed(cc.u, cc.v, w1),
+      embed(highCap.profile[ia].u, highCap.profile[ia].v, highCap.w),
+      embed(highCap.profile[ib].u, highCap.profile[ib].v, highCap.w),
+      embed(highCap.profile[ic].u, highCap.profile[ic].v, highCap.w),
     );
     emitTriangle(
       triangles,
-      embed(a.u, a.v, w0),
-      embed(cc.u, cc.v, w0),
-      embed(b.u, b.v, w0),
+      embed(a.u, a.v, lowCap.w),
+      embed(cc.u, cc.v, lowCap.w),
+      embed(b.u, b.v, lowCap.w),
     );
   }
 }
 
 /* ------------------------------------------------------------------ */
-/* Base plate: one solid. A stadium outline with chamfered top and     */
+/* Base plate: one solid. A stadium outline with rounded top and      */
 /* bottom rims; the two screw holes are cut into the caps by splicing  */
 /* their loops into the outline before triangulation.                  */
 /* ------------------------------------------------------------------ */
 
 /**
  * CCW stadium outline (two semicircle ends joined by straight sides),
- * optionally inset for the rim chamfers. Every inset uses the same sample
+ * optionally inset for the rim fillets. Every inset uses the same sample
  * count and parameterization, so loops pair index-to-index for the
- * chamfer bands.
+ * fillet bands.
  */
 function stadiumOutline(L: number, W: number, inset: number): Pt2[] {
   const hw = Math.max(0.5, W / 2 - inset);
@@ -728,7 +781,7 @@ function ringFace(
 /**
  * Band of quads between two CCW loops with matched sample counts, normals
  * pointing away from the loop interiors. With low = high this is a plain
- * vertical wall; with different loops it forms the rim chamfers.
+ * vertical wall; with different loops it forms the rim fillets.
  */
 function outwardBand(
   triangles: number[][],
@@ -871,80 +924,182 @@ function capWithHoles(
   }
 }
 
-/**
- * The screw-on base plate as a single watertight solid: chamfered stadium
- * rim, caps triangulated around the two screw holes, and the hole internals
- * (bore, counterbore, or countersink). The holes themselves keep sharp
- * edges on purpose: recess rims must stay flat for the screw head.
- */
-function buildPlate(triangles: number[][], config: ClampConfig): void {
+/** Rounded, lightly drafted plate with both screw recesses cut through it. */
+function buildPlate(config: ClampConfig): number[][] {
+  const triangles: number[][] = [];
   const T = config.baseThickness;
-  const cCh = Math.min(PLATE_CHAMFER, T * 0.25);
-  const outerFull = stadiumOutline(config.baseLength, config.baseWidth, 0);
-  const outerInset = stadiumOutline(config.baseLength, config.baseWidth, cCh);
+  const draft = Math.min(0.35, config.baseWidth * 0.025);
+  const recessRadius =
+    config.screwRecess === "plain"
+      ? config.screwDiameter / 2
+      : config.headDiameter / 2;
+  const holeX = config.holeSpacing / 2;
+  const filletRoom = Math.min(
+    config.baseWidth / 2 - recessRadius - draft - 0.6,
+    config.baseLength / 2 - holeX - recessRadius - draft - 0.6,
+  );
+  const edgeRadius = Math.max(
+    0.2,
+    Math.min(1, T * 0.28, config.baseWidth * 0.08, filletRoom),
+  );
+  const rings: { loop: Pt2[]; z: number }[] = [];
 
-  outwardBand(triangles, outerInset, outerFull, 0, cCh);
-  outwardBand(triangles, outerFull, outerFull, cCh, T - cCh);
-  outwardBand(triangles, outerFull, outerInset, T - cCh, T);
+  for (let i = 0; i <= FILLET_SEGMENTS; i++) {
+    const angle = ((Math.PI / 2) * i) / FILLET_SEGMENTS;
+    rings.push({
+      loop: stadiumOutline(
+        config.baseLength,
+        config.baseWidth,
+        edgeRadius * Math.cos(angle),
+      ),
+      z: edgeRadius * Math.sin(angle),
+    });
+  }
+  rings.push({
+    loop: stadiumOutline(config.baseLength, config.baseWidth, draft),
+    z: T - edgeRadius,
+  });
+  for (let i = 1; i <= FILLET_SEGMENTS; i++) {
+    const angle = ((Math.PI / 2) * i) / FILLET_SEGMENTS;
+    rings.push({
+      loop: stadiumOutline(
+        config.baseLength,
+        config.baseWidth,
+        draft + edgeRadius * (1 - Math.cos(angle)),
+      ),
+      z: T - edgeRadius + edgeRadius * Math.sin(angle),
+    });
+  }
 
-  const rs = config.screwDiameter / 2;
-  const rh = config.headDiameter / 2;
-  const rTop = config.screwRecess === "plain" ? rs : rh;
-  const hx = Math.max(config.jawWidth / 2 + 0.5, config.holeSpacing / 2);
-
+  for (let i = 0; i < rings.length - 1; i++) {
+    outwardBand(
+      triangles,
+      rings[i].loop,
+      rings[i + 1].loop,
+      rings[i].z,
+      rings[i + 1].z,
+    );
+  }
+  const shankRadius = config.screwDiameter / 2;
+  const headRadius = config.headDiameter / 2;
+  const topRadius = config.screwRecess === "plain" ? shankRadius : headRadius;
   capWithHoles(
     triangles,
-    outerInset,
-    circleCCW(hx, rs),
-    circleCCW(-hx, rs),
-    0,
+    rings[0].loop,
+    circleCCW(holeX, shankRadius),
+    circleCCW(-holeX, shankRadius),
+    rings[0].z,
     "down",
   );
+  const top = rings[rings.length - 1];
   capWithHoles(
     triangles,
-    outerInset,
-    circleCCW(hx, rTop),
-    circleCCW(-hx, rTop),
-    T,
+    top.loop,
+    circleCCW(holeX, topRadius),
+    circleCCW(-holeX, topRadius),
+    top.z,
     "up",
   );
 
-  for (const cx of [hx, -hx]) {
-    const screwLoop = circleCCW(cx, rs);
+  for (const centerX of [holeX, -holeX]) {
+    const shank = circleCCW(centerX, shankRadius);
     if (config.screwRecess === "counterbore") {
       const shoulder = Math.max(0.4, T - config.headDepth);
-      const headLoop = circleCCW(cx, rh);
-      inwardWall(triangles, screwLoop, screwLoop, 0, shoulder);
-      ringFace(triangles, headLoop, screwLoop, shoulder, "up");
-      inwardWall(triangles, headLoop, headLoop, shoulder, T);
+      const head = circleCCW(centerX, headRadius);
+      inwardWall(triangles, shank, shank, 0, shoulder);
+      ringFace(triangles, head, shank, shoulder, "up");
+      inwardWall(triangles, head, head, shoulder, T);
     } else if (config.screwRecess === "countersink") {
-      // 90 degree included angle: the cone rises by the radius difference.
-      const coneBase = Math.max(0.4, T - Math.max(0.1, rh - rs));
-      const headLoop = circleCCW(cx, rh);
-      inwardWall(triangles, screwLoop, screwLoop, 0, coneBase);
-      inwardWall(triangles, screwLoop, headLoop, coneBase, T);
+      const coneBase = Math.max(0.4, T - (headRadius - shankRadius));
+      inwardWall(triangles, shank, shank, 0, coneBase);
+      inwardWall(triangles, shank, circleCCW(centerX, headRadius), coneBase, T);
+    } else if (config.screwRecess === "blended") {
+      const blendStart = Math.max(0.4, T - config.headDepth);
+      let previous = shank;
+      let previousZ = blendStart;
+      inwardWall(triangles, shank, shank, 0, blendStart);
+      for (let i = 1; i <= FILLET_SEGMENTS * 2; i++) {
+        const t = i / (FILLET_SEGMENTS * 2);
+        const blend = t * t * (3 - 2 * t);
+        const next = circleCCW(
+          centerX,
+          shankRadius + (headRadius - shankRadius) * blend,
+        );
+        const nextZ = blendStart + config.headDepth * t;
+        inwardWall(triangles, previous, next, previousZ, nextZ);
+        previous = next;
+        previousZ = nextZ;
+      }
     } else {
-      inwardWall(triangles, screwLoop, screwLoop, 0, T);
+      inwardWall(triangles, shank, shank, 0, T);
     }
   }
+  return triangles;
 }
 
-/** Mirror triangles across x = 0, flipping winding to keep normals outward. */
-function mirrorX(triangles: number[][], source: number[][]): void {
-  for (const t of source) {
-    addTriangle(
-      triangles,
-      -t[0],
-      t[1],
-      t[2],
-      -t[6],
-      t[7],
-      t[8],
-      -t[3],
-      t[4],
-      t[5],
-    );
+function rootGussetTop(config: ClampConfig): number {
+  return config.baseThickness + Math.max(0.8, config.standoff - 0.15);
+}
+
+/**
+ * Four finite-width ribs carry jaw loads around the screw pockets and into
+ * the plate. Each rib has a printable toe, a tangent-ended curved web, and a
+ * landing that overlaps the jaw by multiple extrusion widths. Keeping the
+ * ribs outside the screw-head envelope avoids concave sliver regions.
+ */
+function buildRootGussets(config: ClampConfig): number[][] {
+  const triangles: number[][] = [];
+  const zLow = Math.max(0.2, config.baseThickness - 1);
+  const zHigh = rootGussetTop(config);
+  const jawHalf = config.jawWidth / 2;
+  const innerX = Math.max(0.5, jawHalf - 0.8);
+  // Leave a 2.2 mm printable shoulder beyond the jaw face. With only 1 mm,
+  // two perimeter offsets consumed almost the entire landing and Arachne
+  // emitted isolated sub-millimeter strokes on its last layers.
+  const topOuterX = jawHalf + 2.2;
+  const recessRadius =
+    config.screwRecess === "plain"
+      ? config.screwDiameter / 2
+      : config.headDiameter / 2;
+  const innerY = recessRadius + 0.35;
+  const outerY = Math.min(config.baseWidth / 2 - 0.8, innerY + 2.2);
+  const plateRadius = Math.max(0.5, config.baseWidth / 2 - 0.5);
+  const plateEndCenter = config.baseLength / 2 - config.baseWidth / 2;
+  const footOuterX = Math.max(
+    topOuterX + 0.8,
+    plateEndCenter +
+      Math.sqrt(Math.max(0, plateRadius ** 2 - outerY ** 2)) -
+      0.35,
+  );
+  const lowerLandingZ = Math.min(
+    zHigh,
+    config.baseThickness + GUSSET_LANDING_HEIGHT,
+  );
+  const upperLandingZ = Math.max(lowerLandingZ, zHigh - GUSSET_LANDING_HEIGHT);
+
+  const rightProfile: ProfilePoint[] = [
+    { u: innerX, v: zLow },
+    { u: footOuterX, v: zLow },
+    { u: footOuterX, v: lowerLandingZ },
+  ];
+  for (let i = 1; i <= GUSSET_CURVE_SEGMENTS; i++) {
+    const t = i / GUSSET_CURVE_SEGMENTS;
+    const blend = smoothstep01(t);
+    rightProfile.push({
+      u: footOuterX + (topOuterX - footOuterX) * blend,
+      v: lowerLandingZ + (upperLandingZ - lowerLandingZ) * t,
+    });
   }
+  rightProfile.push({ u: topOuterX, v: zHigh }, { u: innerX, v: zHigh });
+  const leftProfile = rightProfile.map(({ u, v }) => ({ u: -u, v }));
+  const edgeRadius = Math.min(0.35, (outerY - innerY) * 0.2);
+  const embed: Embed = (u, v, w) => [u, -w, v];
+
+  for (const profile of [rightProfile, leftProfile]) {
+    extrudeProfile(triangles, profile, -outerY, -innerY, embed, edgeRadius);
+    extrudeProfile(triangles, profile, innerY, outerY, embed, edgeRadius);
+  }
+  return triangles;
 }
 
 /**
@@ -953,9 +1108,9 @@ function mirrorX(triangles: number[][], source: number[][]): void {
  * Plate mount: the base plate sits on the bed (z = 0 to baseThickness), the
  * rod axis runs along x at z = boreCenterZ, and the mouth opens straight up.
  * This matches the print orientation. The mesh is a union of closed solids:
- * the jaw + neck extrusion, the one-piece base plate, and the two jaw-face
- * gussets, all overlapping into each other. Exposed body edges carry
- * chamfers; only the screw recesses stay sharp.
+ * the jaw + neck extrusion, the rounded base plate, and four root gussets.
+ * The edge-closed solids overlap intentionally, matching the scan's
+ * construction while staying fast enough for live parameter edits.
  *
  * Clip mount: just the jaw, extruded flat. It lies on its side (profile in
  * the x-y plane, width along z), which is also the strongest way to print
@@ -963,104 +1118,35 @@ function mirrorX(triangles: number[][], source: number[][]): void {
  */
 export function generateClampTriangles(config: ClampConfig): number[][] {
   const derived = deriveClamp(config);
-  const triangles: number[][] = [];
   const profile = jawProfile(config, derived);
-  const jawChamfer = Math.min(
-    0.5,
+  const jawEdgeRadius = Math.min(
+    0.8,
     config.armThickness * 0.35,
     config.jawWidth * 0.15,
   );
 
   if (config.mount === "clip") {
+    const triangles: number[][] = [];
     extrudeProfile(
       triangles,
       profile,
       0,
       Math.max(0.4, config.jawWidth),
       (u, v, w) => [u, v, w],
-      jawChamfer,
+      jawEdgeRadius,
     );
     return triangles;
   }
 
+  const jaw: number[][] = [];
   const half = Math.max(0.2, config.jawWidth / 2);
   extrudeProfile(
-    triangles,
+    jaw,
     profile,
     -half,
     half,
     (u, v, w) => [w, u, v],
-    jawChamfer,
+    jawEdgeRadius,
   );
-  buildPlate(triangles, config);
-  buildFaceGussets(triangles, config, derived);
-
-  return triangles;
-}
-
-/**
- * Concave fillet gussets where the jaw's flat end faces meet the plate,
- * facing the screw holes. They blend the last hard corner of the body into
- * the plate so bending loads along the rod axis spread instead of
- * concentrating at the face-plate junction. The radius auto-sizes to the
- * room the screw recesses leave (the head must still drop in from above)
- * and the gussets vanish when the holes sit too close.
- */
-function buildFaceGussets(
-  triangles: number[][],
-  config: ClampConfig,
-  der: ClampDerived,
-): void {
-  const x0 = config.jawWidth / 2;
-  const recessRadius =
-    config.screwRecess === "plain"
-      ? config.screwDiameter / 2
-      : config.headDiameter / 2;
-  const room = config.holeSpacing / 2 - recessRadius - x0 - 0.3;
-  const radius = Math.min(3, room);
-  if (radius < 0.4) return;
-
-  const T = config.baseThickness;
-  const neckHalf = clampNum(config.neckWidth / 2, 1, der.outerRadius * 0.98);
-  const exitAngle = Math.PI - Math.asin(neckHalf / der.outerRadius);
-  const skirt = neckSkirtInfo(
-    config,
-    der.outerRadius,
-    der.boreCenterZ,
-    neckHalf,
-    exitAngle,
-  );
-  const gwHalf = Math.min(skirt.waistHalfMin - 0.3, config.baseWidth / 2 - 0.6);
-  if (gwHalf < 1) return;
-
-  // Profile in the (x, z) plane: buried into the jaw and plate, with a
-  // quarter-circle fillet from the plate top up the jaw face.
-  const buriedX = x0 - 0.8;
-  const zLow = Math.min(T - 0.2, skirt.zJoin + 0.15);
-  const profile: ProfilePoint[] = [
-    { u: buriedX, v: zLow },
-    { u: x0 + radius, v: zLow },
-  ];
-  for (let i = 0; i <= 10; i++) {
-    const a = (Math.PI / 2) * (i / 10);
-    profile.push({
-      u: x0 + radius - radius * Math.sin(a),
-      v: T + radius - radius * Math.cos(a),
-    });
-  }
-  profile.push({ u: buriedX, v: T + radius });
-
-  // Right-handed embed: profile u along +x, v along +z, extrusion along -y
-  // (symmetric range, so the solid is the same as extruding along +y).
-  const gusset: number[][] = [];
-  extrudeProfile(
-    gusset,
-    profile,
-    -gwHalf,
-    gwHalf,
-    (u, v, w) => [u, -w, v],
-    0.35,
-  );
-  triangles.push(...gusset);
-  mirrorX(triangles, gusset);
+  return [...buildPlate(config), ...buildRootGussets(config), ...jaw];
 }

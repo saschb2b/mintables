@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { isPrintableMesh } from "@mintables/shared/lib/geometry/mesh-analysis";
 import { generateClampTriangles, jawProfile } from "../src/geometry";
-import { deriveClamp } from "../src/derived";
+import { armThicknessAtAngle, deriveClamp } from "../src/derived";
 import { DEFAULT_CLAMP_CONFIG, type ClampConfig } from "../src/types";
 
 /**
@@ -140,6 +140,110 @@ describe("generateClampTriangles", () => {
     }
   });
 
+  it("builds broad root gussets beyond both jaw faces", () => {
+    const triangles = generateClampTriangles(DEFAULT_CLAMP_CONFIG);
+    const jawFace = DEFAULT_CLAMP_CONFIG.jawWidth / 2;
+    const reinforcedVertices = triangles.flatMap((triangle) =>
+      [0, 3, 6].map((offset) => ({
+        x: triangle[offset],
+        z: triangle[offset + 2],
+      })),
+    );
+    expect(
+      reinforcedVertices.some(
+        ({ x, z }) =>
+          Math.abs(x) > jawFace + 1 &&
+          z > DEFAULT_CLAMP_CONFIG.baseThickness + 1,
+      ),
+    ).toBe(true);
+  });
+
+  it("gives the gussets a multi-line landing at the jaw", () => {
+    const triangles = generateClampTriangles(DEFAULT_CLAMP_CONFIG);
+    const rootTop =
+      DEFAULT_CLAMP_CONFIG.baseThickness + DEFAULT_CLAMP_CONFIG.standoff - 0.15;
+    const jawFace = DEFAULT_CLAMP_CONFIG.jawWidth / 2;
+    const landingReach = Math.max(
+      ...triangles
+        .flatMap((triangle) =>
+          [0, 3, 6].map((offset) => triangle.slice(offset, offset + 3)),
+        )
+        .filter(
+          ([x, y, z]) =>
+            Math.abs(z - rootTop) < 1e-4 &&
+            Math.abs(x) > jawFace &&
+            Math.abs(y) > DEFAULT_CLAMP_CONFIG.headDiameter / 2,
+        )
+        .map(([x]) => Math.abs(x) - jawFace),
+    );
+    expect(landingReach).toBeGreaterThanOrEqual(2.1);
+  });
+
+  it("keeps the reinforced root inside the rounded plate footprint", () => {
+    const triangles = generateClampTriangles(DEFAULT_CLAMP_CONFIG);
+    const halfLength = DEFAULT_CLAMP_CONFIG.baseLength / 2;
+    const halfWidth = DEFAULT_CLAMP_CONFIG.baseWidth / 2;
+    const endCenter = halfLength - halfWidth;
+    const rootTop =
+      DEFAULT_CLAMP_CONFIG.baseThickness + DEFAULT_CLAMP_CONFIG.standoff - 0.15;
+    const gussetShoulderVertices = triangles
+      .flatMap((triangle) =>
+        [0, 3, 6].map((offset) => triangle.slice(offset, offset + 3)),
+      )
+      .filter(
+        ([x, , z]) =>
+          Math.abs(x) > DEFAULT_CLAMP_CONFIG.jawWidth / 2 + 1 &&
+          z > DEFAULT_CLAMP_CONFIG.baseThickness + 1e-4 &&
+          z <= rootTop + 1e-4,
+      );
+
+    const maxFootprintError = Math.max(
+      ...gussetShoulderVertices.map(([x, y]) => {
+        const endDistance = Math.max(0, Math.abs(x) - endCenter);
+        return endDistance * endDistance + y * y - halfWidth * halfWidth;
+      }),
+    );
+    expect(maxFootprintError).toBeLessThanOrEqual(1e-3);
+  });
+
+  it("rounds the jaw faces through several axial rings", () => {
+    const triangles = generateClampTriangles(DEFAULT_CLAMP_CONFIG);
+    const d = deriveClamp(DEFAULT_CLAMP_CONFIG);
+    const positiveFaceLayers = new Set(
+      triangles
+        .flatMap((triangle) =>
+          [0, 3, 6].map((offset) => triangle.slice(offset, offset + 3)),
+        )
+        .filter(([, , z]) => z > d.boreCenterZ)
+        .map(([x]) => x)
+        .filter((x) => x > DEFAULT_CLAMP_CONFIG.jawWidth / 2 - 1),
+    );
+    expect(positiveFaceLayers.size).toBeGreaterThanOrEqual(5);
+  });
+
+  it("widens a blended screw recess progressively", () => {
+    const triangles = generateClampTriangles(DEFAULT_CLAMP_CONFIG);
+    const centerX = DEFAULT_CLAMP_CONFIG.holeSpacing / 2;
+    const blendStart =
+      DEFAULT_CLAMP_CONFIG.baseThickness - DEFAULT_CLAMP_CONFIG.headDepth;
+    const radii = new Set(
+      triangles
+        .flatMap((triangle) =>
+          [0, 3, 6].map((offset) => triangle.slice(offset, offset + 3)),
+        )
+        .filter(
+          ([, , z]) => z > blendStart && z < DEFAULT_CLAMP_CONFIG.baseThickness,
+        )
+        .map(([x, y]) => Math.round(Math.hypot(x - centerX, y) * 100) / 100)
+        .filter(
+          (radius) =>
+            radius >= DEFAULT_CLAMP_CONFIG.screwDiameter / 2 &&
+            radius <= DEFAULT_CLAMP_CONFIG.headDiameter / 2,
+        ),
+    );
+    expect(radii.size).toBeGreaterThanOrEqual(5);
+  });
+
   it("extrudes the clip flat with the jaw width as its height", () => {
     const config: ClampConfig = { ...DEFAULT_CLAMP_CONFIG, mount: "clip" };
     const triangles = generateClampTriangles(config);
@@ -170,5 +274,26 @@ describe("jawProfile", () => {
     const maxU = Math.max(...profile.map((p) => p.u));
     const minU = Math.min(...profile.map((p) => p.u));
     expect(maxU).toBeCloseTo(-minU, 5);
+  });
+
+  it("honors the requested snap interference", () => {
+    const d = deriveClamp(DEFAULT_CLAMP_CONFIG);
+    expect(d.snapInterference).toBeCloseTo(
+      DEFAULT_CLAMP_CONFIG.snapInterference,
+      2,
+    );
+  });
+
+  it("tapers smoothly from the spring into the structural root", () => {
+    const atSide = armThicknessAtAngle(DEFAULT_CLAMP_CONFIG, Math.PI / 2);
+    const atShoulder = armThicknessAtAngle(
+      DEFAULT_CLAMP_CONFIG,
+      (125 * Math.PI) / 180,
+    );
+    const atRoot = armThicknessAtAngle(DEFAULT_CLAMP_CONFIG, Math.PI);
+    expect(atSide).toBeCloseTo(DEFAULT_CLAMP_CONFIG.armThickness, 5);
+    expect(atShoulder).toBeGreaterThan(atSide);
+    expect(atShoulder).toBeLessThan(atRoot);
+    expect(atRoot).toBeCloseTo(DEFAULT_CLAMP_CONFIG.rootThickness, 5);
   });
 });

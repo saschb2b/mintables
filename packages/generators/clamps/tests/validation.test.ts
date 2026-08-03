@@ -62,6 +62,23 @@ describe("validateClampConfig", () => {
     expect(result.errors).toContain("snap_too_stiff");
   });
 
+  it("rejects a root thinner than the spring arm", () => {
+    const result = codes({
+      ...DEFAULT_CLAMP_CONFIG,
+      rootThickness: DEFAULT_CLAMP_CONFIG.armThickness - 0.2,
+    });
+    expect(result.errors).toContain("root_thinner_than_arm");
+  });
+
+  it("rejects interference that the throat cannot reach", () => {
+    const result = codes({
+      ...DEFAULT_CLAMP_CONFIG,
+      throatDepth: 2,
+      snapInterference: 8,
+    });
+    expect(result.errors).toContain("interference_unreachable");
+  });
+
   it("rejects screw holes that overlap the jaw", () => {
     const result = codes({ ...DEFAULT_CLAMP_CONFIG, holeSpacing: 12 });
     expect(result.errors).toContain("holes_hit_jaw");

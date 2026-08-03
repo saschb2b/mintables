@@ -5,7 +5,11 @@ export type ClampTipStyle = "bulb" | "plain";
 export type ClampMount = "plate" | "clip";
 
 /** Screw head treatment for the base plate holes. */
-export type ClampScrewRecess = "counterbore" | "countersink" | "plain";
+export type ClampScrewRecess =
+  | "blended"
+  | "counterbore"
+  | "countersink"
+  | "plain";
 
 export interface ClampConfig {
   /**
@@ -34,6 +38,17 @@ export interface ClampConfig {
   throatDepth: number;
   /** Radial thickness of the snap arms (mm). */
   armThickness: number;
+  /**
+   * Radial thickness where each spring arm grows into the structural root
+   * (mm). A gradual taper keeps the mouth compliant without leaving a weak
+   * hinge at the base of the jaw.
+   */
+  rootThickness: number;
+  /**
+   * How much narrower the mouth is than the measured rod (mm). This is the
+   * total snap deflection, shared equally by both arms.
+   */
+  snapInterference: number;
   /**
    * Width of the jaw along the rod axis (mm) - the "make it a smidge wider"
    * knob. Wider jaws grip more rod and spread the load.
@@ -79,26 +94,28 @@ export interface ClampConfig {
   screwDiameter: number;
   /** Recess style for the screw head. */
   screwRecess: ClampScrewRecess;
-  /** Screw head diameter (mm). Used by counterbore and countersink. */
+  /** Screw head diameter (mm). Used by every recessed head style. */
   headDiameter: number;
-  /** Counterbore depth (mm). Counterbore recess only. */
+  /** Counterbore or blend depth (mm). */
   headDepth: number;
 }
 
 /**
- * Defaults reproduce the scanned motorbike shield clamp: an 18 mm rod,
- * a 225 degree seat with a 4 mm throat and bulb tips, on a 32 x 15
- * stadium plate with two M4 counterbored holes.
+ * Defaults reproduce the useful design intent of the scanned motorbike
+ * shield clamp: compliant tapered arms, a reinforced root, controlled snap
+ * interference, and a broad screw-on base with blended M4 head recesses.
  */
 export const DEFAULT_CLAMP_CONFIG: ClampConfig = {
   rodDiameter: 18,
-  fitClearance: 0.2,
+  fitClearance: 0.8,
   wrapAngle: 225,
   throatDepth: 4,
-  armThickness: 3,
+  armThickness: 2.5,
+  rootThickness: 4.5,
+  snapInterference: 3,
   jawWidth: 8,
   tipStyle: "bulb",
-  bulbScale: 1.6,
+  bulbScale: 1.5,
   mount: "plate",
   baseLength: 32,
   baseWidth: 15,
@@ -107,7 +124,7 @@ export const DEFAULT_CLAMP_CONFIG: ClampConfig = {
   neckWidth: 13,
   holeSpacing: 19,
   screwDiameter: 4.5,
-  screwRecess: "counterbore",
+  screwRecess: "blended",
   headDiameter: 8.5,
-  headDepth: 2.5,
+  headDepth: 3.2,
 };

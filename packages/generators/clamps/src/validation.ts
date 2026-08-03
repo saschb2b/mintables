@@ -69,12 +69,48 @@ export function validateClampConfig(config: ClampConfig): ValidationResult {
     parts.push(
       rangeError("armThickness", "arm_range", "Arm thickness", 1.2, 12),
     );
-  } else if (config.armThickness < 2) {
+  } else if (config.armThickness < 2.2) {
     parts.push(
       warning(
         "arm_thin",
-        "Arms under 2 mm are fragile snap springs. 2.4 mm and up prints as solid perimeters and lasts much longer.",
+        "Spring sections under 2.2 mm are fragile. Use a tough filament and enough perimeters.",
         "armThickness",
+      ),
+    );
+  }
+  if (config.rootThickness < config.armThickness) {
+    parts.push(
+      error(
+        "root_thinner_than_arm",
+        "Root thickness must be at least the spring thickness so the arm does not form a weak hinge at its base.",
+        "rootThickness",
+      ),
+    );
+  } else if (config.rootThickness > 16) {
+    parts.push(
+      rangeError("rootThickness", "root_range", "Root thickness", 1.2, 16),
+    );
+  }
+  if (
+    config.snapInterference < -2 ||
+    config.snapInterference > config.rodDiameter * 0.5
+  ) {
+    parts.push(
+      error(
+        "interference_range",
+        "Snap interference must be between -2 mm and half the rod diameter.",
+        "snapInterference",
+      ),
+    );
+  } else if (
+    d.usesThroat &&
+    Math.abs(d.snapInterference - config.snapInterference) > 0.15
+  ) {
+    parts.push(
+      error(
+        "interference_unreachable",
+        "The requested snap interference needs too much throat lean. Increase throat depth or reduce the interference.",
+        "snapInterference",
       ),
     );
   }
@@ -219,7 +255,7 @@ export function validateClampConfig(config: ClampConfig): ValidationResult {
     );
   }
 
-  const maxNeck = Math.min(config.baseWidth - 1, 2 * d.outerRadius * 0.95);
+  const maxNeck = Math.min(config.baseWidth - 1, 2 * d.maxOuterRadius * 0.95);
   if (config.neckWidth < 4) {
     parts.push(
       error("neck_min", "Neck width must be at least 4 mm.", "neckWidth"),
@@ -235,7 +271,9 @@ export function validateClampConfig(config: ClampConfig): ValidationResult {
   } else {
     const zExit =
       d.boreCenterZ -
-      Math.sqrt(Math.max(0, d.outerRadius ** 2 - (config.neckWidth / 2) ** 2));
+      Math.sqrt(
+        Math.max(0, d.maxOuterRadius ** 2 - (config.neckWidth / 2) ** 2),
+      );
     if (zExit < config.baseThickness + 0.3) {
       parts.push(
         error(
@@ -264,13 +302,16 @@ export function validateClampConfig(config: ClampConfig): ValidationResult {
         ),
       );
     }
-    if (config.screwRecess === "counterbore") {
+    if (
+      config.screwRecess === "counterbore" ||
+      config.screwRecess === "blended"
+    ) {
       const maxDepth = config.baseThickness - 1.2;
       if (config.headDepth < 0.5 || config.headDepth > maxDepth) {
         parts.push(
           error(
             "head_depth_range",
-            `Counterbore depth must be between 0.5 mm and ${maxDepth.toFixed(1)} mm so at least 1.2 mm of plate remains under the head.`,
+            `Head recess depth must be between 0.5 mm and ${maxDepth.toFixed(1)} mm so at least 1.2 mm of plate remains under the head.`,
             "headDepth",
           ),
         );

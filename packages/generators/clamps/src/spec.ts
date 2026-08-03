@@ -8,6 +8,8 @@ export interface ClampSpecSummary {
   mouthOpening: number;
   snapInterference: number;
   flexStrain: number;
+  springThickness: number;
+  rootThickness: number;
   /** Bed footprint (x = along rod, y = across). */
   footprintX: number;
   footprintY: number;
@@ -36,6 +38,11 @@ export function getClampSpecSummary(config: ClampConfig): ClampSpecSummary {
     let holes = 2 * Math.PI * rs * rs * config.baseThickness;
     if (config.screwRecess === "counterbore") {
       holes += 2 * Math.PI * (rh * rh - rs * rs) * config.headDepth;
+    } else if (config.screwRecess === "blended") {
+      const radiusGrowth = rh - rs;
+      const extraAreaIntegral =
+        rs * radiusGrowth + (13 / 35) * radiusGrowth * radiusGrowth;
+      holes += 2 * Math.PI * config.headDepth * extraAreaIntegral;
     } else if (config.screwRecess === "countersink") {
       // Conical frustum minus the shank hole it replaces, per hole.
       const h = rh - rs;
@@ -60,6 +67,8 @@ export function getClampSpecSummary(config: ClampConfig): ClampSpecSummary {
     mouthOpening: d.mouthOpening,
     snapInterference: d.snapInterference,
     flexStrain: d.flexStrain,
+    springThickness: config.armThickness,
+    rootThickness: config.rootThickness,
     footprintX,
     footprintY,
     overallHeight,

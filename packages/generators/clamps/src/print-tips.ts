@@ -74,7 +74,7 @@ export function getClampPrintTips(config: ClampConfig): PrintTip[] {
     tips.push({
       icon: "gauge",
       title: "Dial in the fit on a test print",
-      body: `The mouth is ${d.mouthOpening.toFixed(1)} mm for an ${String(config.rodDiameter)} mm rod. If the snap is too tight or too loose, nudge the fit clearance or wrap angle by a small step and re-print.`,
+      body: `The mouth is ${d.mouthOpening.toFixed(1)} mm for an ${String(config.rodDiameter)} mm rod. If the snap is too tight or too loose, adjust snap interference in a small step and re-print.`,
       priority: 6,
     });
   }

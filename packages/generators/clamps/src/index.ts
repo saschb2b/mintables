@@ -41,6 +41,7 @@ function decodeClamp(data: unknown): ClampConfig | null {
   if (
     merged.screwRecess !== "counterbore" &&
     merged.screwRecess !== "countersink" &&
+    merged.screwRecess !== "blended" &&
     merged.screwRecess !== "plain"
   ) {
     merged.screwRecess = DEFAULT_CLAMP_CONFIG.screwRecess;
@@ -89,7 +90,7 @@ export const clampGenerator: Generator<ClampConfig> = {
     name: "Clamps",
     tagline: "3D Printable Snap-Fit Rod Clamp Generator",
     description:
-      "Snap-on clamps for rods and tubes, with rounded bulb tips and a screw-on base plate. Rebuild that broken bracket at exactly the size you measure.",
+      "Engineered snap-on clamps with tapered spring arms, reinforced roots, rounded bulb tips, and a screw-on base plate.",
     icon: Magnet,
     accent: "#f97316",
     iconArt: ClampIconArt,

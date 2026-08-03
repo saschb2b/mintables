@@ -1,7 +1,42 @@
 import type { ClampConfig } from "./types";
 
-/** The throat's inward lean is derived, capped so it stays gentle. */
-const MAX_THROAT_LEAN_RAD = (8 * Math.PI) / 180;
+/** The throat lean is derived from the requested mouth interference. */
+const MAX_THROAT_LEAN_RAD = (20 * Math.PI) / 180;
+
+const ROOT_TAPER_START_RAD = (105 * Math.PI) / 180;
+const ROOT_TAPER_END_RAD = (150 * Math.PI) / 180;
+
+function clampNum(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function smoothstep(value: number): number {
+  const t = clampNum(value, 0, 1);
+  return t * t * (3 - 2 * t);
+}
+
+/**
+ * Radial jaw thickness at an angle measured from straight up. The upper
+ * arm stays flexible, then grows smoothly into the reinforced root.
+ */
+export function armThicknessAtAngle(
+  config: ClampConfig,
+  angle: number,
+): number {
+  const twoPi = 2 * Math.PI;
+  const wrapped = ((angle % twoPi) + twoPi) % twoPi;
+  const folded = wrapped <= Math.PI ? wrapped : twoPi - wrapped;
+  const blend = smoothstep(
+    (folded - ROOT_TAPER_START_RAD) /
+      (ROOT_TAPER_END_RAD - ROOT_TAPER_START_RAD),
+  );
+  return (
+    config.armThickness +
+    (Math.max(config.armThickness, config.rootThickness) -
+      config.armThickness) *
+      blend
+  );
+}
 
 /**
  * Quantities shared by geometry, validation, spec, and the scene. Everything
@@ -12,6 +47,8 @@ export interface ClampDerived {
   boreRadius: number;
   /** Outer radius of the arm ring: bore + arm thickness. */
   outerRadius: number;
+  /** Largest root radius after the arm taper reaches full thickness. */
+  maxOuterRadius: number;
   /** Radius of the arm centerline, where the throat and tips attach. */
   armCenterRadius: number;
   /** Radius of the tip circle (bulb or half-round cap). */
@@ -62,7 +99,9 @@ export function deriveClamp(config: ClampConfig): ClampDerived {
     (config.rodDiameter + config.fitClearance) / 2,
   );
   const arm = Math.max(0.4, config.armThickness);
+  const root = Math.max(arm, config.rootThickness);
   const outerRadius = boreRadius + arm;
+  const maxOuterRadius = boreRadius + root;
   const armCenterRadius = boreRadius + arm / 2;
   const tipRadius =
     config.tipStyle === "bulb"
@@ -85,13 +124,21 @@ export function deriveClamp(config: ClampConfig): ClampDerived {
   const throat = Math.max(0, config.throatDepth);
   const usesThroat = throat >= bulbTangent + 0.5;
 
-  const throatLean = Math.min(
-    MAX_THROAT_LEAN_RAD,
-    (Math.PI / 2 - mouthHalfAngle) / 2,
-  );
-
   const seatU = armCenterRadius * Math.sin(mouthHalfAngle);
   const seatRise = armCenterRadius * Math.cos(mouthHalfAngle);
+  const requestedMouth = Math.max(
+    0,
+    config.rodDiameter - config.snapInterference,
+  );
+  const requestedTipU = requestedMouth / 2 + tipRadius;
+  const requiredLean =
+    throat > 0
+      ? Math.asin(clampNum((seatU - requestedTipU) / throat, -1, 1))
+      : 0;
+  const throatLean = usesThroat
+    ? clampNum(requiredLean, -MAX_THROAT_LEAN_RAD, MAX_THROAT_LEAN_RAD)
+    : Math.min(MAX_THROAT_LEAN_RAD, (Math.PI / 2 - mouthHalfAngle) / 2);
+
   const tipCenterU = usesThroat ? seatU - throat * Math.sin(throatLean) : seatU;
   const tipCenterRise = usesThroat
     ? seatRise + throat * Math.cos(throatLean)
@@ -119,6 +166,7 @@ export function deriveClamp(config: ClampConfig): ClampDerived {
   return {
     boreRadius,
     outerRadius,
+    maxOuterRadius,
     armCenterRadius,
     tipRadius,
     mouthHalfAngle,

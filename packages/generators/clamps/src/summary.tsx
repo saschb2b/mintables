@@ -42,6 +42,10 @@ export function ClampSummary({ config }: { config: ClampConfig }) {
         label="Mouth opening"
         value={`${spec.mouthOpening.toFixed(1)} mm`}
       />
+      <SpecRow
+        label="Arm taper"
+        value={`${spec.springThickness.toFixed(1)} to ${spec.rootThickness.toFixed(1)} mm`}
+      />
       {spec.snapInterference > 0 && (
         <SpecRow
           label="Snap flex"

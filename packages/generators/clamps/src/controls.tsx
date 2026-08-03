@@ -32,8 +32,9 @@ export function ClampControls({
 
   const d = deriveClamp(config);
   const maxNeck =
-    Math.floor(Math.min(config.baseWidth - 1, 2 * d.outerRadius * 0.95) * 10) /
-    10;
+    Math.floor(
+      Math.min(config.baseWidth - 1, 2 * d.maxOuterRadius * 0.95) * 10,
+    ) / 10;
 
   return (
     <Stack spacing={2}>
@@ -70,8 +71,8 @@ export function ClampControls({
           variant="caption"
           sx={{ color: "text.secondary", display: "block", mt: 1 }}
         >
-          Measure the rod with calipers. Clearance 0.2 mm lets it rotate, 0
-          grips snug, negative squeezes.
+          Measure the rod with calipers. Around 0.8 mm clearance matches the
+          scanned clamp and leaves room for print tolerance.
         </Typography>
       </SectionCard>
 
@@ -117,7 +118,7 @@ export function ClampControls({
             unit="mm"
           />
           <NumberInput
-            label="Arm thickness"
+            label="Spring thickness"
             value={config.armThickness}
             onChange={(v) => {
               update({ armThickness: v });
@@ -127,6 +128,32 @@ export function ClampControls({
             min={1.2}
             max={12}
             step={0.2}
+            unit="mm"
+          />
+          <NumberInput
+            label="Root thickness"
+            value={config.rootThickness}
+            onChange={(v) => {
+              update({ rootThickness: v });
+            }}
+            field="rootThickness"
+            validation={validation}
+            min={1.2}
+            max={16}
+            step={0.2}
+            unit="mm"
+          />
+          <NumberInput
+            label="Snap interference"
+            value={config.snapInterference}
+            onChange={(v) => {
+              update({ snapInterference: v });
+            }}
+            field="snapInterference"
+            validation={validation}
+            min={-2}
+            max={Math.max(2, config.rodDiameter * 0.5)}
+            step={0.1}
             unit="mm"
           />
           <TextField
@@ -162,10 +189,11 @@ export function ClampControls({
           variant="caption"
           sx={{ color: "text.secondary", display: "block", mt: 1 }}
         >
-          Mouth opening: {d.mouthOpening.toFixed(1)} mm
+          Mouth opening: {d.mouthOpening.toFixed(1)} mm. The spring grows from
+          {` ${config.armThickness.toFixed(1)} mm to ${config.rootThickness.toFixed(1)} mm at the base`}
           {d.snapInterference > 0
-            ? ` (each arm flexes ${(d.snapInterference / 2).toFixed(1)} mm to snap on)`
-            : " (wider than the rod, no snap retention)"}
+            ? `; each arm flexes ${(d.snapInterference / 2).toFixed(1)} mm to snap on.`
+            : "; the mouth is wider than the rod, so there is no snap retention."}
         </Typography>
       </SectionCard>
 
@@ -300,6 +328,7 @@ export function ClampControls({
               }}
               fullWidth
             >
+              <MenuItem value="blended">Blended countersink</MenuItem>
               <MenuItem value="counterbore">Counterbore</MenuItem>
               <MenuItem value="countersink">Countersink</MenuItem>
               <MenuItem value="plain">Plain hole</MenuItem>
@@ -319,9 +348,14 @@ export function ClampControls({
                 unit="mm"
               />
             )}
-            {config.screwRecess === "counterbore" && (
+            {(config.screwRecess === "counterbore" ||
+              config.screwRecess === "blended") && (
               <NumberInput
-                label="Head depth"
+                label={
+                  config.screwRecess === "blended"
+                    ? "Blend depth"
+                    : "Head depth"
+                }
                 value={config.headDepth}
                 onChange={(v) => {
                   update({ headDepth: v });
@@ -339,10 +373,9 @@ export function ClampControls({
             variant="caption"
             sx={{ color: "text.secondary", display: "block", mt: 1 }}
           >
-            Hole spacing is center to center along the rod. 4.5 mm holes with an
-            8.5 mm counterbored head fit an M4 cap screw. Extra space between
-            the jaw and the holes is used for a strength fillet at the jaw's
-            feet.
+            Hole spacing is center to center along the rod. The blended recess
+            removes the counterbore shoulder that concentrates stress and traps
+            unsupported extrusion lines.
           </Typography>
         </SectionCard>
       )}

@@ -36,6 +36,6 @@ describe("clampGenerator.decode", () => {
     });
     expect(decoded?.tipStyle).toBe("bulb");
     expect(decoded?.mount).toBe("plate");
-    expect(decoded?.screwRecess).toBe("counterbore");
+    expect(decoded?.screwRecess).toBe(DEFAULT_CLAMP_CONFIG.screwRecess);
   });
 });

@@ -2,6 +2,7 @@
 
 import { Suspense, useMemo } from "react";
 import { Billboard, ContactShadows, Line, Text } from "@react-three/drei";
+import { useTheme } from "@mui/material/styles";
 import { configKey } from "@mintables/shared/lib/config-key";
 import { ModelMesh } from "@mintables/shared/shell/model-mesh";
 import { GridFloor } from "@mintables/shared/shell/grid-floor";
@@ -83,6 +84,7 @@ function BedDimension({
  * lies flat, so the rod stands vertically through it.
  */
 function GhostRod({ config }: { config: ClampConfig }) {
+  const theme = useTheme();
   const d = deriveClamp(config);
   const radius = config.rodDiameter / 2;
   const isPlate = config.mount === "plate";
@@ -95,7 +97,7 @@ function GhostRod({ config }: { config: ClampConfig }) {
     >
       <cylinderGeometry args={[radius, radius, length, 48]} />
       <meshStandardMaterial
-        color="#7dd3fc"
+        color={theme.palette.info.light}
         transparent
         opacity={0.14}
         depthWrite={false}
@@ -116,10 +118,12 @@ function fmt(n: number): string {
  * (plus clearance) - the one dimension the whole part is built around.
  */
 function BoreDiameterCallout({ config }: { config: ClampConfig }) {
+  const theme = useTheme();
   const d = deriveClamp(config);
   const bore = 2 * d.boreRadius;
   const font = Math.max(2.5, bore * 0.2);
   const tick = Math.max(1, bore * 0.08);
+  const color = theme.palette.warning.main;
   const label = `Ø ${fmt(bore)} mm`;
 
   if (config.mount === "plate") {
@@ -134,7 +138,7 @@ function BoreDiameterCallout({ config }: { config: ClampConfig }) {
             [x, y, -bore / 2],
             [x, y, bore / 2],
           ]}
-          color="#f97316"
+          color={color}
           lineWidth={1.5}
         />
         {[-bore / 2, bore / 2].map((z) => (
@@ -144,17 +148,12 @@ function BoreDiameterCallout({ config }: { config: ClampConfig }) {
               [x, y - tick, z],
               [x, y + tick, z],
             ]}
-            color="#f97316"
+            color={color}
             lineWidth={1.5}
           />
         ))}
         <Billboard position={[x, y + font * 1.1, 0]}>
-          <Text
-            fontSize={font}
-            color="#f97316"
-            anchorX="center"
-            anchorY="bottom"
-          >
+          <Text fontSize={font} color={color} anchorX="center" anchorY="bottom">
             {label}
           </Text>
         </Billboard>
@@ -172,7 +171,7 @@ function BoreDiameterCallout({ config }: { config: ClampConfig }) {
           [-bore / 2, yTop, 0],
           [bore / 2, yTop, 0],
         ]}
-        color="#f97316"
+        color={color}
         lineWidth={1.5}
       />
       {[-bore / 2, bore / 2].map((x) => (
@@ -182,12 +181,12 @@ function BoreDiameterCallout({ config }: { config: ClampConfig }) {
             [x, yTop, -tick],
             [x, yTop, tick],
           ]}
-          color="#f97316"
+          color={color}
           lineWidth={1.5}
         />
       ))}
       <Billboard position={[0, yTop + font * 0.9, 0]}>
-        <Text fontSize={font} color="#f97316" anchorX="center" anchorY="bottom">
+        <Text fontSize={font} color={color} anchorX="center" anchorY="bottom">
           {label}
         </Text>
       </Billboard>
@@ -202,9 +201,10 @@ function BoreDiameterCallout({ config }: { config: ClampConfig }) {
  * summary card instead of the viewport.
  */
 function ClampDimensionIndicators({ config }: { config: ClampConfig }) {
+  const theme = useTheme();
   const d = deriveClamp(config);
   const isPlate = config.mount === "plate";
-  const spanX = isPlate ? config.baseLength : 2 * d.outerRadius;
+  const spanX = isPlate ? config.baseLength : 2 * d.maxOuterRadius;
   const spanZ = isPlate ? config.baseWidth : d.outerRadius + d.profileTop;
   const inset = Math.max(spanX, spanZ) * 0.22;
 
@@ -215,7 +215,7 @@ function ClampDimensionIndicators({ config }: { config: ClampConfig }) {
         to={[spanX / 2, 0, spanZ / 2 + inset]}
         axis="x"
         label={`${fmt(spanX)} mm`}
-        color="#3b82f6"
+        color={theme.palette.info.main}
       />
       {isPlate && (
         <BedDimension
@@ -223,7 +223,7 @@ function ClampDimensionIndicators({ config }: { config: ClampConfig }) {
           to={[spanX / 2 + inset, 0, spanZ / 2]}
           axis="z"
           label={`${fmt(spanZ)} mm`}
-          color="#22c55e"
+          color={theme.palette.success.main}
         />
       )}
       {isPlate && (
@@ -234,7 +234,7 @@ function ClampDimensionIndicators({ config }: { config: ClampConfig }) {
           to={[config.holeSpacing / 2, 0, -spanZ / 2 - inset * 0.7]}
           axis="x"
           label={`2× Ø ${fmt(config.screwDiameter)} @ ${fmt(config.holeSpacing)} mm`}
-          color="#f59e0b"
+          color={theme.palette.warning.main}
           textOffset={-Math.max(5, spanZ * 0.2)}
         />
       )}
@@ -252,7 +252,7 @@ function useClampBounds(config: ClampConfig): SceneBounds {
     const height = isPlate ? d.boreCenterZ + d.profileTop : parsed.jawWidth;
     const width = isPlate
       ? Math.max(parsed.baseLength, 2 * d.outerRadius)
-      : 2 * d.outerRadius;
+      : 2 * d.maxOuterRadius;
     const maxDimension = Math.max(width, height, 20);
     return {
       maxDimension,
