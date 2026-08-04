@@ -38,7 +38,10 @@ export function exportModel<C>(
   }
 
   const triangles = generator.geometry(config);
-  if (!isPrintableMesh(triangles)) {
+  const exportable = generator.isExportableMesh
+    ? generator.isExportableMesh(triangles)
+    : isPrintableMesh(triangles);
+  if (!exportable) {
     throw new ExportError(
       `${generator.meta.name} export failed: generated mesh is empty or contains degenerate triangles.`,
     );
@@ -49,7 +52,10 @@ export function exportModel<C>(
   const buffer =
     format === "3mf"
       ? serialize3MF(triangles, generator.meta.name)
-      : serializeSTL(triangles, `Mintables ${generator.meta.name} - Watertight Mesh`);
+      : serializeSTL(
+          triangles,
+          `Mintables ${generator.meta.name} - Watertight Mesh`,
+        );
 
   triggerDownload(buffer, fullName, MIME_TYPES[format]);
 }

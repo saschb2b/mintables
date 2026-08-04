@@ -148,7 +148,13 @@ function trianglesToModelXml(triangles: TriangleMesh, appName: string): string {
     return idx;
   };
 
-  for (const t of triangles) {
+  const triangleCount =
+    triangles instanceof Float32Array ? triangles.length / 9 : triangles.length;
+  for (let face = 0; face < triangleCount; face++) {
+    const t =
+      triangles instanceof Float32Array
+        ? triangles.subarray(face * 9, face * 9 + 9)
+        : triangles[face];
     const a = intern(t[0], t[1], t[2]);
     const b = intern(t[3], t[4], t[5]);
     const c = intern(t[6], t[7], t[8]);

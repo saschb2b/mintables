@@ -1,10 +1,12 @@
 import { roundVertex } from "./mesh-utils";
+import type { TriangleMesh } from "../generator";
 
 export function createSTLBinary(
-  triangles: number[][],
+  triangles: TriangleMesh,
   headerText = "Mintables STL - Watertight Mesh",
 ): ArrayBuffer {
-  const numTriangles = triangles.length;
+  const numTriangles =
+    triangles instanceof Float32Array ? triangles.length / 9 : triangles.length;
   const bufferSize = 84 + numTriangles * 50;
   const buffer = new ArrayBuffer(bufferSize);
   const view = new DataView(buffer);
@@ -16,7 +18,11 @@ export function createSTLBinary(
   view.setUint32(80, numTriangles, true);
 
   let offset = 84;
-  for (const tri of triangles) {
+  for (let face = 0; face < numTriangles; face++) {
+    const tri =
+      triangles instanceof Float32Array
+        ? triangles.subarray(face * 9, face * 9 + 9)
+        : triangles[face];
     const x1 = tri[0],
       y1 = tri[1],
       z1 = tri[2];
