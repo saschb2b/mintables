@@ -7,6 +7,7 @@ import { insertGenerator } from "@mintables/gen-inserts";
 import { hexTileGenerator } from "@mintables/gen-hex-tiles";
 import { clampGenerator } from "@mintables/gen-clamps";
 import { supportCleanerGenerator } from "@mintables/gen-support-cleaner";
+import { pullGenerator } from "@mintables/gen-pulls";
 
 export const generators: AnyGenerator[] = [
   tubeGenerator as AnyGenerator,
@@ -17,6 +18,7 @@ export const generators: AnyGenerator[] = [
   hexTileGenerator as AnyGenerator,
   clampGenerator as AnyGenerator,
   supportCleanerGenerator as AnyGenerator,
+  pullGenerator as AnyGenerator,
 ];
 
 export const bySlug: Record<string, AnyGenerator> = Object.fromEntries(
