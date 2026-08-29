@@ -46,6 +46,16 @@ const ROLL_FILLET_RINGS = 5;
 const BOWL_CURVE_WIDTH = 12;
 const TEXTURE_EDGE_MARGIN = 0.45;
 const TEXTURE_FEATURE_MARGIN = 0.75;
+/** How far past the face a clipped pattern is laid out before it is cut back. */
+const TEXTURE_EDGE_OVERSHOOT = 6;
+/** A cut thinner than this prints as nothing, so it is not worth a groove. */
+const TEXTURE_MIN_HALF_WIDTH = 0.1;
+/**
+ * Cuts along one face edge are staggered over this range rather than sharing a
+ * line. Three points on one line are a zero-area triangle for the ear clipper,
+ * and a mesh carrying one of those is refused at export.
+ */
+const TEXTURE_EDGE_STAGGER = 0.35;
 
 /**
  * Corner coordinates are written out rather than derived from cos/sin so the
@@ -223,28 +233,64 @@ function distanceBetweenOutlines(a: Point2[], b: Point2[]): number {
   return distance;
 }
 
-function textureCandidateFits(
+/** Whole features only: the candidate has to sit inside the face untouched. */
+function textureCandidateInsideFace(
   candidate: Point2[],
   outer: Point2[],
-  blocked: Point2[][],
 ): boolean {
-  const samples = [...candidate, centroid(candidate)];
-  const insideOuter = samples.every(
+  return [...candidate, centroid(candidate)].every(
     (point) =>
       pointInPolygon(point, outer) &&
       distanceToOutline(point, outer) >= TEXTURE_EDGE_MARGIN,
   );
-  return (
-    insideOuter &&
-    blocked.every(
-      (outline) =>
-        samples.every((point) => !pointInPolygon(point, outline)) &&
-        !outline.some((blockedPoint) =>
-          pointInPolygon(blockedPoint, candidate),
-        ) &&
-        distanceBetweenOutlines(candidate, outline) >= TEXTURE_FEATURE_MARGIN,
-    )
+}
+
+/**
+ * Relief never runs into a functional surface, whether it is clipped at the
+ * face edge or not: wells, slots, and the orientation dot all keep their room.
+ */
+function textureCandidateClearsFeatures(
+  candidate: Point2[],
+  blocked: Point2[][],
+): boolean {
+  const samples = [...candidate, centroid(candidate)];
+  return blocked.every(
+    (outline) =>
+      samples.every((point) => !pointInPolygon(point, outline)) &&
+      !outline.some((blockedPoint) =>
+        pointInPolygon(blockedPoint, candidate),
+      ) &&
+      distanceBetweenOutlines(candidate, outline) >= TEXTURE_FEATURE_MARGIN,
   );
+}
+
+/**
+ * Cuts a candidate back to the face, so a pattern laid out past the edge ends
+ * flush with it instead of being dropped. Both are convex, so clipping against
+ * each edge of the face in turn leaves the intersection.
+ */
+function clipToFace(candidate: Point2[], limit: Point2[]): Point2[] {
+  let piece = candidate;
+  for (let index = 0; index < limit.length; index++) {
+    if (piece.length < 3) return [];
+    const point = limit[index];
+    const next = limit[(index + 1) % limit.length];
+    const length = Math.hypot(next.x - point.x, next.y - point.y);
+    if (length < 1e-9) continue;
+    // The face runs counter-clockwise, so its inward normal is the edge turned
+    // a quarter turn left.
+    const normal = {
+      x: -(next.y - point.y) / length,
+      y: (next.x - point.x) / length,
+    };
+    piece = clipHalfPlane(
+      piece,
+      normal,
+      point.x * normal.x + point.y * normal.y,
+      "above",
+    );
+  }
+  return piece.length < 3 ? [] : cleanPolygon(piece);
 }
 
 function patternHash(x: number, y: number, seed: number): number {
@@ -446,59 +492,95 @@ function customHeightMapCandidates(
   return grooves;
 }
 
+function textureCandidates(
+  config: HexTileConfig,
+  outer: Point2[],
+): TextureGroove[] {
+  const solid = (outlines: Point2[][]): TextureGroove[] =>
+    outlines.map((outline) => ({ outline, depthScale: 1 }));
+  switch (config.surfaceTexture) {
+    case "wood-grain":
+      return solid(woodGrainCandidates(outer));
+    case "cobblestone":
+      return solid(cobblestoneCandidates(outer));
+    case "hammered-stone":
+      return solid(hammeredStoneCandidates(outer));
+    case "sci-fi-panels":
+      return solid(sciFiPanelCandidates(outer));
+    case "custom":
+      return customHeightMapCandidates(config, outer);
+  }
+}
+
 function surfaceTextureGrooves(
   config: HexTileConfig,
   outer: Point2[],
   blocked: Point2[][],
 ): TextureGroove[] {
   if (!config.isSurfaceTextureEnabled) return [];
-  let candidates: TextureGroove[];
-  switch (config.surfaceTexture) {
-    case "wood-grain":
-      candidates = woodGrainCandidates(outer).map((outline) => ({
-        outline,
-        depthScale: 1,
-      }));
-      break;
-    case "cobblestone":
-      candidates = cobblestoneCandidates(outer).map((outline) => ({
-        outline,
-        depthScale: 1,
-      }));
-      break;
-    case "hammered-stone":
-      candidates = hammeredStoneCandidates(outer).map((outline) => ({
-        outline,
-        depthScale: 1,
-      }));
-      break;
-    case "sci-fi-panels":
-      candidates = sciFiPanelCandidates(outer).map((outline) => ({
-        outline,
-        depthScale: 1,
-      }));
-      break;
-    case "custom":
-      candidates = customHeightMapCandidates(config, outer);
-      break;
+  // A height map always spans the face itself. A repeating pattern is laid out
+  // past the edge instead, so features straddling it exist to be clipped back.
+  const overshoot =
+    config.isSurfaceTextureEdgeToEdge && config.surfaceTexture !== "custom"
+      ? TEXTURE_EDGE_OVERSHOOT
+      : 0;
+  const candidates = textureCandidates(
+    config,
+    overshoot > 0 ? offsetConvexPolygon(outer, -overshoot) : outer,
+  );
+
+  if (!config.isSurfaceTextureEdgeToEdge) {
+    return candidates
+      .filter(
+        (candidate) =>
+          textureCandidateInsideFace(candidate.outline, outer) &&
+          textureCandidateClearsFeatures(candidate.outline, blocked),
+      )
+      .map(jitterTextureGroove);
   }
-  // The patterns place grooves on regular grids, so points of different
-  // grooves land on exactly shared coordinates, and the ear clipper can
-  // bridge straight through such colinear runs and drop an edge. A jitter two
-  // hundredths of a millimetre wide, far below anything a nozzle resolves,
-  // makes every such tie decisive. It has to be this coarse: a subtler nudge
-  // only turns exact ties into precision-level ones, which clip worse.
+
+  // Jitter before clipping: the clip edge then still bounds the border
+  // exactly, and its points lie on the per-groove staggered hexagons, which
+  // already cannot tie with one another.
   return candidates
-    .filter((candidate) =>
-      textureCandidateFits(candidate.outline, outer, blocked),
-    )
-    .map((candidate) => ({
-      depthScale: candidate.depthScale,
-      outline: candidate.outline.map((point) => ({
-        x: point.x + (patternHash(point.x, point.y, 71) - 0.5) * 0.04,
-        y: point.y + (patternHash(point.y, point.x, 72) - 0.5) * 0.04,
-      })),
-    }));
+    .map(jitterTextureGroove)
+    .map((candidate) => {
+      const center = centroid(candidate.outline);
+      const inset =
+        TEXTURE_EDGE_MARGIN +
+        patternHash(center.x, center.y, 7) * TEXTURE_EDGE_STAGGER;
+      return {
+        ...candidate,
+        outline: clipToFace(
+          candidate.outline,
+          shrinkConvexPolygon(outer, inset),
+        ),
+      };
+    })
+    .filter(
+      (candidate) =>
+        candidate.outline.length >= 3 &&
+        polygonInradius(candidate.outline) >= TEXTURE_MIN_HALF_WIDTH &&
+        textureCandidateClearsFeatures(candidate.outline, blocked),
+    );
+}
+
+/**
+ * The patterns place grooves on regular grids, so points of different
+ * grooves land on exactly shared coordinates, and the ear clipper can
+ * bridge straight through such colinear runs and drop an edge. A jitter two
+ * hundredths of a millimetre wide, far below anything a nozzle resolves,
+ * makes every such tie decisive. It has to be this coarse: a subtler nudge
+ * only turns exact ties into precision-level ones, which clip worse.
+ */
+function jitterTextureGroove(candidate: TextureGroove): TextureGroove {
+  return {
+    depthScale: candidate.depthScale,
+    outline: candidate.outline.map((point) => ({
+      x: point.x + (patternHash(point.x, point.y, 71) - 0.5) * 0.04,
+      y: point.y + (patternHash(point.y, point.x, 72) - 0.5) * 0.04,
+    })),
+  };
 }
 
 function roundedRectangle(
@@ -2710,6 +2792,20 @@ function buildPenHolder(
   buildPenDividers(triangles, config, outer, zBase, zTop);
 }
 
+/**
+ * A plain tile: nothing is cut into it, so the body stays solid and the top is
+ * one flat land from edge to edge. The shared top face still carries the
+ * orientation dot and any surface relief, which now covers the whole hexagon.
+ */
+function buildPlainTop(
+  triangles: number[][],
+  config: HexTileConfig,
+  topOutline: Point2[],
+): void {
+  const layout = calculateHexTileLayout(config);
+  buildTopFace(triangles, config, topOutline, [], layout.topHeight);
+}
+
 function buildDiceOrbitInterior(
   triangles: number[][],
   config: HexTileConfig,
@@ -2787,6 +2883,8 @@ export function generateHexTileTriangles(config: HexTileConfig): number[][] {
     buildPenHolder(triangles, config, topOutline);
   } else if (config.purpose === "rolling") {
     buildRollingInterior(triangles, config, topOutline);
+  } else if (config.purpose === "plain") {
+    buildPlainTop(triangles, config, topOutline);
   } else {
     buildBowlInterior(triangles, config, topOutline);
   }

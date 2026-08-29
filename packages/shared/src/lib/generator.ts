@@ -4,7 +4,12 @@ import type { ValidationResult } from "./validation/types";
 import type { PrintTip } from "./print-tips";
 
 /** Flat triangle soup — one entry per face, 9 numbers (x,y,z * 3). */
-export type TriangleMesh = number[][];
+/**
+ * Flat triangle soup. Parametric generators normally return one 9-number
+ * array per face. Imported meshes may use a packed Float32Array to avoid the
+ * substantial per-array overhead of large sculpted models.
+ */
+export type TriangleMesh = number[][] | Float32Array;
 
 /** Coordinate convention: z-up matches CAD, y-up matches three.js default. */
 export type AxisConvention = "z-up" | "y-up";
@@ -67,6 +72,11 @@ export interface Generator<C> {
   decode: (data: unknown) => C | null;
   validate: (config: C) => ValidationResult;
   geometry: (config: C) => TriangleMesh;
+  /**
+   * Optional mesh gate for imported or specialized geometry. Generated CAD
+   * uses the shared strict check when this is omitted.
+   */
+  isExportableMesh?: (mesh: TriangleMesh) => boolean;
   /** Coordinate convention of the triangles returned by geometry(). */
   axis: AxisConvention;
   /** Filename stem (no extension) for the export. */
@@ -77,6 +87,13 @@ export interface Generator<C> {
   printTips: (config: C) => PrintTip[];
   /** Pill badges shown on the info bar above the preview. */
   badges?: (config: C) => GeneratorBadge[];
+  /** Optional shell capabilities for generators with local imported assets. */
+  capabilities?: {
+    share?: boolean;
+    presets?: boolean;
+    downloadHistory?: boolean;
+    exportFormats?: ("stl" | "3mf")[];
+  };
   /** Sidebar controls component. */
   Controls: ComponentType<ControlsProps<C>>;
   /** R3F scene component (renders inside the shared Canvas). */

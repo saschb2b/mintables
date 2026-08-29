@@ -16,6 +16,7 @@ function purposeName(config: HexTileConfig): string {
   if (config.purpose === "rolling") return "Rolling tray";
   if (config.purpose === "deck") return "Deck cradle";
   if (config.purpose === "pens") return "Pen holder";
+  if (config.purpose === "plain") return "Plain tile";
   return "Component bowl";
 }
 
@@ -26,7 +27,12 @@ function summaryStatus(
   status: SpecStatus;
   label: string;
 } {
-  if (spec.usableInterior < 30 || spec.magnetBackWall < 1.2) {
+  // A plain tile is solid, so it has neither an interior to run out of nor a
+  // back wall behind its magnet sockets to run thin.
+  if (
+    config.purpose !== "plain" &&
+    (spec.usableInterior < 30 || spec.magnetBackWall < 1.2)
+  ) {
     return { status: "error", label: "Check dimensions" };
   }
   const magnetClearance =
@@ -54,11 +60,16 @@ export function HexTileSummary({ config }: { config: HexTileConfig }) {
         label="Total height"
         value={`${spec.totalHeight.toFixed(1)} mm`}
       />
+      {config.purpose === "plain" ? null : (
+        <SpecRow
+          label="Usable interior"
+          value={`${spec.usableInterior.toFixed(1)} mm across`}
+        />
+      )}
       <SpecRow
-        label="Usable interior"
-        value={`${spec.usableInterior.toFixed(1)} mm across`}
+        label={config.purpose === "plain" ? "Top" : "Storage"}
+        value={spec.featureLabel}
       />
-      <SpecRow label="Storage" value={spec.featureLabel} />
       <SpecRow
         label="Top texture"
         value={

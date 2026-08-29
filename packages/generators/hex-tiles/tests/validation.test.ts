@@ -301,6 +301,39 @@ describe("validateHexTileConfig", () => {
     ).toBe(true);
   });
 
+  it("lets a plain tile print thinner than a tile with a well", () => {
+    const plain = {
+      ...DEFAULT_HEX_TILE_CONFIG,
+      purpose: "plain" as const,
+      bodyHeight: 10,
+      magnetDiameter: 5,
+      magnetDepth: 2,
+    };
+
+    expect(validateHexTileConfig(plain).errors).toHaveLength(0);
+    expect(
+      validateHexTileConfig({ ...plain, purpose: "bowl" }).errors.some(
+        (error) => error.code === "height_range",
+      ),
+    ).toBe(true);
+  });
+
+  it("does not fault a plain tile over the rim and floor it has none of", () => {
+    const plain = {
+      ...DEFAULT_HEX_TILE_CONFIG,
+      purpose: "plain" as const,
+      rimWidth: 5,
+      magnetDepth: 5,
+    };
+    const bowlCodes = validateHexTileConfig({
+      ...plain,
+      purpose: "bowl" as const,
+    }).errors.map((error) => error.code);
+
+    expect(validateHexTileConfig(plain).errors).toHaveLength(0);
+    expect(bowlCodes).toContain("magnet_back_wall_thin");
+  });
+
   it("rejects surface relief deeper than the printable control range", () => {
     const result = validateHexTileConfig({
       ...DEFAULT_HEX_TILE_CONFIG,

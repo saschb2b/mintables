@@ -10,6 +10,8 @@ const nextConfig: NextConfig = {
     "@mintables/gen-legcaps",
     "@mintables/gen-inserts",
     "@mintables/gen-hex-tiles",
+    "@mintables/gen-clamps",
+    "@mintables/gen-support-cleaner",
   ],
   devIndicators: false,
   experimental: {

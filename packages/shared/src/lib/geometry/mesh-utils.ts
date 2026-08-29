@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import type { TriangleMesh } from "../generator";
 
 /** Round vertex coordinates to avoid floating-point seams in meshes. */
 export function roundVertex(v: number, precision = 6): number {
@@ -50,9 +51,22 @@ export type AxisConvention = "z-up" | "y-up";
  * (x,y in radius plane, z = height); adapters use y-up already.
  */
 export function trianglesToBufferGeometry(
-  triangles: number[][],
+  triangles: TriangleMesh,
   axis: AxisConvention = "z-up",
 ): THREE.BufferGeometry {
+  if (triangles instanceof Float32Array) {
+    const positions = new Float32Array(triangles.length);
+    for (let i = 0; i < triangles.length; i += 3) {
+      positions[i] = triangles[i];
+      positions[i + 1] = axis === "z-up" ? triangles[i + 2] : triangles[i + 1];
+      positions[i + 2] = axis === "z-up" ? triangles[i + 1] : triangles[i + 2];
+    }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    geometry.computeVertexNormals();
+    return geometry;
+  }
+
   const positions: number[] = [];
   const indices: number[] = [];
 

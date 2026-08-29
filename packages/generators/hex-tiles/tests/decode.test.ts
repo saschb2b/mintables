@@ -45,6 +45,32 @@ describe("decodeHexTile", () => {
     });
   });
 
+  it("hydrates a shared plain tile", () => {
+    expect(
+      decodeHexTile({ purpose: "plain", acrossFlats: 80, bodyHeight: 9 }),
+    ).toMatchObject({ purpose: "plain", acrossFlats: 80, bodyHeight: 9 });
+  });
+
+  it("leaves relief saved before the edge choice inset as it was", () => {
+    // A preset carrying a texture predates the choice, so it keeps its border.
+    expect(
+      decodeHexTile({
+        isSurfaceTextureEnabled: true,
+        surfaceTexture: "custom",
+      }),
+    ).toMatchObject({ isSurfaceTextureEdgeToEdge: false });
+    // Anything else takes the new default, and a saved choice always wins.
+    expect(decodeHexTile({ acrossFlats: 90 })).toMatchObject({
+      isSurfaceTextureEdgeToEdge: true,
+    });
+    expect(
+      decodeHexTile({
+        isSurfaceTextureEnabled: true,
+        isSurfaceTextureEdgeToEdge: true,
+      }),
+    ).toMatchObject({ isSurfaceTextureEdgeToEdge: true });
+  });
+
   it("falls back from unknown variants without discarding numeric edits", () => {
     const decoded = decodeHexTile({
       purpose: "unknown",

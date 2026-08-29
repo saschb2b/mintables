@@ -166,6 +166,12 @@ export function GeneratorShell<C>({
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const supportedExportFormats = generator.capabilities?.exportFormats ?? [
+    "stl",
+    "3mf",
+  ];
+  const shareEnabled = generator.capabilities?.share !== false;
+  const presetsEnabled = generator.capabilities?.presets !== false;
 
   const validation = useMemo(
     () => generator.validate(config),
@@ -177,8 +183,8 @@ export function GeneratorShell<C>({
     activePreset !== null && configJson !== activePreset.snapshot;
   const summary = generator.describe(config);
   const shareUrl = useMemo(
-    () => (hydrated ? buildShareUrl(generator.id, config) : ""),
-    [hydrated, generator.id, config],
+    () => (hydrated && shareEnabled ? buildShareUrl(generator.id, config) : ""),
+    [hydrated, shareEnabled, generator.id, config],
   );
   const badges = generator.badges ? generator.badges(config) : [];
   const printTips = useMemo(
@@ -188,9 +194,16 @@ export function GeneratorShell<C>({
 
   useEffect(() => {
     const stored = window.localStorage.getItem(EXPORT_FORMAT_STORAGE_KEY);
-    if (stored === "3mf") setExportFormat("3mf");
-    setPresets(listPresets(generator.id));
-  }, [generator.id]);
+    if (
+      (stored === "stl" || stored === "3mf") &&
+      supportedExportFormats.includes(stored)
+    ) {
+      setExportFormat(stored);
+    } else {
+      setExportFormat(supportedExportFormats[0] ?? "stl");
+    }
+    if (presetsEnabled) setPresets(listPresets(generator.id));
+  }, [generator, presetsEnabled]);
 
   const setExportFormatPersisted = useCallback((format: ExportFormat) => {
     setExportFormat(format);
@@ -270,13 +283,15 @@ export function GeneratorShell<C>({
     setExporting(true);
     try {
       exportModel(generator, config, exportFormat);
-      // Record in the Downloads folder so the desktop can list / re-run it.
-      recordDownload(
-        generator.id,
-        generator.filename(config),
-        exportFormat,
-        config,
-      );
+      if (generator.capabilities?.downloadHistory !== false) {
+        // Record in the Downloads folder so the desktop can list / re-run it.
+        recordDownload(
+          generator.id,
+          generator.filename(config),
+          exportFormat,
+          config,
+        );
+      }
       trackEvent("download", { generator: generator.id, format: exportFormat });
       setShowThankYou(true);
     } catch (err) {
@@ -404,20 +419,22 @@ export function GeneratorShell<C>({
                       ? "Fix errors to export"
                       : `Download ${exportFormat.toUpperCase()}`}
                 </Button>
-                <Button
-                  size="large"
-                  onClick={() => setFormatMenuOpen(true)}
-                  aria-label="Choose export format"
-                  sx={{
-                    flexGrow: 0,
-                    flexShrink: 0,
-                    flexBasis: 40,
-                    minWidth: 40,
-                    px: 0,
-                  }}
-                >
-                  <ChevronDown size={16} />
-                </Button>
+                {supportedExportFormats.length > 1 && (
+                  <Button
+                    size="large"
+                    onClick={() => setFormatMenuOpen(true)}
+                    aria-label="Choose export format"
+                    sx={{
+                      flexGrow: 0,
+                      flexShrink: 0,
+                      flexBasis: 40,
+                      minWidth: 40,
+                      px: 0,
+                    }}
+                  >
+                    <ChevronDown size={16} />
+                  </Button>
+                )}
               </ButtonGroup>
               <Menu
                 anchorEl={downloadAnchor}
@@ -429,50 +446,61 @@ export function GeneratorShell<C>({
                   paper: { sx: { minWidth: downloadAnchor?.offsetWidth } },
                 }}
               >
-                <MenuItem
-                  selected={exportFormat === "stl"}
-                  onClick={() => {
-                    setExportFormatPersisted("stl");
-                    setFormatMenuOpen(false);
-                  }}
-                >
-                  <ListItemText primary="STL" secondary="Universal, no units" />
-                </MenuItem>
-                <MenuItem
-                  selected={exportFormat === "3mf"}
-                  onClick={() => {
-                    setExportFormatPersisted("3mf");
-                    setFormatMenuOpen(false);
-                  }}
-                >
-                  <ListItemText
-                    primary="3MF"
-                    secondary="Modern, preserves mm units"
-                  />
-                </MenuItem>
+                {supportedExportFormats.includes("stl") && (
+                  <MenuItem
+                    selected={exportFormat === "stl"}
+                    onClick={() => {
+                      setExportFormatPersisted("stl");
+                      setFormatMenuOpen(false);
+                    }}
+                  >
+                    <ListItemText
+                      primary="STL"
+                      secondary="Universal, no units"
+                    />
+                  </MenuItem>
+                )}
+                {supportedExportFormats.includes("3mf") && (
+                  <MenuItem
+                    selected={exportFormat === "3mf"}
+                    onClick={() => {
+                      setExportFormatPersisted("3mf");
+                      setFormatMenuOpen(false);
+                    }}
+                  >
+                    <ListItemText
+                      primary="3MF"
+                      secondary="Modern, preserves mm units"
+                    />
+                  </MenuItem>
+                )}
               </Menu>
               <Stack direction="row" spacing={1}>
-                <Tooltip title="Get a link to this exact configuration">
+                {shareEnabled && (
+                  <Tooltip title="Get a link to this exact configuration">
+                    <Button
+                      onClick={handleOpenShare}
+                      variant="outlined"
+                      size="small"
+                      fullWidth
+                      startIcon={<Share2 size={14} />}
+                    >
+                      Share
+                    </Button>
+                  </Tooltip>
+                )}
+                {presetsEnabled && (
                   <Button
-                    onClick={handleOpenShare}
+                    onClick={(e) => setPresetsAnchor(e.currentTarget)}
                     variant="outlined"
                     size="small"
                     fullWidth
-                    startIcon={<Share2 size={14} />}
+                    startIcon={<Bookmark size={14} />}
+                    endIcon={<ChevronDown size={12} />}
                   >
-                    Share
+                    Presets
                   </Button>
-                </Tooltip>
-                <Button
-                  onClick={(e) => setPresetsAnchor(e.currentTarget)}
-                  variant="outlined"
-                  size="small"
-                  fullWidth
-                  startIcon={<Bookmark size={14} />}
-                  endIcon={<ChevronDown size={12} />}
-                >
-                  Presets
-                </Button>
+                )}
               </Stack>
               <Menu
                 anchorEl={presetsAnchor}

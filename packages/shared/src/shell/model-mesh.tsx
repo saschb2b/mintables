@@ -4,6 +4,7 @@ import { useLayoutEffect, useMemo } from "react";
 import { useThree } from "@react-three/fiber";
 import { Edges } from "@react-three/drei";
 import * as THREE from "three";
+import type { TriangleMesh } from "../lib/generator";
 import {
   trianglesToBufferGeometry,
   type AxisConvention,
@@ -20,7 +21,7 @@ const MATERIAL = {
 
 interface ModelMeshProps<T> {
   config: T;
-  generate: (config: T) => number[][];
+  generate: (config: T) => TriangleMesh;
   axis?: AxisConvention;
   appearance?: "model" | "wood";
 }

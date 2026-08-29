@@ -74,6 +74,10 @@ export function validateHexTileConfig(config: HexTileConfig): ValidationResult {
   const errors: ValidationIssue[] = [];
   const warnings: ValidationIssue[] = [];
   const layout = calculateHexTileLayout(config);
+  // A plain tile is solid: it has no interior, so the rim, the floor, and the
+  // depth left under a well describe nothing, and only the magnets set a lower
+  // bound on how thin the tile may be.
+  const isSolid = config.purpose === "plain";
 
   if (!finiteInRange(config.acrossFlats, 60, 180)) {
     errors.push(
@@ -85,12 +89,13 @@ export function validateHexTileConfig(config: HexTileConfig): ValidationResult {
       ),
     );
   }
-  if (!finiteInRange(config.bodyHeight, 12, 30)) {
+  const minimumBodyHeight = isSolid ? 8 : 12;
+  if (!finiteInRange(config.bodyHeight, minimumBodyHeight, 30)) {
     errors.push(
       issue(
         "error",
         "height_range",
-        "Body height must be between 12 and 30 mm.",
+        `Body height must be between ${String(minimumBodyHeight)} and 30 mm.`,
         "bodyHeight",
       ),
     );
@@ -105,45 +110,47 @@ export function validateHexTileConfig(config: HexTileConfig): ValidationResult {
       ),
     );
   }
-  if (!finiteInRange(config.rimWidth, 5, 18)) {
-    errors.push(
-      issue(
-        "error",
-        "rim_range",
-        "Rim width must be between 5 and 18 mm.",
-        "rimWidth",
-      ),
-    );
-  }
-  if (layout.innerAcrossFlats < 30) {
-    errors.push(
-      issue(
-        "error",
-        "interior_too_small",
-        "The rim leaves less than 30 mm for the tile interior.",
-        "rimWidth",
-      ),
-    );
-  }
-  if (!finiteInRange(config.floorThickness, 2, 8)) {
-    errors.push(
-      issue(
-        "error",
-        "floor_range",
-        "Floor thickness must be between 2 and 8 mm.",
-        "floorThickness",
-      ),
-    );
-  }
-  if (config.bodyHeight - config.floorThickness < 5) {
-    errors.push(
-      issue(
-        "error",
-        "well_too_shallow",
-        "The body must leave at least 5 mm of usable storage depth.",
-        "floorThickness",
-      ),
-    );
+  if (!isSolid) {
+    if (!finiteInRange(config.rimWidth, 5, 18)) {
+      errors.push(
+        issue(
+          "error",
+          "rim_range",
+          "Rim width must be between 5 and 18 mm.",
+          "rimWidth",
+        ),
+      );
+    }
+    if (layout.innerAcrossFlats < 30) {
+      errors.push(
+        issue(
+          "error",
+          "interior_too_small",
+          "The rim leaves less than 30 mm for the tile interior.",
+          "rimWidth",
+        ),
+      );
+    }
+    if (!finiteInRange(config.floorThickness, 2, 8)) {
+      errors.push(
+        issue(
+          "error",
+          "floor_range",
+          "Floor thickness must be between 2 and 8 mm.",
+          "floorThickness",
+        ),
+      );
+    }
+    if (config.bodyHeight - config.floorThickness < 5) {
+      errors.push(
+        issue(
+          "error",
+          "well_too_shallow",
+          "The body must leave at least 5 mm of usable storage depth.",
+          "floorThickness",
+        ),
+      );
+    }
   }
   if (!finiteInRange(config.edgeBevel, 0.6, 2.5)) {
     errors.push(
@@ -371,7 +378,9 @@ export function validateHexTileConfig(config: HexTileConfig): ValidationResult {
         ),
       );
     }
-    if (layout.magnetSocketDepth + 1.2 > config.rimWidth) {
+    // A solid tile is material all the way to the middle, so only the variants
+    // with an interior can leave a socket short of a back wall.
+    if (!isSolid && layout.magnetSocketDepth + 1.2 > config.rimWidth) {
       errors.push(
         issue(
           "error",

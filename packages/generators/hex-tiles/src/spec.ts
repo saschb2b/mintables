@@ -49,6 +49,8 @@ function featureLabel(config: HexTileConfig): string {
       const layout = calculateHexTileLayout(config);
       return `${layout.penOpeningWidth.toFixed(0)} mm pen cup, ~${String(layout.penCapacity)} pens`;
     }
+    case "plain":
+      return "Solid, ready to finish";
     case "rolling":
       return `${calculateHexTileLayout(config).rollFloorAcrossFlats.toFixed(1)} mm rolling floor`;
     case "bowl": {

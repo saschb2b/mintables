@@ -5,4 +5,6 @@ export const generatorSlugs = [
   "legcaps",
   "inserts",
   "hex-tiles",
+  "clamps",
+  "support-cleaner",
 ] as const;

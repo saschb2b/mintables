@@ -35,6 +35,7 @@ function purposeValue(
     value === "deck" ||
     value === "dice-orbit" ||
     value === "pens" ||
+    value === "plain" ||
     value === "rolling"
     ? value
     : fallback;
@@ -142,6 +143,10 @@ export function decodeHexTile(data: unknown): HexTileConfig | null {
   if (typeof data.isCustomTextureInverted === "boolean") {
     config.isCustomTextureInverted = data.isCustomTextureInverted;
   }
+  config.isSurfaceTextureEdgeToEdge = edgeToEdgeValue(
+    data,
+    config.isSurfaceTextureEdgeToEdge,
+  );
   config.bowlWellCount = wellCountValue(data, config.bowlWellCount);
   if (typeof data.isDeckCounterWellEnabled === "boolean") {
     config.isDeckCounterWellEnabled = data.isDeckCounterWellEnabled;
@@ -163,6 +168,20 @@ export function decodeHexTile(data: unknown): HexTileConfig | null {
     config.penLatticePattern = data.penLatticePattern;
   }
   return config;
+}
+
+/**
+ * Relief always stopped short of the face edge before this was a choice, so a
+ * preset saved with a texture back then keeps the border it was saved with.
+ */
+function edgeToEdgeValue(
+  data: Record<string, unknown>,
+  fallback: boolean,
+): boolean {
+  if (typeof data.isSurfaceTextureEdgeToEdge === "boolean") {
+    return data.isSurfaceTextureEdgeToEdge;
+  }
+  return data.isSurfaceTextureEnabled === true ? false : fallback;
 }
 
 /** Presets saved before the well count was a number carry a divider flag. */
@@ -189,6 +208,7 @@ function purposeLabel(config: HexTileConfig): string {
   if (config.purpose === "deck") return "deck-cradle";
   if (config.purpose === "dice-orbit") return "dice-orbit";
   if (config.purpose === "pens") return "pen-holder";
+  if (config.purpose === "plain") return "plain";
   if (config.purpose === "rolling") return "rolling-tray";
   return `${wellName(calculateHexTileLayout(config).bowlWellCount)}-bowl`;
 }
@@ -203,6 +223,8 @@ function purposeBadge(config: HexTileConfig): string {
       return "Dice orbit";
     case "pens":
       return config.penWallStyle === "solid" ? "Pen holder" : "Kumiko pens";
+    case "plain":
+      return "Plain";
     case "rolling":
       return "Rolling tray";
     case "bowl": {
@@ -231,7 +253,7 @@ export const hexTileGenerator: Generator<HexTileConfig> = {
     name: "Hex Tiles",
     tagline: "Magnetic Tabletop Tile Generator",
     description:
-      "Create connectable hex tiles with smooth component bowls, card racks, dice rolling trays, kumiko pen holders, and elevated dice displays.",
+      "Create connectable hex tiles: plain tiles to paint or build terrain on, smooth component bowls, card racks, dice rolling trays, kumiko pen holders, and elevated dice displays.",
     icon: Hexagon,
     accent: "#ef4444",
     iconArt: HexTileIconArt,

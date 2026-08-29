@@ -16,6 +16,8 @@
     "@emotion/server": "latest",
     "@emotion/styled": "^11.14.1",
     "@mintables/gen-adapters": "workspace:*",
+    "@mintables/gen-clamps": "workspace:*",
+    "@mintables/gen-support-cleaner": "workspace:*",
     "@mintables/gen-dividers": "workspace:*",
     "@mintables/gen-legcaps": "workspace:*",
     "@mintables/gen-inserts": "workspace:*",

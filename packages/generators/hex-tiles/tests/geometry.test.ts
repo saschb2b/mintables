@@ -8,7 +8,12 @@ import {
   encodeCustomTextureSamples,
 } from "../src/custom-height-map";
 import { generateHexTileTriangles } from "../src/geometry";
-import { calculateHexTileLayout, cardSlotPlan } from "../src/layout";
+import {
+  calculateHexTileLayout,
+  cardSlotPlan,
+  PLAIN_MARKER_BAND,
+} from "../src/layout";
+import { measureClosedMesh } from "../src/material-estimate";
 import { DEFAULT_HEX_TILE_CONFIG } from "../src/types";
 import type { HexTileSurfaceTexture } from "../src/types";
 import { validateHexTileConfig } from "../src/validation";
@@ -46,6 +51,14 @@ function edgeUseCounts(triangles: number[][]): number[] {
     }
   }
   return [...counts.values()];
+}
+
+function triangleVertices(triangles: number[][]): number[][] {
+  return triangles.flatMap((triangle) => [
+    [triangle[0], triangle[1], triangle[2]],
+    [triangle[3], triangle[4], triangle[5]],
+    [triangle[6], triangle[7], triangle[8]],
+  ]);
 }
 
 function uniqueHeights(triangles: number[][]): number[] {
@@ -548,6 +561,100 @@ describe("generateHexTileTriangles", () => {
     expect(dividerVertices.length).toBeGreaterThan(0);
   });
 
+  it("leaves the plain tile solid between its two bevels", () => {
+    const config = {
+      ...DEFAULT_HEX_TILE_CONFIG,
+      purpose: "plain" as const,
+      magnetMode: "none" as const,
+    };
+    const triangles = generateHexTileTriangles(config);
+    const analysis = analyzeTriangles(triangles);
+    const bevel = config.edgeBevel;
+    // A hexagon measured across its flats, and the frustum between two of them.
+    const hexArea = (acrossFlats: number) =>
+      (Math.sqrt(3) / 2) * acrossFlats ** 2;
+    const bevelVolume =
+      (bevel / 3) *
+      (hexArea(config.acrossFlats) +
+        hexArea(config.acrossFlats - 2 * bevel) +
+        Math.sqrt(
+          hexArea(config.acrossFlats) * hexArea(config.acrossFlats - 2 * bevel),
+        ));
+    const solidVolume =
+      2 * bevelVolume +
+      hexArea(config.acrossFlats) * (config.bodyHeight - 2 * bevel);
+
+    expect(isPrintableMesh(triangles)).toBe(true);
+    expect(edgeUseCounts(triangles).every((count) => count === 2)).toBe(true);
+    expect(analysis.bounds.minZ).toBe(0);
+    expect(analysis.bounds.maxZ).toBe(config.bodyHeight);
+    // Nothing is carved out, so the mesh encloses the whole bevelled prism.
+    // Exported coordinates are rounded to a micron, hence the ratio.
+    expect(
+      measureClosedMesh(triangles).solidVolumeMm3 / solidVolume,
+    ).toBeCloseTo(1, 6);
+    // Only the bevel folds and the two end faces, no cavity walls between them.
+    expect(uniqueHeights(triangles).sort((a, b) => a - b)).toEqual([
+      0,
+      bevel,
+      config.bodyHeight - bevel,
+      config.bodyHeight,
+    ]);
+  });
+
+  it.each(["single", "captive", "paired"] as const)(
+    "closes a plain tile carrying %s magnets and full-face relief",
+    (magnetMode) => {
+      const config = {
+        ...DEFAULT_HEX_TILE_CONFIG,
+        purpose: "plain" as const,
+        magnetMode,
+        isSurfaceTextureEnabled: true,
+        surfaceTexture: "cobblestone" as const,
+      };
+      const triangles = generateHexTileTriangles(config);
+      const reliefReach = triangleVertices(triangles)
+        .filter(
+          ([, , z]) =>
+            Math.abs(z - (config.bodyHeight - config.surfaceTextureDepth)) <
+            1e-9,
+        )
+        .map(([x, y]) => Math.hypot(x, y));
+
+      expect(validateHexTileConfig(config).errors).toHaveLength(0);
+      expect(isPrintableMesh(triangles)).toBe(true);
+      expect(edgeUseCounts(triangles).every((count) => count === 2)).toBe(true);
+      // With no opening to keep clear, the relief reaches the middle of the tile.
+      expect(Math.min(...reliefReach)).toBeLessThan(10);
+    },
+  );
+
+  it("keeps the orientation dot on a plain tile that has no rim", () => {
+    const config = {
+      ...DEFAULT_HEX_TILE_CONFIG,
+      purpose: "plain" as const,
+      rimWidth: 16,
+    };
+    const layout = calculateHexTileLayout(config);
+    const markerYs = triangleVertices(generateHexTileTriangles(config))
+      .filter(
+        ([, , z]) =>
+          Math.abs(z - (config.bodyHeight - layout.northMarkerDepth)) < 1e-9,
+      )
+      .map(([, y]) => y);
+
+    // The dot follows the top edge rather than a rim the tile does not have.
+    expect(layout.northMarkerCenterX).toBe(0);
+    expect(layout.northMarkerCenterY).toBeCloseTo(
+      config.acrossFlats / 2 - config.edgeBevel - PLAIN_MARKER_BAND / 2,
+      6,
+    );
+    expect(markerYs.length).toBeGreaterThan(0);
+    expect(Math.max(...markerYs)).toBeLessThan(
+      config.acrossFlats / 2 - config.edgeBevel,
+    );
+  });
+
   it("forms an outer dice trough and a higher center cup", () => {
     const config = {
       ...DEFAULT_HEX_TILE_CONFIG,
@@ -662,6 +769,108 @@ describe("generateHexTileTriangles", () => {
       expect(edgeUseCounts(triangles).every((count) => count === 2)).toBe(true);
     },
   );
+
+  it.each(SURFACE_TEXTURES)(
+    "runs %s relief out to the tile edge when asked",
+    (surfaceTexture) => {
+      const inset = {
+        ...DEFAULT_HEX_TILE_CONFIG,
+        purpose: "plain" as const,
+        isSurfaceTextureEnabled: true,
+        surfaceTexture,
+        isSurfaceTextureEdgeToEdge: false,
+      };
+      const edge = { ...inset, isSurfaceTextureEdgeToEdge: true };
+      const reliefReach = (config: typeof inset) => {
+        const floorZ = config.bodyHeight - config.surfaceTextureDepth;
+        const reach = triangleVertices(generateHexTileTriangles(config))
+          .filter(([, , z]) => z < config.bodyHeight - 1e-9 && z >= floorZ)
+          .map(([x, y]) =>
+            // How close the relief gets to the flat it sits nearest.
+            Math.max(
+              Math.abs(y),
+              Math.abs((Math.sqrt(3) * x) / 2 + y / 2),
+              Math.abs((Math.sqrt(3) * x) / 2 - y / 2),
+            ),
+          );
+        return Math.max(...reach);
+      };
+      // The top face stops one bevel short of the tile size.
+      const faceApothem =
+        DEFAULT_HEX_TILE_CONFIG.acrossFlats / 2 -
+        DEFAULT_HEX_TILE_CONFIG.edgeBevel;
+      const border = faceApothem - reliefReach(edge);
+
+      expect(isPrintableMesh(generateHexTileTriangles(edge))).toBe(true);
+      expect(
+        edgeUseCounts(generateHexTileTriangles(edge)).every(
+          (count) => count === 2,
+        ),
+      ).toBe(true);
+      // Cut flush, the pattern stops on the staggered cut line and nowhere
+      // short of it. Kept whole, it always ends further in.
+      expect(border).toBeGreaterThanOrEqual(0.45);
+      expect(border).toBeLessThanOrEqual(0.81);
+      expect(reliefReach(edge)).toBeGreaterThan(reliefReach(inset));
+    },
+  );
+
+  it("carries a custom height map into the corners of the tile", () => {
+    const samples = Uint8Array.from(
+      { length: CUSTOM_TEXTURE_SAMPLE_COUNT },
+      (_, index) => (index % 3 === 0 ? 0 : 200),
+    );
+    const config = {
+      ...DEFAULT_HEX_TILE_CONFIG,
+      purpose: "plain" as const,
+      isSurfaceTextureEnabled: true,
+      surfaceTexture: "custom" as const,
+      customTextureData: encodeCustomTextureSamples(samples),
+      isSurfaceTextureEdgeToEdge: true,
+    };
+    const cellReach = (edgeToEdge: boolean) =>
+      Math.max(
+        ...triangleVertices(
+          generateHexTileTriangles({
+            ...config,
+            isSurfaceTextureEdgeToEdge: edgeToEdge,
+          }),
+        )
+          .filter(
+            ([, , z]) =>
+              z < config.bodyHeight - 1e-9 &&
+              z > config.bodyHeight - config.surfaceTextureDepth - 1e-9,
+          )
+          .map(([x, y]) => Math.hypot(x, y)),
+      );
+    const triangles = generateHexTileTriangles(config);
+
+    expect(isPrintableMesh(triangles)).toBe(true);
+    expect(edgeUseCounts(triangles).every((count) => count === 2)).toBe(true);
+    // A map is always laid over the face itself, so clipping is what fills the
+    // corners the square sample grid otherwise leaves bare.
+    expect(cellReach(true)).toBeGreaterThan(cellReach(false));
+  });
+
+  it("keeps clipped relief clear of the bowl opening", () => {
+    const config = {
+      ...DEFAULT_HEX_TILE_CONFIG,
+      isSurfaceTextureEnabled: true,
+      surfaceTexture: "cobblestone" as const,
+      isSurfaceTextureEdgeToEdge: true,
+    };
+    const layout = calculateHexTileLayout(config);
+    const floorZ = config.bodyHeight - config.surfaceTextureDepth;
+    const reliefRadii = triangleVertices(generateHexTileTriangles(config))
+      .filter(([, , z]) => Math.abs(z - floorZ) < 1e-9)
+      .map(([x, y]) => Math.hypot(x, y));
+
+    expect(isPrintableMesh(generateHexTileTriangles(config))).toBe(true);
+    // Running to the outer edge must not let relief spill into the well.
+    expect(Math.min(...reliefRadii)).toBeGreaterThan(
+      layout.innerAcrossFlats / 2,
+    );
+  });
 
   it("keeps bowl relief outside the carved opening", () => {
     const config = {
