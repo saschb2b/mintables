@@ -12,7 +12,11 @@ import {
 } from "react";
 import { notify, useWindowManager } from "@react-ui-os/core";
 import { useApps, useDesktopContext, useTheme } from "../desktop-context";
-import { resolveAppIcon } from "../util/app-icon";
+import {
+  appIconBackground,
+  appIconForeground,
+  resolveAppIcon,
+} from "../util/app-icon";
 import { SpacesBar } from "../spaces-bar";
 import { getDockReservation, getMenuBarHeight } from "../util/layout";
 import {
@@ -544,10 +548,16 @@ function LauncherTile({
             ? { color: theme.palette.textPrimary }
             : {
                 borderRadius: theme.shape.dockTileRadius,
-                background: `linear-gradient(180deg, ${accent} 0%, ${accent}c0 100%)`,
+                background: appIconBackground(
+                  result.kind === "app" ? result.app : { accent },
+                  theme,
+                ),
                 boxShadow:
                   "inset 0 1px 0 rgba(255,255,255,0.22), 0 2px 6px rgba(0,0,0,0.35)",
-                color: "#fff",
+                color: appIconForeground(
+                  result.kind === "app" ? result.app : { accent },
+                  theme,
+                ),
               }),
         }}
       >
@@ -1964,7 +1974,7 @@ function PowerButton({ onAction }: { onAction: () => void }) {
   );
 }
 
-/** Accent-gradient app squircle, shared by the grid tile and the list rows. */
+/** Theme-native app squircle, shared by the grid tile and the list rows. */
 function ResultGlyph({ result, size }: { result: LauncherResult; size: number }) {
   const theme = useTheme();
   const accent = result.accent ?? theme.palette.accent;
@@ -1982,12 +1992,18 @@ function ResultGlyph({ result, size }: { result: LauncherResult; size: number })
         width: size,
         height: size,
         borderRadius: theme.shape.dockTileRadius,
-        background: `linear-gradient(180deg, ${accent} 0%, ${accent}c0 100%)`,
+        background: appIconBackground(
+          result.kind === "app" ? result.app : { accent },
+          theme,
+        ),
         boxShadow: "inset 0 1px 0 rgba(255,255,255,0.22), 0 2px 6px rgba(0,0,0,0.35)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        color: "#fff",
+        color: appIconForeground(
+          result.kind === "app" ? result.app : { accent },
+          theme,
+        ),
         flexShrink: 0,
       }}
     >
@@ -2132,12 +2148,18 @@ function ResultRow({
           height: 28,
           flexShrink: 0,
           borderRadius: theme.shape.small + 2,
-          background: `linear-gradient(180deg, ${accent} 0%, ${accent}c0 100%)`,
+          background: appIconBackground(
+            result.kind === "app" ? result.app : { accent },
+            theme,
+          ),
           boxShadow: "inset 0 1px 0 rgba(255,255,255,0.22), 0 1px 2px rgba(0,0,0,0.3)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          color: "#fff",
+          color: appIconForeground(
+            result.kind === "app" ? result.app : { accent },
+            theme,
+          ),
         }}
       >
         {Icon ? (

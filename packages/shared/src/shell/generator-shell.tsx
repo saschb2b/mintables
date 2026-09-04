@@ -166,6 +166,26 @@ export function GeneratorShell<C>({
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
   const [exporting, setExporting] = useState(false);
+  // Generators with an async kernel (CSG) opt in via `prepare`; everything
+  // else is ready immediately. Nothing renders or exports until it resolves.
+  const [kernelReady, setKernelReady] = useState(() => !generator.prepare);
+  useEffect(() => {
+    if (!generator.prepare) return;
+    let cancelled = false;
+    setKernelReady(false);
+    generator
+      .prepare()
+      .then(() => {
+        if (!cancelled) setKernelReady(true);
+      })
+      .catch(() => {
+        if (!cancelled)
+          setToast("Geometry kernel failed to load. Reload the page to retry.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [generator]);
   const supportedExportFormats = generator.capabilities?.exportFormats ?? [
     "stl",
     "3mf",
@@ -177,7 +197,7 @@ export function GeneratorShell<C>({
     () => generator.validate(config),
     [generator, config],
   );
-  const exportBlocked = validation.errors.length > 0;
+  const exportBlocked = validation.errors.length > 0 || !kernelReady;
   const configJson = useMemo(() => JSON.stringify(config), [config]);
   const presetModified =
     activePreset !== null && configJson !== activePreset.snapshot;
@@ -415,9 +435,11 @@ export function GeneratorShell<C>({
                 >
                   {exporting
                     ? "Exporting…"
-                    : exportBlocked
-                      ? "Fix errors to export"
-                      : `Download ${exportFormat.toUpperCase()}`}
+                    : !kernelReady
+                      ? "Preparing…"
+                      : exportBlocked
+                        ? "Fix errors to export"
+                        : `Download ${exportFormat.toUpperCase()}`}
                 </Button>
                 {supportedExportFormats.length > 1 && (
                   <Button
@@ -645,7 +667,7 @@ export function GeneratorShell<C>({
               />
               {exportBlocked ? (
                 <Chip
-                  label="Fix errors to export"
+                  label={kernelReady ? "Fix errors to export" : "Preparing…"}
                   size="small"
                   sx={{
                     bgcolor: "rgba(239, 68, 68, 0.15)",
@@ -726,6 +748,7 @@ export function GeneratorShell<C>({
             generator={generator}
             config={debouncedConfig}
             active={isFocused}
+            ready={kernelReady}
           />
         </Box>
       </Box>

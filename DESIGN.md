@@ -59,7 +59,7 @@ OS chrome surfaces (menu bar, dock, window paper, context menus) are now painted
 
 Every generator has a unique `meta.accent` hex. The accent drives:
 
-- The dock tile gradient (lightened top → accent → darkened bottom)
+- A restrained tint in the dock icon's light material canvas
 - The AppWindow top-edge accent line (1px gradient `transparent → accent → transparent`)
 - The active-app indicator dot in the menu bar
 - The running-indicator dot under the active dock tile (always white at 85%)
@@ -143,7 +143,7 @@ Squircle (`%` radius) is reserved for dock tiles and large brand-icon hero. Ever
 ### Windows, dock, menu bar, desktop icons (react-ui-os)
 
 - Windows: traffic lights, accent top edge, drag/resize/snap, genie minimize. Mintables supplies per-app `accent` and window `defaultBounds`.
-- Dock tiles: accent-gradient squircles; each app ships its own `iconArt` SVG (a real subject illustration, not a generic line icon).
+- Dock tiles: light material squircles with a restrained accent tint. Each app ships transparent 3D subject artwork, not a generic line icon. The modeled subject carries the color and identity while the canvas stays quiet.
 - Menu bar: brand button ("Mintables"), per-app menus, workspace switcher, status cluster. Mintables adds the green "runs locally" status dot via `registerStatusItem`.
 - Desktop icons: Downloads/Presets use the library's folder visual; README.md ships a custom document-page SVG (`os-system-windows.tsx`). Custom desktop icons should read as files, not apps.
 
@@ -211,7 +211,7 @@ Things that look correct in a one-off mockup but break the OS feel across the pr
 - ❌ **Looping idle animations on UI** (pulsing dots, bobbing icons, rotating accents). The wallpaper drifts; the UI stays still.
 - ❌ **Sticky scrolling pages on the desktop or any "window."** Fixed viewport, no outer scroll. Only sidebar/list content scrolls internally.
 - ❌ **Adding apps to the dock that aren't apps.** GitHub / license / sponsor / about belong on the desktop as files, not as dock tiles.
-- ❌ **Throwing a Lucide icon on a colored circle** and calling it a dock tile. Each app earns a unique `iconArt` SVG with depth.
+- ❌ **Throwing a Lucide icon on a saturated colored tile** and calling it an app icon. Each app earns unique transparent subject artwork with depth, placed on the shared light material canvas.
 - ❌ **Multi-step modal tours.** One-screen welcome only. Use README.md / About for re-reading.
 - ❌ **"Don't show again" checkboxes** on first-run dialogs. Modern pattern is implicit permanent dismissal; the user can re-trigger from the README.md ▸ "Take the tour again" link.
 - ❌ **Toast-style notifications for non-events** (e.g. "viewing the dashboard"). Toasts confirm actions, not state.

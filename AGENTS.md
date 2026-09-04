@@ -11,6 +11,7 @@ The desktop itself (wallpaper, menu bar, dock, windows, Spotlight, Settings, des
 - **UI**: Material UI v7 (dark theme — see `packages/shared/src/lib/theme.ts`) inside window content
 - **3D**: React Three Fiber + Three.js + @react-three/drei
 - **Geometry**: Shared triangle mesh — preview + STL/3MF export both run `generator.geometry(config)`
+- **CSG**: Manifold (`manifold-3d`, WebAssembly) via `packages/shared/src/lib/geometry/csg.ts` for generators that need booleans
 - **Tests**: Vitest (per-package)
 - **Build orchestration**: Turborepo
 - **Package manager**: pnpm workspaces
@@ -80,6 +81,7 @@ packages/
       tests/
     adapters/                          # @mintables/gen-adapters (same shape, icon-art is an elbow)
     dividers/                          # @mintables/gen-dividers (flat slab — thickness × width × height)
+    skadis/                            # @mintables/gen-skadis (IKEA SKÅDIS holders, built with the CSG kernel)
 ```
 
 ## The Generator contract
@@ -96,6 +98,16 @@ Every generator package exports a single `Generator<Config>` value implementing 
 
 The studio app only knows about the registry list. Nothing in `apps/studio` or `@mintables/shared` references a specific generator.
 
+### CSG generators (Manifold kernel)
+
+Hand-built triangle soups are the default and stay fast for simple parts. Generators whose shapes are dominated by booleans (holes, pockets, unions of many primitives) use the shared Manifold kernel instead:
+
+- `packages/shared/src/lib/geometry/csg.ts` loads the WASM module once (`loadCsg()`), exposes a synchronous accessor (`getCsg()`), axis-aligned extrusion helpers (`extrudeX/Y/Z`, `box`, `cylinderZ`, `roundedRectPolygon`), a `CsgScope` that frees every kernel object on dispose (`withCsgScope`), and `manifoldToTriangles` for the output.
+- Such a generator sets `prepare: () => loadCsg()` on its `Generator`. `GeneratorShell` awaits `prepare` before mounting the preview scene and enabling export ("Preparing…" state); the Downloads folder awaits it before re-exporting. `geometry()` itself stays synchronous.
+- Set `isExportableMesh: isManifoldMeshExportable`. Kernel output is closed by construction but may contain legitimately tiny tangent triangles that the generic degenerate-area gate would reject.
+- Avoid exact tangencies between primitives (a cylinder grazing a plane along one line). Manifold represents them with duplicated vertices, which reads as a non-watertight soup. Give every contact a small overlap instead (`BODY_OVERLAP`, `POCKET_INSET` in the skadis generator are the pattern).
+- Always route kernel objects through `scope.keep(...)`; anything created outside a scope leaks WASM heap.
+
 ## OS-style desktop UI (react-ui-os)
 
 The studio is presented as a desktop environment, not a webpage. Since the migration to react-ui-os, the window manager, chrome, and system surfaces are library code. Mintables contributes data (apps, system windows, theme) and a handful of glue components. Invariants:
@@ -103,7 +115,7 @@ The studio is presented as a desktop environment, not a webpage. Since the migra
 - **The library owns the metaphor.** Windows (traffic lights, drag, resize, snap, maximize, genie minimize), the dock (magnification, running dots), the menu bar (brand menu, per-app menus, workspaces, status items, clock), Spotlight/Launcher, Settings, Mission Control, the app switcher, notifications, and desktop icons all come from `@react-ui-os/desktop`. Do not rebuild any of these locally; if a behavior needs to change, change it upstream in `../react-ui-os`.
 - **Apps are data.** `apps/studio/lib/os-apps.tsx` maps every generator in the registry to a react-ui-os `App` (id, name, tagline, accent, icon, `iconArt`, `defaultBounds`, content). One entry lights up the dock, the menu bar, Spotlight, and Cmd/Ctrl+1..9 at once. The window body is `<GeneratorShell generator focused>`, wrapped in `<EdgeToEdge>`.
 - **System windows are registered, not routed.** `apps/studio/lib/os-system-windows.tsx` calls `registerSystemWindow(...)` at module load for `downloads`, `presets`, and `readme`. Downloads/Presets use the "state-earned" desktop-icon pattern (`appearsAsDesktopIcon` predicate); README is always on the desktop.
-- **providers.tsx hand-composes the Desktop.** It uses `DesktopProvider` plus the same surface list as the library's one-line `<Desktop>`, for exactly one reason: the shared R3F `<PreviewStage>` canvas must be a sibling of `WindowLayer` and `Dock` *inside* the library's fixed root div (a stacking context), so it can paint above windows (z 1150) but below the dock (1200) and Spotlight (1400). If you add or reorder surfaces, mirror the library's `Desktop.tsx`.
+- **providers.tsx hand-composes the Desktop.** It uses `DesktopProvider` plus the same surface list as the library's one-line `<Desktop>`, for exactly one reason: the shared R3F `<PreviewStage>` canvas must be a sibling of `WindowLayer` and `Dock` _inside_ the library's fixed root div (a stacking context), so it can paint above windows (z 1150) but below the dock (1200) and Spotlight (1400). If you add or reorder surfaces, mirror the library's `Desktop.tsx`.
 - **The desktop renders client-only.** `providers.tsx` gates the whole shell behind a mounted flag (`useSyncExternalStore` hydration detector) because the library reads localStorage-backed state during first render. Don't remove the gate.
 - **WM state lives in `@react-ui-os/core`.** Consume via `useWindowManager()`. Stable ids come from `windowIdOf(payload)`; payloads are `{kind: "app", appId}` or `{kind: "system", systemId}`. Opening an existing id focuses and restores instead of duplicating.
 - **Routes are thin shims.** `/generators/<id>` and `/folders/<kind>` render `null` and dispatch `openWindow(payload, pickInitialBounds(...))` on mount (see `generator-page-view.tsx` and `folders/open-folder-window.tsx`). Always pass `pickInitialBounds` for programmatic opens. The focused window's path is mirrored to the URL by `FocusUrlSync` in `desktop-companions.tsx`; when nothing is focused the URL points at `/`. `GeneratorShell` writes `?config=` to the generator's canonical path via `syncUrl(generatorId, config)`, never to `location.pathname`.
@@ -145,9 +157,9 @@ When you add new persisted state that should reflect on the desktop or in a wind
 > Full visual direction lives in **`DESIGN.md`** at the repo root — color tokens, material recipes, typography, motion, the per-component catalog, and a Don't-do list. Read it before adding new surfaces or restyling existing ones. This section is just the headline rules.
 
 - **Wallpaper** sets the mood — photographic, calm. UI floats over it as **frosted glass**. The OS chrome material now comes from the react-ui-os theme tokens (`apps/studio/lib/os-theme.ts`); MUI dialogs and in-window surfaces keep the local frosted recipes.
-- **App tiles** (the dock) are painted by the library from each app's `accent` + `iconArt`. Each app ships its own `iconArt` SVG so it has a recognizable subject illustration (cylinder, elbow, etc.), not a generic line icon.
+- **App tiles** (the dock) use the library's light material icon canvas, subtly tinted by each app's `accent`, plus transparent `iconArt`. Each app ships recognizable subject artwork (cylinder, elbow, etc.), not a generic line icon.
 - **Desktop icons** read as "files on the desktop," not as apps: folders use the library default, README ships a custom document-page SVG (`os-system-windows.tsx`). Don't blur the line between dock and desktop icons.
-- **Accent color** drives multiple surfaces: the dock tile gradient, the window's top edge highlight line, and Spotlight rows. Keep accents distinct between apps.
+- **Accent color** drives multiple surfaces: the dock icon's restrained material tint, the window's top edge highlight line, and Spotlight rows. Keep accents distinct between apps.
 
 ## Layout pitfalls to know
 
@@ -174,7 +186,7 @@ When you add new persisted state that should reflect on the desktop or in a wind
 
 1. Create `packages/generators/<name>/` with `package.json`, `tsconfig.json`, `vitest.config.ts` (copy from `tubes`)
 2. Implement `types.ts`, `validation.ts`, `geometry.ts`, `controls.tsx`, `scene.tsx`, `print-tips.ts`
-3. Build an `icon-art.tsx` — a small SVG component (32-unit viewBox) that depicts the subject. The dock renders it on the app's accent gradient; treat the SVG as the foreground only.
+3. Build an `icon-art.tsx` that renders transparent subject artwork depicting the generator. The dock places it on the light material icon canvas, so keep backgrounds out of the asset.
 4. Export a `Generator<Config>` from `src/index.ts` with a unique `meta.accent` and `meta.iconArt` wired in
 5. Add to `apps/studio/lib/registry.ts` (dock tile, Spotlight entry, and Cmd/Ctrl+N shortcut follow automatically via `lib/os-apps.tsx`)
 6. Add the slug to `apps/studio/lib/generator-slugs.ts` so the route prerenders

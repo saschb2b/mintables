@@ -41,6 +41,7 @@ function createMacosTheme(options = {}) {
       textPrimary: "#1d1d1f",
       textSecondary: "rgba(0, 0, 0, 0.55)",
       accent,
+      appIconSurface: "#f3f4f7",
       border: "rgba(0, 0, 0, 0.12)"
     },
     shape: {

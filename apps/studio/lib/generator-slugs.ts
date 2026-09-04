@@ -8,4 +8,5 @@ export const generatorSlugs = [
   "clamps",
   "support-cleaner",
   "pulls",
+  "skadis",
 ] as const;

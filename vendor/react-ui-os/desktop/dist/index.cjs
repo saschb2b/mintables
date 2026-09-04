@@ -4845,6 +4845,17 @@ function resolveAppIcon(app, theme) {
   const style = theme.chrome.iconStyle;
   return (style ? app.icons?.[style] : void 0) ?? app.icon;
 }
+function appIconBackground(app, theme) {
+  const accent = app.accent ?? theme.palette.accent;
+  const surface = theme.palette.appIconSurface;
+  if (!surface) {
+    return `linear-gradient(180deg, ${accent} 0%, ${accent}c0 100%)`;
+  }
+  return `linear-gradient(145deg, color-mix(in srgb, ${surface} 96%, ${accent}) 0%, color-mix(in srgb, ${surface} 88%, ${accent}) 52%, color-mix(in srgb, ${surface} 72%, ${accent}) 100%)`;
+}
+function appIconForeground(app, theme) {
+  return theme.palette.appIconSurface ? app.accent ?? theme.palette.accent : "#fff";
+}
 
 // src/util/show-desktop.ts
 function planShowDesktop(windows, activeWorkspaceId, stash) {
@@ -6533,9 +6544,9 @@ function DockTile(t0) {
   } else {
     t11 = $[60];
   }
-  const t12 = macosFullBleed ? "transparent" : bar ? activeBg : `linear-gradient(180deg, ${accent} 0%, ${accent}c0 100%)`;
+  const t12 = macosFullBleed ? "transparent" : bar ? activeBg : appIconBackground(app, theme);
   const t13 = bar ? "none" : macosFullBleed ? "0 3px 8px rgba(0,0,0,0.3)" : "inset 0 1px 0 rgba(255,255,255,0.22), 0 2px 6px rgba(0,0,0,0.35)";
-  const t14 = bar ? accent : "#fff";
+  const t14 = bar ? accent : appIconForeground(app, theme);
   const t15 = bar ? `background ${String(dur)}ms ease` : void 0;
   let t16;
   if ($[61] !== radius || $[62] !== t11 || $[63] !== t12 || $[64] !== t13 || $[65] !== t14 || $[66] !== t15) {
@@ -10620,9 +10631,9 @@ function LauncherTile(t0) {
       color: theme.palette.textPrimary
     } : {
       borderRadius: theme.shape.dockTileRadius,
-      background: `linear-gradient(180deg, ${accent} 0%, ${accent}c0 100%)`,
+      background: appIconBackground({ accent }, theme),
       boxShadow: "inset 0 1px 0 rgba(255,255,255,0.22), 0 2px 6px rgba(0,0,0,0.35)",
-      color: "#fff"
+      color: appIconForeground({ accent }, theme)
     };
     $[17] = accent;
     $[18] = bare;
@@ -12107,7 +12118,7 @@ function ResultGlyph(t0) {
   }
   const Icon = t1;
   const externalIcon = result.kind === "external" ? result.icon : void 0;
-  const t2 = `linear-gradient(180deg, ${accent} 0%, ${accent}c0 100%)`;
+  const t2 = appIconBackground(result.kind === "app" ? result.app : { accent }, theme);
   let t3;
   if ($[5] !== size || $[6] !== t2 || $[7] !== theme.shape.dockTileRadius) {
     t3 = {
@@ -12119,7 +12130,7 @@ function ResultGlyph(t0) {
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
-      color: "#fff",
+      color: appIconForeground(result.kind === "app" ? result.app : { accent }, theme),
       flexShrink: 0
     };
     $[5] = size;
@@ -12367,7 +12378,7 @@ function ResultRow(t0) {
     t5 = $[9];
   }
   const t6 = theme.shape.small + 2;
-  const t7 = `linear-gradient(180deg, ${accent} 0%, ${accent}c0 100%)`;
+  const t7 = appIconBackground(result.kind === "app" ? result.app : { accent }, theme);
   let t8;
   if ($[10] !== t6 || $[11] !== t7) {
     t8 = {
@@ -12380,7 +12391,7 @@ function ResultRow(t0) {
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
-      color: "#fff"
+      color: appIconForeground(result.kind === "app" ? result.app : { accent }, theme)
     };
     $[10] = t6;
     $[11] = t7;
@@ -15618,7 +15629,7 @@ function Tile(t0) {
     t1 = $[2];
   }
   const Icon = t1;
-  const t2 = `linear-gradient(180deg, ${accent} 0%, ${accent}c0 100%)`;
+  const t2 = appIconBackground(app, theme);
   const t3 = focused ? `0 0 0 3px ${theme.palette.textPrimary}, 0 12px 24px rgba(0,0,0,0.45)` : "0 4px 10px rgba(0,0,0,0.35)";
   let t4;
   if ($[3] !== size || $[4] !== t2 || $[5] !== t3 || $[6] !== theme.shape.dockTileRadius) {
@@ -15630,7 +15641,7 @@ function Tile(t0) {
       boxShadow: t3,
       display: "grid",
       placeItems: "center",
-      color: "#fff",
+      color: appIconForeground(app, theme),
       transition: "width 80ms ease, height 80ms ease, box-shadow 80ms ease"
     };
     $[3] = size;

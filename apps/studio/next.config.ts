@@ -13,6 +13,7 @@ const nextConfig: NextConfig = {
     "@mintables/gen-clamps",
     "@mintables/gen-support-cleaner",
     "@mintables/gen-pulls",
+    "@mintables/gen-skadis",
   ],
   devIndicators: false,
   experimental: {

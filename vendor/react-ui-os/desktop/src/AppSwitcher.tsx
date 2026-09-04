@@ -4,7 +4,11 @@ import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "r
 import { useWindowManager, windowIdOf, type App } from "@react-ui-os/core";
 import { useApps, useTheme } from "./desktop-context";
 import { APP_SWITCHER_CYCLE_EVENT } from "./events";
-import { resolveAppIcon } from "./util/app-icon";
+import {
+  appIconBackground,
+  appIconForeground,
+  resolveAppIcon,
+} from "./util/app-icon";
 import { nextCascadeIndex, pickInitialBounds } from "./util/initial-bounds";
 
 /**
@@ -225,7 +229,6 @@ function Tile({
   focused: boolean;
   theme: ReturnType<typeof useTheme>;
 }) {
-  const accent = app.accent ?? theme.palette.accent;
   const size = focused ? 72 : 56;
   const Art = app.iconArt;
   const Icon = resolveAppIcon(app, theme);
@@ -235,13 +238,13 @@ function Tile({
         width: size,
         height: size,
         borderRadius: theme.shape.dockTileRadius,
-        background: `linear-gradient(180deg, ${accent} 0%, ${accent}c0 100%)`,
+        background: appIconBackground(app, theme),
         boxShadow: focused
           ? `0 0 0 3px ${theme.palette.textPrimary}, 0 12px 24px rgba(0,0,0,0.45)`
           : "0 4px 10px rgba(0,0,0,0.35)",
         display: "grid",
         placeItems: "center",
-        color: "#fff",
+        color: appIconForeground(app, theme),
         transition: "width 80ms ease, height 80ms ease, box-shadow 80ms ease",
       }}
       title={app.name}

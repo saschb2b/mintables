@@ -84,22 +84,27 @@ export function DownloadsContent() {
   };
 
   const handleReDownload = (its: Item[]) => {
-    for (const it of its) {
-      const gen = findGenerator(it.entry.generatorId);
-      if (!gen) continue;
-      const config = gen.decode(it.entry.config);
-      if (config === null) {
-        window.alert(
-          `"${it.entry.filename}" is incompatible with the current version of ${gen.meta.name}.`,
-        );
-        continue;
+    void (async () => {
+      for (const it of its) {
+        const gen = findGenerator(it.entry.generatorId);
+        if (!gen) continue;
+        const config = gen.decode(it.entry.config);
+        if (config === null) {
+          window.alert(
+            `"${it.entry.filename}" is incompatible with the current version of ${gen.meta.name}.`,
+          );
+          continue;
+        }
+        try {
+          // Generators with an async kernel (CSG) need it loaded first.
+          if (gen.prepare) await gen.prepare();
+          exportModel(gen, config, it.entry.format);
+        } catch (err: unknown) {
+          if (err instanceof ExportError) window.alert(err.message);
+          else window.alert(`"${it.entry.filename}" could not be rebuilt.`);
+        }
       }
-      try {
-        exportModel(gen, config, it.entry.format);
-      } catch (err: unknown) {
-        if (err instanceof ExportError) window.alert(err.message);
-      }
-    }
+    })();
   };
 
   const handleDelete = (its: Item[]) => {

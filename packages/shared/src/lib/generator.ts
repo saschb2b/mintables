@@ -23,12 +23,12 @@ export interface GeneratorMeta {
   description: string;
   /** Lucide icon component used in headers, switchers, and as a dock fallback. */
   icon: LucideIcon;
-  /** Accent color used for badge + hub card highlight + dock tile gradient. */
+  /** Accent color used for badges, highlights, and the dock icon surface tint. */
   accent: string;
   /**
-   * Optional dock icon art — a subject illustration drawn inside the dock
-   * tile (size is the pixel box the art should fill, typically 30–34px). If
-   * omitted the dock falls back to a centered `icon` on the accent gradient.
+   * Optional dock icon art: a subject illustration drawn inside the dock tile
+   * (size is the pixel box the art should fill, typically 30 to 34px). If
+   * omitted, the dock falls back to a centered icon on the themed canvas.
    */
   iconArt?: ComponentType<{ size?: number }>;
 }
@@ -77,6 +77,12 @@ export interface Generator<C> {
    * uses the shared strict check when this is omitted.
    */
   isExportableMesh?: (mesh: TriangleMesh) => boolean;
+  /**
+   * Optional async setup that must resolve before `geometry()` is callable
+   * (e.g. loading the WASM CSG kernel). The shell awaits it before mounting
+   * the preview scene and enabling export; it must be idempotent.
+   */
+  prepare?: () => Promise<void>;
   /** Coordinate convention of the triangles returned by geometry(). */
   axis: AxisConvention;
   /** Filename stem (no extension) for the export. */

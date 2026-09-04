@@ -3,7 +3,7 @@
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { alpha, useTheme } from "@mui/material/styles";
-import { Eye } from "lucide-react";
+import { Eye, LoaderCircle } from "lucide-react";
 import { GizmoHelper, GizmoViewport, View } from "@react-three/drei";
 import type { Generator } from "../lib/generator";
 import { StudioLights } from "./studio-lights";
@@ -33,6 +33,11 @@ interface PreviewPanelProps<C> {
    * re-orienting). Camera-state preservation per window can come later.
    */
   active: boolean;
+  /**
+   * False while the generator's `prepare()` promise is pending. The scene
+   * stays unmounted so `geometry()` is never called before its kernel exists.
+   */
+  ready?: boolean;
 }
 
 const PREVIEW_BG = "linear-gradient(180deg, #404040 0%, #2a2a2a 100%)";
@@ -41,6 +46,7 @@ export function PreviewPanel<C>({
   generator,
   config,
   active,
+  ready = true,
 }: PreviewPanelProps<C>) {
   const Scene = generator.Scene;
   const theme = useTheme();
@@ -66,7 +72,9 @@ export function PreviewPanel<C>({
         overflow: "hidden",
       }}
     >
-      {active ? (
+      {!ready ? (
+        <LoadingHint />
+      ) : active ? (
         <View
           style={{
             position: "absolute",
@@ -90,6 +98,39 @@ export function PreviewPanel<C>({
       ) : (
         <PausedHint />
       )}
+    </Box>
+  );
+}
+
+/** Shown while the generator's kernel is still loading. */
+function LoadingHint() {
+  return (
+    <Box
+      aria-live="polite"
+      sx={{
+        position: "absolute",
+        inset: 0,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 1,
+        color: "rgba(255, 255, 255, 0.45)",
+        userSelect: "none",
+        pointerEvents: "none",
+        "@keyframes mintables-spin": {
+          to: { transform: "rotate(360deg)" },
+        },
+        "& svg": { animation: "mintables-spin 1.1s linear infinite" },
+      }}
+    >
+      <LoaderCircle size={28} strokeWidth={1.4} />
+      <Typography
+        variant="caption"
+        sx={{ fontSize: "0.74rem", letterSpacing: 0.4, color: "inherit" }}
+      >
+        Loading geometry kernel
+      </Typography>
     </Box>
   );
 }

@@ -22,6 +22,7 @@
     "@mintables/gen-inserts": "workspace:*",
     "@mintables/gen-legcaps": "workspace:*",
     "@mintables/gen-pulls": "workspace:*",
+    "@mintables/gen-skadis": "workspace:*",
     "@mintables/gen-support-cleaner": "workspace:*",
     "@mintables/gen-tubes": "workspace:*",
     "@mintables/shared": "workspace:*",

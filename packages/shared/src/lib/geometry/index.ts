@@ -12,3 +12,22 @@ export {
 } from "./mesh-analysis";
 export type { MeshAnalysis } from "./mesh-analysis";
 export { createSTLBinary, parseTrianglesFromSTL } from "./stl-binary";
+export {
+  CsgNotReadyError,
+  CsgScope,
+  box,
+  circlePolygon,
+  cylinderZ,
+  ensureCcw,
+  extrudeX,
+  extrudeY,
+  extrudeZ,
+  getCsg,
+  isCsgReady,
+  isManifoldMeshExportable,
+  loadCsg,
+  manifoldToTriangles,
+  roundedRectPolygon,
+  withCsgScope,
+} from "./csg";
+export type { CrossSection, Manifold, ManifoldToplevel, Vec2 } from "./csg";

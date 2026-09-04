@@ -17,7 +17,15 @@ function useFittedGeometry(
   targetSize: number,
 ): FittedGeo {
   const memo = useMemo<FittedGeo>(() => {
-    const triangles = generator.geometry(generator.defaults);
+    // Generators with an async kernel may not be ready yet; show nothing
+    // rather than crash the grid.
+    const triangles = (() => {
+      try {
+        return generator.geometry(generator.defaults);
+      } catch {
+        return [];
+      }
+    })();
     const geo = trianglesToBufferGeometry(triangles, generator.axis);
     geo.computeBoundingBox();
     const box = geo.boundingBox ?? new THREE.Box3();

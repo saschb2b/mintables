@@ -65,6 +65,10 @@ export function createMacosTheme(options: MacosThemeOptions = {}): OsTheme {
       textPrimary: "#1d1d1f",
       textSecondary: "rgba(0, 0, 0, 0.55)",
       accent,
+      // macOS app icons are finished objects, not white glyphs dropped onto a
+      // saturated brand-color button. This porcelain-like canvas lets each
+      // app's subject and accent carry the identity.
+      appIconSurface: "#f3f4f7",
       border: "rgba(0, 0, 0, 0.12)",
     },
     shape: {
@@ -188,7 +192,7 @@ export function createMacosTheme(options: MacosThemeOptions = {}): OsTheme {
         kind: "color-from-palette",
         section: "Appearance",
         label: "Accent color",
-        description: "Tints the dock tile gradients and focused-window highlight.",
+        description: "Tints app icon surfaces and the focused-window highlight.",
         // The macOS System Settings accent palette: Blue, Purple, Pink, Red,
         // Orange, Green.
         options: ["#0a84ff", "#8944ab", "#f74f9e", "#ff5257", "#f7821b", "#62ba46"],

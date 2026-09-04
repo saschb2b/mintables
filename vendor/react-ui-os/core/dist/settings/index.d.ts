@@ -9,6 +9,8 @@ interface OsThemePalette {
     textSecondary: string;
     /** Default accent. Apps may override per-app. */
     accent: string;
+    /** Optional neutral canvas for app-icon tiles. */
+    appIconSurface?: string;
     /** Border / hairline color. */
     border: string;
 }

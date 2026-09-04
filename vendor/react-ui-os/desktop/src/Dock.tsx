@@ -37,7 +37,11 @@ import {
   shouldShrinkWhenFull,
   SMALL_TILE_RATIO,
 } from "./util/layout";
-import { resolveAppIcon } from "./util/app-icon";
+import {
+  appIconBackground,
+  appIconForeground,
+  resolveAppIcon,
+} from "./util/app-icon";
 import { planShowDesktop } from "./util/show-desktop";
 import { useIsomorphicLayoutEffect } from "./util/use-isomorphic-layout-effect";
 import { useReducedMotion } from "./util/use-reduced-motion";
@@ -1470,8 +1474,8 @@ function DockTile({
   // labeled button". Pinned-but-closed apps keep the bare icon.
   const labeledButton = labeled && bar && !!win;
   const dur = theme.motion.dockHoverDurationMs;
-  // The taskbar button is a flat icon button (transparent, hover-highlighted,
-  // brand-colored glyph); the floating dock tile is an accent-gradient squircle.
+  // The taskbar button is a flat icon button. Floating docks use the active
+  // theme's app-icon material, with the legacy accent tile as a fallback.
   const radius = bar
     ? theme.shape.small
     : Math.round(theme.shape.dockTileRadius * (size / base));
@@ -1525,14 +1529,14 @@ function DockTile({
           ? "transparent"
           : bar
             ? activeBg
-            : `linear-gradient(180deg, ${accent} 0%, ${accent}c0 100%)`,
+            : appIconBackground(app, theme),
         boxShadow: bar
           ? "none"
           : macosFullBleed
             ? "0 3px 8px rgba(0,0,0,0.3)"
             : "inset 0 1px 0 rgba(255,255,255,0.22), 0 2px 6px rgba(0,0,0,0.35)",
         cursor: "pointer",
-        color: bar ? accent : "#fff",
+        color: bar ? accent : appIconForeground(app, theme),
         display: "flex",
         alignItems: "center",
         transition: bar ? `background ${String(dur)}ms ease` : undefined,

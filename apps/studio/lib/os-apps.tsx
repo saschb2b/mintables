@@ -8,7 +8,7 @@ import { EdgeToEdge } from "./window-content";
 
 /**
  * Map every Mintables generator onto a react-ui-os App. One entry lights up
- * the dock tile (accent gradient + iconArt), the menu bar, Spotlight, and
+ * the dock tile (material canvas + iconArt), the menu bar, Spotlight, and
  * Cmd/Ctrl+1..9 at once; the window body is the same GeneratorShell as
  * before, told about focus via the library's AppContentProps.
  */

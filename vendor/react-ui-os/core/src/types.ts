@@ -16,7 +16,7 @@ export interface App {
   /** Optional one-line subtitle for Spotlight and dock tooltips. */
   tagline?: string;
   /**
-   * Accent color. Themes use it to tint the dock tile gradient, the window
+   * Accent color. Themes use it to tint the app icon surface, the window
    * top-edge highlight, and the menu-bar status dot when this app is focused.
    * When absent, the theme's default accent is used.
    */
@@ -32,8 +32,8 @@ export interface App {
    */
   icons?: Record<string, ComponentType<{ size?: number }>>;
   /**
-   * Subject illustration painted inside the dock tile, on top of the accent
-   * gradient. Optional; themes fall back to the resolved `icon` or a letter.
+   * Subject illustration painted inside the dock tile, on top of the theme's
+   * app-icon canvas. Optional; themes fall back to the resolved icon or letter.
    */
   iconArt?: ComponentType<{ size?: number }>;
   /** Default window bounds when first opened. Theme has the fallback. */
@@ -71,6 +71,11 @@ export interface OsThemePalette {
   textSecondary: string;
   /** Default accent. Apps may override per-app. */
   accent: string;
+  /**
+   * Optional neutral canvas for app-icon tiles. When present, app icons use a
+   * lightly accent-tinted material instead of a fully saturated accent field.
+   */
+  appIconSurface?: string;
   /** Border / hairline color. */
   border: string;
 }
