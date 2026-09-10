@@ -5,6 +5,7 @@ import { getPullSpec } from "../src/spec";
 import {
   DEFAULT_ARC_PULL,
   DEFAULT_KNOB_PULL,
+  DEFAULT_SQUARE_PULL,
   DEFAULT_TAB_PULL,
   type PullConfig,
 } from "../src/types";
@@ -91,6 +92,20 @@ const VARIANTS: [string, PullConfig][] = [
     { ...DEFAULT_ARC_PULL, holeSpacing: 64, rise: 70, screwHoleDepth: 10 },
   ],
   ["arc shallow", { ...DEFAULT_ARC_PULL, holeSpacing: 128, rise: 24 }],
+  ["square sharp round + screws", DEFAULT_SQUARE_PULL],
+  [
+    "square sharp flat + glue",
+    { ...DEFAULT_SQUARE_PULL, barProfile: "flat", mount: "glue" },
+  ],
+  ["square rounded round", { ...DEFAULT_SQUARE_PULL, cornerRadius: 3 }],
+  [
+    "square rounded flat + screws",
+    { ...DEFAULT_SQUARE_PULL, barProfile: "flat", cornerRadius: 6 },
+  ],
+  [
+    "square tall and narrow",
+    { ...DEFAULT_SQUARE_PULL, holeSpacing: 40, rise: 50, cornerRadius: 1 },
+  ],
 ];
 
 describe("generatePullTriangles", () => {
@@ -199,9 +214,19 @@ describe("generatePullTriangles", () => {
     expect(centers.size).toBe(2);
   });
 
-  it("plants the arc feet exactly on the requested hole spacing", () => {
+  it("plants the arc and square feet exactly on the requested hole spacing", () => {
+    const cases: (typeof DEFAULT_ARC_PULL | typeof DEFAULT_SQUARE_PULL)[] = [];
     for (const spacing of [64, 96, 128]) {
-      const c: PullConfig = { ...DEFAULT_ARC_PULL, holeSpacing: spacing };
+      cases.push({ ...DEFAULT_ARC_PULL, holeSpacing: spacing });
+      cases.push({ ...DEFAULT_SQUARE_PULL, holeSpacing: spacing });
+      cases.push({
+        ...DEFAULT_SQUARE_PULL,
+        holeSpacing: spacing,
+        cornerRadius: 4,
+      });
+    }
+    for (const c of cases) {
+      const spacing = c.holeSpacing;
       const triangles = generatePullTriangles(c);
       const holeR = c.screwDiameter / 2;
       // Bore rims in the mount plane reveal the actual foot centers.
@@ -229,6 +254,34 @@ describe("generatePullTriangles", () => {
       DEFAULT_ARC_PULL.rise + DEFAULT_ARC_PULL.barDiameter / 2,
       1,
     );
+  });
+
+  it("tops the square bar at rise plus half the bar, sharp or rounded", () => {
+    for (const cornerRadius of [0, 3]) {
+      const c: PullConfig = { ...DEFAULT_SQUARE_PULL, cornerRadius };
+      const { max } = zRange(generatePullTriangles(c));
+      expect(max).toBeCloseTo(c.rise + c.barDiameter / 2, 6);
+    }
+  });
+
+  it("keeps the square legs vertical and its footprint at spacing plus bar", () => {
+    const c = DEFAULT_SQUARE_PULL;
+    const triangles = generatePullTriangles(c);
+    const xs = triangles.flatMap((t) => [t[0], t[3], t[6]]);
+    const halfWidth = c.holeSpacing / 2 + c.barDiameter / 2;
+    expect(Math.max(...xs)).toBeCloseTo(halfWidth, 6);
+    expect(Math.min(...xs)).toBeCloseTo(-halfWidth, 6);
+    expect(getPullSpec(c).footprintX).toBeCloseTo(halfWidth * 2, 6);
+    // With sharp corners the outer leg face runs the full height.
+    const outerFaceZs = triangles
+      .flatMap((t) => [
+        [t[0], t[2]],
+        [t[3], t[5]],
+        [t[6], t[8]],
+      ])
+      .filter(([x]) => Math.abs(x - halfWidth) < 1e-6)
+      .map(([, z]) => z);
+    expect(Math.max(...outerFaceZs)).toBeCloseTo(c.rise + c.barDiameter / 2, 6);
   });
 
   it("keeps every tested variant valid", () => {

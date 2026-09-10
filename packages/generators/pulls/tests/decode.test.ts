@@ -3,6 +3,7 @@ import { pullGenerator } from "../src/index";
 import {
   DEFAULT_ARC_PULL,
   DEFAULT_KNOB_PULL,
+  DEFAULT_SQUARE_PULL,
   DEFAULT_TAB_PULL,
 } from "../src/types";
 
@@ -22,6 +23,19 @@ describe("pullGenerator.decode", () => {
     expect(pullGenerator.decode({ style: "knob" })).toEqual(DEFAULT_KNOB_PULL);
     expect(pullGenerator.decode({ style: "tab" })).toEqual(DEFAULT_TAB_PULL);
     expect(pullGenerator.decode({ style: "arc" })).toEqual(DEFAULT_ARC_PULL);
+    expect(pullGenerator.decode({ style: "square" })).toEqual(
+      DEFAULT_SQUARE_PULL,
+    );
+  });
+
+  it("keeps square fields and sanitizes its enums", () => {
+    expect(
+      pullGenerator.decode({
+        style: "square",
+        cornerRadius: 4,
+        barProfile: "oval",
+      }),
+    ).toEqual({ ...DEFAULT_SQUARE_PULL, cornerRadius: 4, barProfile: "round" });
   });
 
   it("preserves provided fields of the right type", () => {

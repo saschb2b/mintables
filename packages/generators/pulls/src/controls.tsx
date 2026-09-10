@@ -10,6 +10,7 @@ import type { ValidationResult } from "@mintables/shared/lib/validation";
 import {
   DEFAULT_ARC_PULL,
   DEFAULT_KNOB_PULL,
+  DEFAULT_SQUARE_PULL,
   DEFAULT_TAB_PULL,
   type ArcBarProfile,
   type KnobHeadShape,
@@ -57,6 +58,9 @@ export function PullControls({
       case "arc":
         onChange({ ...DEFAULT_ARC_PULL, ...carry });
         return;
+      case "square":
+        onChange({ ...DEFAULT_SQUARE_PULL, ...carry });
+        return;
     }
   };
 
@@ -76,6 +80,7 @@ export function PullControls({
           <MenuItem value="knob">Knob</MenuItem>
           <MenuItem value="tab">Angled tab</MenuItem>
           <MenuItem value="arc">Arc handle</MenuItem>
+          <MenuItem value="square">Square handle</MenuItem>
         </TextField>
       </SectionCard>
 
@@ -326,9 +331,9 @@ export function PullControls({
         </>
       )}
 
-      {config.style === "arc" && (
+      {(config.style === "arc" || config.style === "square") && (
         <>
-          <SectionCard title="Arch">
+          <SectionCard title={config.style === "arc" ? "Arch" : "Bracket"}>
             <Box sx={fieldGrid}>
               <NumberInput
                 label="Hole spacing"
@@ -356,14 +361,29 @@ export function PullControls({
                 step={1}
                 unit="mm"
               />
+              {config.style === "square" && (
+                <NumberInput
+                  label="Corner radius"
+                  value={config.cornerRadius}
+                  onChange={(v) => {
+                    update({ cornerRadius: v });
+                  }}
+                  field="cornerRadius"
+                  validation={validation}
+                  min={0}
+                  max={40}
+                  step={0.5}
+                  unit="mm"
+                />
+              )}
             </Box>
             <Typography
               variant="caption"
               sx={{ color: "text.secondary", display: "block", mt: 1 }}
             >
-              Hole spacing is the standard drawer dimension: 64, 96, or 128 mm
-              match most pre-drilled fronts. Raise the rise past half the
-              spacing for a horseshoe.
+              {config.style === "arc"
+                ? "Hole spacing is the standard drawer dimension: 64, 96, or 128 mm match most pre-drilled fronts. Raise the rise past half the spacing for a horseshoe."
+                : "Hole spacing is the standard drawer dimension: 64, 96, or 128 mm match most pre-drilled fronts. Corner radius is the inside bend; 0 gives sharp mitred corners."}
             </Typography>
           </SectionCard>
 

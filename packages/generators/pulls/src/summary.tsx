@@ -6,7 +6,7 @@ import {
   type SpecStatus,
 } from "@mintables/shared/ui/spec-card";
 import type { PullConfig } from "./types";
-import { arcBarDepth } from "./types";
+import { barDepthOf } from "./types";
 import { getPullSpec } from "./spec";
 
 function statusFor(config: PullConfig): { status: SpecStatus; label: string } {
@@ -22,8 +22,9 @@ function statusFor(config: PullConfig): { status: SpecStatus; label: string } {
       if (config.thickness < 2.4)
         return { status: "warn", label: "Thin strip" };
       return { status: "ok", label: `${config.thickness.toFixed(1)} mm strip` };
-    case "arc": {
-      const depth = arcBarDepth(config);
+    case "arc":
+    case "square": {
+      const depth = barDepthOf(config);
       if (config.rise - depth / 2 < 18)
         return { status: "warn", label: "Tight grip room" };
       return { status: "ok", label: `Ø ${depth.toFixed(1)} mm bar` };
@@ -59,12 +60,13 @@ export function PullSummary({ config }: { config: PullConfig }) {
           value={`${spec.bladeReach.toFixed(1)} mm`}
         />
       )}
-      {config.style === "arc" && spec.gripClearance !== undefined && (
-        <SpecRow
-          label="Finger room"
-          value={`${spec.gripClearance.toFixed(1)} mm`}
-        />
-      )}
+      {(config.style === "arc" || config.style === "square") &&
+        spec.gripClearance !== undefined && (
+          <SpecRow
+            label="Finger room"
+            value={`${spec.gripClearance.toFixed(1)} mm`}
+          />
+        )}
       {config.style === "arc" && spec.footLength !== undefined && (
         <SpecRow
           label="Foot length"
@@ -77,7 +79,7 @@ export function PullSummary({ config }: { config: PullConfig }) {
           value={
             config.style === "tab"
               ? `${String(Math.round(config.screwCount))} × Ø ${config.screwDiameter.toFixed(1)} mm countersunk`
-              : `Ø ${config.screwDiameter.toFixed(1)} mm pilot, ${config.style === "arc" ? "both feet" : "rear entry"}`
+              : `Ø ${config.screwDiameter.toFixed(1)} mm pilot, ${config.style === "knob" ? "rear entry" : "both feet"}`
           }
         />
       ) : (

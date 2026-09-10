@@ -1,5 +1,11 @@
-import { arcBarDepth, arcBarWidth, type PullConfig } from "./types";
-import { arcFootOutline, knobProfile, tabProfile, type Pt2 } from "./geometry";
+import { barDepthOf, barWidthOf, type PullConfig } from "./types";
+import {
+  arcFootOutline,
+  knobProfile,
+  squareCornerRadius,
+  tabProfile,
+  type Pt2,
+} from "./geometry";
 
 export interface PullSpec {
   /** Bounding footprint on the mounting surface, in mm. */
@@ -9,7 +15,7 @@ export interface PullSpec {
   height: number;
   /** Rough material volume in cm3. */
   volumeCm3: number;
-  /** Arc only: clear finger room under the bar apex. */
+  /** Arc and square: clear finger room under the bar. */
   gripClearance?: number;
   /** Arc only: length of each flat foot oval along the surface. */
   footLength?: number;
@@ -76,8 +82,8 @@ export function getPullSpec(config: PullConfig): PullSpec {
       };
     }
     case "arc": {
-      const depth = arcBarDepth(config);
-      const width = arcBarWidth(config);
+      const depth = barDepthOf(config);
+      const width = barWidthOf(config);
       const foot = arcFootOutline(config, 1);
       const footMinX = Math.min(...foot.map((p) => p.x));
       const footMaxX = Math.max(...foot.map((p) => p.x));
@@ -97,6 +103,25 @@ export function getPullSpec(config: PullConfig): PullSpec {
         volumeCm3: (crossArea * radius * 2 * theta) / 1000,
         gripClearance: config.rise - depth / 2,
         footLength: footMaxX - footMinX,
+      };
+    }
+    case "square": {
+      const depth = barDepthOf(config);
+      const width = barWidthOf(config);
+      const crossArea =
+        config.barProfile === "round"
+          ? Math.PI * (config.barDiameter / 2) ** 2
+          : config.barWidth * config.barDepth * 0.98;
+      // Centerline: two legs, one bar, and a quarter circle per corner.
+      const r = squareCornerRadius(config);
+      const pathLength =
+        2 * (config.rise - r) + (config.holeSpacing - 2 * r) + Math.PI * r;
+      return {
+        footprintX: config.holeSpacing + depth,
+        footprintY: width,
+        height: config.rise + depth / 2,
+        volumeCm3: (crossArea * pathLength) / 1000,
+        gripClearance: config.rise - depth / 2,
       };
     }
   }

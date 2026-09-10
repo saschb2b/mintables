@@ -53,13 +53,25 @@ export function getPullPrintTips(config: PullConfig): PrintTip[] {
       }
       break;
     }
-    case "arc": {
+    case "arc":
+    case "square": {
       tips.push({
         icon: "printer",
         title: "Print lying flat on its back",
-        body: "Lay the handle down so the whole arc touches the bed on one side. Layer lines then run along the bar, which is the strong direction for a handle you pull on.",
+        body:
+          config.style === "arc"
+            ? "Lay the handle down so the whole arc touches the bed on one side. Layer lines then run along the bar, which is the strong direction for a handle you pull on."
+            : "Lay the bracket down so the legs and bar all touch the bed on one side. Layer lines then run along every leg, which is the strong direction for a handle you pull on.",
         priority: 10,
       });
+      if (config.style === "square" && config.cornerRadius <= 0) {
+        tips.push({
+          icon: "gauge",
+          title: "Sharp corners take the load",
+          body: "A sharp inside corner concentrates stress where the legs meet the bar. Add 4+ perimeters, or give the corners a 2 mm radius if the drawer is heavy.",
+          priority: 6,
+        });
+      }
       if (config.barProfile === "round") {
         tips.push({
           icon: "layers",

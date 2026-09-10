@@ -3,6 +3,7 @@ import { validatePullConfig } from "../src/validation";
 import {
   DEFAULT_ARC_PULL,
   DEFAULT_KNOB_PULL,
+  DEFAULT_SQUARE_PULL,
   DEFAULT_TAB_PULL,
 } from "../src/types";
 
@@ -16,7 +17,12 @@ function warningCodes(result: { warnings: { code: string }[] }): string[] {
 
 describe("validatePullConfig", () => {
   it("accepts all defaults", () => {
-    for (const c of [DEFAULT_KNOB_PULL, DEFAULT_TAB_PULL, DEFAULT_ARC_PULL]) {
+    for (const c of [
+      DEFAULT_KNOB_PULL,
+      DEFAULT_TAB_PULL,
+      DEFAULT_ARC_PULL,
+      DEFAULT_SQUARE_PULL,
+    ]) {
       const result = validatePullConfig(c);
       expect(result.errors).toHaveLength(0);
       expect(result.warnings).toHaveLength(0);
@@ -104,6 +110,36 @@ describe("validatePullConfig", () => {
   it("warns about tight finger room", () => {
     const result = validatePullConfig({ ...DEFAULT_ARC_PULL, rise: 18 });
     expect(warningCodes(result)).toContain("grip_tight");
+  });
+
+  it("rejects a square corner radius that swallows the straight runs", () => {
+    const result = validatePullConfig({
+      ...DEFAULT_SQUARE_PULL,
+      cornerRadius: 30,
+    });
+    expect(codes(result)).toContain("corner_radius_large");
+    expect(
+      validatePullConfig({ ...DEFAULT_SQUARE_PULL, cornerRadius: 6 }).errors,
+    ).toHaveLength(0);
+  });
+
+  it("rejects a square pilot bore that reaches into the bar", () => {
+    const result = validatePullConfig({
+      ...DEFAULT_SQUARE_PULL,
+      rise: 20,
+      screwHoleDepth: 18,
+    });
+    expect(codes(result)).toContain("screw_depth_into_bar");
+  });
+
+  it("warns about a tall narrow square handle", () => {
+    const result = validatePullConfig({
+      ...DEFAULT_SQUARE_PULL,
+      holeSpacing: 40,
+      rise: 50,
+    });
+    expect(result.errors).toHaveLength(0);
+    expect(warningCodes(result)).toContain("legs_tall");
   });
 
   it("rejects a screw wider than the arc bar allows", () => {

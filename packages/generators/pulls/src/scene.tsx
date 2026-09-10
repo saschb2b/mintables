@@ -88,13 +88,14 @@ function widthLabel(config: PullConfig): string {
     case "tab":
       return `${String(config.baseLength)} + ${String(config.tabLength)} mm`;
     case "arc":
+    case "square":
       return `${String(config.holeSpacing)} mm centers`;
   }
 }
 
 function PullDimensionIndicators({ config }: { config: PullConfig }) {
   const spec = getPullSpec(config);
-  // The knob and arc are centered on the origin; the tab starts at x = 0.
+  // Everything but the tab is centered on the origin; the tab starts at x = 0.
   const x0 = config.style === "tab" ? 0 : -spec.footprintX / 2;
   const x1 = config.style === "tab" ? spec.footprintX : spec.footprintX / 2;
   const inset = Math.max(spec.footprintX, spec.footprintY) * 0.18;

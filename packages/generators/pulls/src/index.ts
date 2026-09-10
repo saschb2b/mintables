@@ -4,6 +4,7 @@ import {
   DEFAULT_ARC_PULL,
   DEFAULT_KNOB_PULL,
   DEFAULT_PULL_CONFIG,
+  DEFAULT_SQUARE_PULL,
   DEFAULT_TAB_PULL,
   type PullConfig,
 } from "./types";
@@ -58,6 +59,12 @@ function decodePull(data: unknown): PullConfig | null {
       c.mount = oneOf(c.mount, ["screws", "glue"], "screws");
       return c;
     }
+    case "square": {
+      const c = mergeWithDefaults(DEFAULT_SQUARE_PULL, data);
+      c.barProfile = oneOf(c.barProfile, ["round", "flat"], "round");
+      c.mount = oneOf(c.mount, ["screws", "glue"], "screws");
+      return c;
+    }
     default:
       return null;
   }
@@ -77,6 +84,8 @@ function describePull(c: PullConfig): string {
       return `Angled lid tab, ${String(c.width)} mm wide, ${String(c.tabAngle)} degree blade, ${mount}`;
     case "arc":
       return `Arc handle, ${String(c.holeSpacing)} mm hole centers, ${String(c.rise)} mm rise, ${mount}`;
+    case "square":
+      return `Square handle, ${String(c.holeSpacing)} mm hole centers, ${String(c.rise)} mm rise, ${mount}`;
   }
 }
 
@@ -88,6 +97,8 @@ function pullFilename(c: PullConfig): string {
       return `pull-tab-w${String(c.width)}-a${String(c.tabAngle)}`;
     case "arc":
       return `pull-arc-${String(c.holeSpacing)}mm-r${String(c.rise)}`;
+    case "square":
+      return `pull-square-${String(c.holeSpacing)}mm-r${String(c.rise)}`;
   }
 }
 
@@ -113,7 +124,8 @@ function pullBadges(c: PullConfig): GeneratorBadge[] {
         color: "#14b8a6",
       });
       break;
-    case "arc": {
+    case "arc":
+    case "square": {
       const spec = getPullSpec(c);
       badges.push({
         label: `${String(c.holeSpacing)} mm centers`,
@@ -121,6 +133,8 @@ function pullBadges(c: PullConfig): GeneratorBadge[] {
       });
       if (spec.gripClearance !== undefined && spec.gripClearance >= 25)
         badges.push({ label: "Full-hand grip", color: "#84cc16" });
+      if (c.style === "square" && c.cornerRadius <= 0)
+        badges.push({ label: "Sharp corners", color: "#f59e0b" });
       break;
     }
   }
@@ -138,7 +152,7 @@ export const pullGenerator: Generator<PullConfig> = {
     name: "Pulls",
     tagline: "Drawer & Lid Pull Generator",
     description:
-      "Handles for drawers, lids, and boxes: turned knobs, angled lid tabs, and arc handles sized to standard hole spacings.",
+      "Handles for drawers, lids, and boxes: turned knobs, angled lid tabs, and arc or square handles sized to standard hole spacings.",
     icon: Grip,
     accent: "#10b981",
     iconArt: PullIconArt,

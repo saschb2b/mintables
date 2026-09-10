@@ -1,10 +1,11 @@
 import { addTriangle } from "@mintables/shared/lib/geometry/mesh-utils";
 import {
-  arcBarDepth,
-  arcBarWidth,
+  barDepthOf,
   type ArcPullConfig,
+  type BarPullConfig,
   type KnobPullConfig,
   type PullConfig,
+  type SquarePullConfig,
   type TabPullConfig,
 } from "./types";
 
@@ -621,7 +622,7 @@ function arcFrameForSpan(config: ArcPullConfig, span: number): ArcFrame {
   const radius = (rise * rise + half * half) / (2 * rise);
   const centerZ = rise - radius;
   const thetaEnd = Math.atan2(half, radius - rise);
-  const halfDepth = arcBarDepth(config) / 2;
+  const halfDepth = barDepthOf(config) / 2;
 
   // Stop the curved sweep where the whole cross-section clears the mount
   // plane; from there the bar continues as a straight stub sheared onto the
@@ -670,8 +671,11 @@ export function arcFrame(config: ArcPullConfig): ArcFrame & { span: number } {
   return { ...arcFrameForSpan(config, span), span };
 }
 
-/** Bar cross-section in (u, v): u along the outward radial, v across. */
-function arcCrossSection(config: ArcPullConfig): Pt2[] {
+/**
+ * Bar cross-section in (u, v): u along the outward normal of the sweep
+ * path, v across the bar (world y). Shared by the arc and square handles.
+ */
+function barCrossSection(config: BarPullConfig): Pt2[] {
   if (config.barProfile === "round") {
     return circleOutline(0, 0, config.barDiameter / 2);
   }
@@ -728,16 +732,65 @@ export function arcFootOutline(config: ArcPullConfig, side: 1 | -1): Pt2[] {
   const frame = arcFrame(config);
   const theta = frame.thetaCut * side;
   const ring = shearRingToPlane(
-    arcRing(config, frame, arcCrossSection(config), theta),
+    arcRing(config, frame, barCrossSection(config), theta),
     theta,
   );
   return ring.map((p) => ({ x: p.x, y: p.y }));
 }
 
+/**
+ * Skin a sequence of rings with matching point counts. Rings must follow
+ * the bar convention (u outward, v = +y) so the walls face outward.
+ */
+function buildSweepWalls(triangles: number[][], rings: Pt3[][]): void {
+  for (let r = 0; r < rings.length - 1; r++) {
+    const a = rings[r];
+    const b = rings[r + 1];
+    for (let i = 0; i < a.length; i++) {
+      const j = (i + 1) % a.length;
+      pushTri(triangles, a[i], b[j], a[j]);
+      pushTri(triangles, a[i], b[i], b[j]);
+    }
+  }
+}
+
+/** Cap a foot ring lying in the mount plane, with an optional pilot bore. */
+function buildFootCap(
+  triangles: number[][],
+  ring: Pt3[],
+  config: BarPullConfig,
+): void {
+  let outline: Pt2[] = ring.map((p) => ({ x: p.x, y: p.y }));
+  if (signedArea(outline) < 0) outline = [...outline].reverse();
+  const cx = outline.reduce((s, p) => s + p.x, 0) / outline.length;
+  if (config.mount === "screws") {
+    const holeR = config.screwDiameter / 2;
+    const hole = circleOutline(cx, 0, holeR);
+    buildZipperFace(triangles, outline, hole, 0, "down");
+    const loopAt = (z: number): Pt3[] =>
+      hole.map((p) => ({ x: p.x, y: p.y, z }));
+    buildLoopWall(
+      triangles,
+      loopAt(0),
+      loopAt(config.screwHoleDepth),
+      "inward",
+    );
+    buildFanFace(
+      triangles,
+      hole,
+      { x: cx, y: 0 },
+      config.screwHoleDepth,
+      "down",
+    );
+  } else {
+    buildFanFace(triangles, outline, { x: cx, y: 0 }, 0, "down");
+  }
+}
+
 function buildArc(config: ArcPullConfig): number[][] {
   const triangles: number[][] = [];
   const frame = arcFrame(config);
-  const cross = arcCrossSection(config);
+  const cross = barCrossSection(config);
 
   const rings: Pt3[][] = [];
   const startRing = arcRing(config, frame, cross, -frame.thetaCut);
@@ -749,46 +802,68 @@ function buildArc(config: ArcPullConfig): number[][] {
   const endRing = arcRing(config, frame, cross, frame.thetaCut);
   rings.push(shearRingToPlane(endRing, frame.thetaCut));
 
-  for (let r = 0; r < rings.length - 1; r++) {
-    const a = rings[r];
-    const b = rings[r + 1];
-    for (let i = 0; i < a.length; i++) {
-      const j = (i + 1) % a.length;
-      pushTri(triangles, a[i], b[j], a[j]);
-      pushTri(triangles, a[i], b[i], b[j]);
+  buildSweepWalls(triangles, rings);
+  buildFootCap(triangles, rings[0], config);
+  buildFootCap(triangles, rings[rings.length - 1], config);
+
+  return triangles;
+}
+
+/* ------------------------------------------------------------------ */
+/* Square: straight legs and bar with mitred or rounded corners        */
+/* ------------------------------------------------------------------ */
+
+/** Centerline radius of each square corner: inner radius plus half the bar. */
+export function squareCornerRadius(config: SquarePullConfig): number {
+  if (config.cornerRadius <= 0) return 0;
+  return config.cornerRadius + barDepthOf(config) / 2;
+}
+
+/**
+ * Sweep rings along the bracket path: up the left leg, across the bar, down
+ * the right leg. Corners are either one mitre ring (the cross-section
+ * projected onto the 45-degree bisecting plane, which keeps both faces
+ * continuous) or a quarter-circle fan around the inner radius.
+ */
+function squareRings(config: SquarePullConfig): Pt3[][] {
+  const cross = barCrossSection(config);
+  const half = config.holeSpacing / 2;
+  const rise = config.rise;
+  const r = squareCornerRadius(config);
+  const ringAt = (px: number, pz: number, ux: number, uz: number): Pt3[] =>
+    cross.map((c) => ({ x: px + c.x * ux, y: c.y, z: pz + c.x * uz }));
+
+  const rings: Pt3[][] = [];
+  rings.push(ringAt(-half, 0, -1, 0));
+  if (r === 0) {
+    rings.push(ringAt(-half, rise, -1, 1));
+    rings.push(ringAt(half, rise, 1, 1));
+  } else {
+    // Left corner, from the leg (u = -x) around to the bar (u = +z).
+    for (let s = 0; s <= BEND_SEGMENTS; s++) {
+      const phi = (s / BEND_SEGMENTS) * (Math.PI / 2);
+      const ux = -Math.cos(phi);
+      const uz = Math.sin(phi);
+      rings.push(ringAt(-half + r + r * ux, rise - r + r * uz, ux, uz));
+    }
+    // Right corner, from the bar (u = +z) around to the leg (u = +x).
+    for (let s = 0; s <= BEND_SEGMENTS; s++) {
+      const phi = (s / BEND_SEGMENTS) * (Math.PI / 2);
+      const ux = Math.sin(phi);
+      const uz = Math.cos(phi);
+      rings.push(ringAt(half - r + r * ux, rise - r + r * uz, ux, uz));
     }
   }
+  rings.push(ringAt(half, 0, 1, 0));
+  return rings;
+}
 
-  // Foot caps in the mount plane, with optional pilot bores.
-  for (const side of [-1, 1] as const) {
-    const ring = side === -1 ? rings[0] : rings[rings.length - 1];
-    let outline: Pt2[] = ring.map((p) => ({ x: p.x, y: p.y }));
-    if (signedArea(outline) < 0) outline = [...outline].reverse();
-    const cx = outline.reduce((s, p) => s + p.x, 0) / outline.length;
-    if (config.mount === "screws") {
-      const holeR = config.screwDiameter / 2;
-      const hole = circleOutline(cx, 0, holeR);
-      buildZipperFace(triangles, outline, hole, 0, "down");
-      const loopAt = (z: number): Pt3[] =>
-        hole.map((p) => ({ x: p.x, y: p.y, z }));
-      buildLoopWall(
-        triangles,
-        loopAt(0),
-        loopAt(config.screwHoleDepth),
-        "inward",
-      );
-      buildFanFace(
-        triangles,
-        hole,
-        { x: cx, y: 0 },
-        config.screwHoleDepth,
-        "down",
-      );
-    } else {
-      buildFanFace(triangles, outline, { x: cx, y: 0 }, 0, "down");
-    }
-  }
-
+function buildSquare(config: SquarePullConfig): number[][] {
+  const triangles: number[][] = [];
+  const rings = squareRings(config);
+  buildSweepWalls(triangles, rings);
+  buildFootCap(triangles, rings[0], config);
+  buildFootCap(triangles, rings[rings.length - 1], config);
   return triangles;
 }
 
@@ -802,5 +877,7 @@ export function generatePullTriangles(config: PullConfig): number[][] {
       return buildTab(config);
     case "arc":
       return buildArc(config);
+    case "square":
+      return buildSquare(config);
   }
 }

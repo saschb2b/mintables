@@ -1,4 +1,4 @@
-export type PullStyle = "knob" | "tab" | "arc";
+export type PullStyle = "knob" | "tab" | "arc" | "square";
 
 /**
  * How the pull attaches to the drawer or lid.
@@ -72,14 +72,14 @@ export interface TabPullConfig extends BasePullConfig {
   screwHeadDiameter: number;
 }
 
-export interface ArcPullConfig extends BasePullConfig {
-  style: "arc";
+/** Fields shared by the two bar handles: the arc and the square bracket. */
+export interface BarPullConfig extends BasePullConfig {
   /**
    * Center-to-center distance between the two mounting holes in mm. This is
    * the standard drawer-pull dimension (64, 96, 128, ...), held exactly.
    */
   holeSpacing: number;
-  /** Height of the bar centerline apex above the mount face. */
+  /** Height of the bar centerline (the arc's apex) above the mount face. */
   rise: number;
   /** Bar cross-section: round, or a flat rounded rectangle. */
   barProfile: ArcBarProfile;
@@ -93,7 +93,29 @@ export interface ArcPullConfig extends BasePullConfig {
   screwHoleDepth: number;
 }
 
-export type PullConfig = KnobPullConfig | TabPullConfig | ArcPullConfig;
+/** Circular sweep from foot to foot. */
+export interface ArcPullConfig extends BarPullConfig {
+  style: "arc";
+}
+
+/**
+ * Rectangular bracket: two straight legs joined by a straight bar, like the
+ * arc handle but with corners instead of a curve.
+ */
+export interface SquarePullConfig extends BarPullConfig {
+  style: "square";
+  /**
+   * Inner bend radius at each corner in mm. 0 gives a sharp mitred corner;
+   * the outer corner radius is this plus the bar depth.
+   */
+  cornerRadius: number;
+}
+
+export type PullConfig =
+  | KnobPullConfig
+  | TabPullConfig
+  | ArcPullConfig
+  | SquarePullConfig;
 
 export const DEFAULT_KNOB_PULL: KnobPullConfig = {
   style: "knob",
@@ -139,15 +161,29 @@ export const DEFAULT_ARC_PULL: ArcPullConfig = {
   screwHoleDepth: 12,
 };
 
+export const DEFAULT_SQUARE_PULL: SquarePullConfig = {
+  style: "square",
+  mount: "screws",
+  screwDiameter: 4,
+  holeSpacing: 96,
+  rise: 32,
+  barProfile: "round",
+  barDiameter: 11,
+  barWidth: 13,
+  barDepth: 8,
+  screwHoleDepth: 12,
+  cornerRadius: 0,
+};
+
 /** The studio pre-fills with the knob: the most common pull. */
 export const DEFAULT_PULL_CONFIG: PullConfig = DEFAULT_KNOB_PULL;
 
-/** Grab depth of the arc bar in the arc plane, regardless of profile. */
-export function arcBarDepth(config: ArcPullConfig): number {
+/** Grab depth of the bar in the handle plane, regardless of profile. */
+export function barDepthOf(config: BarPullConfig): number {
   return config.barProfile === "round" ? config.barDiameter : config.barDepth;
 }
 
-/** Bar dimension out of the arc plane, regardless of profile. */
-export function arcBarWidth(config: ArcPullConfig): number {
+/** Bar dimension out of the handle plane, regardless of profile. */
+export function barWidthOf(config: BarPullConfig): number {
   return config.barProfile === "round" ? config.barDiameter : config.barWidth;
 }

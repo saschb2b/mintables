@@ -5,15 +5,18 @@ import {
   type ValidationResult,
 } from "@mintables/shared/lib/validation/types";
 import {
-  arcBarDepth,
-  arcBarWidth,
+  barDepthOf,
+  barWidthOf,
   type ArcPullConfig,
+  type BarPullConfig,
   type KnobPullConfig,
   type PullConfig,
+  type SquarePullConfig,
   type TabPullConfig,
 } from "./types";
 import {
   effectiveGrooveCount,
+  squareCornerRadius,
   tabScrewPositions,
   tabStripHalfLength,
 } from "./geometry";
@@ -304,9 +307,10 @@ function validateTab(config: TabPullConfig): ValidationResult[] {
   return out;
 }
 
-function validateArc(config: ArcPullConfig): ValidationResult[] {
-  const depth = arcBarDepth(config);
-  const width = arcBarWidth(config);
+/** Range and bar checks shared by the arc and square handles. */
+function validateBar(config: BarPullConfig): ValidationResult[] {
+  const depth = barDepthOf(config);
+  const width = barWidthOf(config);
   const parts: (ValidationResult | null)[] = [
     range(
       config.holeSpacing,
@@ -341,37 +345,18 @@ function validateArc(config: ArcPullConfig): ValidationResult[] {
     out.push(
       error(
         "rise_too_low",
-        "The rise must exceed the bar depth or there is no arch at all.",
+        "The rise must exceed the bar depth or there is no room under the bar at all.",
         "rise",
       ),
     );
-  } else {
-    if (config.rise - depth / 2 < 18) {
-      out.push(
-        warning(
-          "grip_tight",
-          "Less than 18 mm of finger room under the bar; raise the arch for a comfortable grip.",
-          "rise",
-        ),
-      );
-    }
-    if (config.rise > config.holeSpacing) {
-      out.push(
-        warning(
-          "horseshoe",
-          "The rise exceeds the hole spacing, giving an extreme horseshoe; expect long overhangs when printing.",
-          "rise",
-        ),
-      );
-    } else if (config.rise < config.holeSpacing / 6) {
-      out.push(
-        warning(
-          "arc_shallow",
-          "A very shallow arc meets the surface at a grazing angle and grows long oval feet.",
-          "rise",
-        ),
-      );
-    }
+  } else if (config.rise - depth / 2 < 18) {
+    out.push(
+      warning(
+        "grip_tight",
+        "Less than 18 mm of finger room under the bar; raise the handle for a comfortable grip.",
+        "rise",
+      ),
+    );
   }
 
   if (config.mount === "screws") {
@@ -392,15 +377,106 @@ function validateArc(config: ArcPullConfig): ValidationResult[] {
           "screwHoleDepth",
         ),
       );
-    } else if (config.screwHoleDepth > config.rise * 0.6) {
+    }
+  }
+  return out;
+}
+
+function validateArc(config: ArcPullConfig): ValidationResult[] {
+  const depth = barDepthOf(config);
+  const out = validateBar(config);
+
+  if (config.rise > depth) {
+    if (config.rise > config.holeSpacing) {
       out.push(
         warning(
-          "screw_depth_curved",
-          "A bore this deep follows a curving bar; it may break out of the side. Keep it under 60% of the rise.",
-          "screwHoleDepth",
+          "horseshoe",
+          "The rise exceeds the hole spacing, giving an extreme horseshoe; expect long overhangs when printing.",
+          "rise",
+        ),
+      );
+    } else if (config.rise < config.holeSpacing / 6) {
+      out.push(
+        warning(
+          "arc_shallow",
+          "A very shallow arc meets the surface at a grazing angle and grows long oval feet.",
+          "rise",
         ),
       );
     }
+  }
+
+  if (
+    config.mount === "screws" &&
+    config.screwHoleDepth >= 5 &&
+    config.screwHoleDepth <= 40 &&
+    config.screwHoleDepth > config.rise * 0.6
+  ) {
+    out.push(
+      warning(
+        "screw_depth_curved",
+        "A bore this deep follows a curving bar; it may break out of the side. Keep it under 60% of the rise.",
+        "screwHoleDepth",
+      ),
+    );
+  }
+  return out;
+}
+
+function validateSquare(config: SquarePullConfig): ValidationResult[] {
+  const depth = barDepthOf(config);
+  const out = validateBar(config);
+
+  if (config.cornerRadius < 0 || config.cornerRadius > 40) {
+    out.push(
+      error(
+        "corner_radius_range",
+        "Corner radius must be between 0 mm (sharp) and 40 mm.",
+        "cornerRadius",
+      ),
+    );
+  } else if (config.rise > depth) {
+    const r = squareCornerRadius(config);
+    // Each corner eats r from the leg and r from the bar; keep a straight
+    // run of at least 2 mm on both so the shape still reads as a bracket.
+    const maxByRise = config.rise - depth / 2 - 2;
+    const maxByBar = config.holeSpacing / 2 - depth / 2 - 2;
+    const maxInner = Math.max(0, Math.min(maxByRise, maxByBar));
+    if (r > 0 && config.cornerRadius > maxInner) {
+      out.push(
+        error(
+          "corner_radius_large",
+          `Corner radius must stay under ${maxInner.toFixed(1)} mm for this rise and hole spacing, or the corners swallow the straight runs.`,
+          "cornerRadius",
+        ),
+      );
+    }
+  }
+
+  if (config.rise > depth && config.rise > config.holeSpacing) {
+    out.push(
+      warning(
+        "legs_tall",
+        "The legs are taller than the handle is wide; long legs flex under a pull and print with tall thin walls.",
+        "rise",
+      ),
+    );
+  }
+
+  if (
+    config.mount === "screws" &&
+    config.screwHoleDepth >= 5 &&
+    config.screwHoleDepth <= 40 &&
+    config.rise > depth &&
+    config.screwHoleDepth > config.rise - depth / 2
+  ) {
+    out.push(
+      error(
+        "screw_depth_into_bar",
+        `The pilot bore must end inside the leg, below the bar underside at ${(config.rise - depth / 2).toFixed(1)} mm.`,
+        "screwHoleDepth",
+      ),
+    );
   }
   return out;
 }
@@ -416,6 +492,9 @@ export function validatePullConfig(config: PullConfig): ValidationResult {
       break;
     case "arc":
       parts = validateArc(config);
+      break;
+    case "square":
+      parts = validateSquare(config);
       break;
   }
   if (config.mount === "screws") {
